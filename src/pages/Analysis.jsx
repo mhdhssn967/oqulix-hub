@@ -3,7 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   Users, ChevronLeft, ChevronRight, CheckSquare, User, Calendar, PieChart,
-  BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap
+  BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap, X
 } from 'lucide-react';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
@@ -35,6 +35,7 @@ export default function Analysis() {
 
   // Calendar
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [selectedDayData, setSelectedDayData] = useState(null);
 
   // ── Fetch data ────────────────────────────────────────
   useEffect(() => {
@@ -136,14 +137,23 @@ export default function Analysis() {
 
     const dayMap = {};
     filtered.forEach(item => {
-      const d = getItemDate(item);
-      if (d && d.startsWith(prefix)) {
-        const day = parseInt(d.slice(8, 10), 10);
-        if (!dayMap[day]) dayMap[day] = { leads: 0, adLeads: 0, distributors: 0, total: 0 };
-        if (item._type === 'lead') dayMap[day].leads++;
-        else if (item._type === 'adLead') dayMap[day].adLeads++;
-        else if (item._type === 'distributor') dayMap[day].distributors++;
+      const addedDate = getItemDate(item);
+      const followupDate = item.lastContactedAt || item.lastContacted || item.lastFollowedDate || null;
+      
+      if (addedDate && addedDate.startsWith(prefix)) {
+        const day = parseInt(addedDate.slice(8, 10), 10);
+        if (!dayMap[day]) dayMap[day] = { leads: 0, adLeads: 0, distributors: 0, followUps: 0, total: 0, itemsList: { leads: [], adLeads: [], distributors: [], followUps: [] } };
+        if (item._type === 'lead') { dayMap[day].leads++; dayMap[day].itemsList.leads.push(item); }
+        else if (item._type === 'adLead') { dayMap[day].adLeads++; dayMap[day].itemsList.adLeads.push(item); }
+        else if (item._type === 'distributor') { dayMap[day].distributors++; dayMap[day].itemsList.distributors.push(item); }
         dayMap[day].total++;
+      }
+      
+      if (followupDate && followupDate.startsWith(prefix)) {
+        const fDay = parseInt(followupDate.slice(8, 10), 10);
+        if (!dayMap[fDay]) dayMap[fDay] = { leads: 0, adLeads: 0, distributors: 0, followUps: 0, total: 0, itemsList: { leads: [], adLeads: [], distributors: [], followUps: [] } };
+        dayMap[fDay].followUps++;
+        dayMap[fDay].itemsList.followUps.push(item);
       }
     });
     return dayMap;
@@ -167,12 +177,14 @@ export default function Analysis() {
     let leads = 0;
     let adLeads = 0;
     let distributors = 0;
+    let followUps = 0;
     Object.values(calendarData).forEach(day => {
       leads += day.leads;
       adLeads += day.adLeads;
       distributors += day.distributors;
+      followUps += day.followUps || 0;
     });
-    return { leads, adLeads, distributors, total: leads + adLeads + distributors };
+    return { leads, adLeads, distributors, followUps, total: leads + adLeads + distributors };
   }, [calendarData]);
 
   const monthLabel = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -329,7 +341,7 @@ export default function Analysis() {
 
         {/* Calendar legend and totals */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 border-b border-zinc-100 bg-zinc-50/50">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span> Leads <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.leads}</span>
             </div>
@@ -338,6 +350,9 @@ export default function Analysis() {
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Distributors <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.distributors}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span> Follow-ups <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.followUps}</span>
             </div>
           </div>
           <div className="text-[11px] font-semibold text-zinc-600 bg-white px-2 py-1 rounded shadow-sm border border-zinc-200">
@@ -362,8 +377,16 @@ export default function Analysis() {
             return (
               <div
                 key={idx}
+                onClick={() => {
+                  if (day && data && (data.total > 0 || data.followUps > 0)) {
+                    setSelectedDayData({
+                      dateLabel: `${day} ${monthLabel}`,
+                      ...data
+                    });
+                  }
+                }}
                 className={`min-h-[80px] border-b border-r border-zinc-100 p-2 transition-colors ${
-                  day ? 'hover:bg-zinc-50/80 cursor-default' : 'bg-zinc-50/30'
+                  day ? (data && (data.total > 0 || data.followUps > 0) ? 'hover:bg-zinc-50/80 cursor-pointer' : 'cursor-default') : 'bg-zinc-50/30'
                 } ${today ? 'bg-blue-50/40' : ''}`}
               >
                 {day && (
@@ -390,6 +413,12 @@ export default function Analysis() {
                           <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-emerald-50/80 text-emerald-700">
                             <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
                             <span className="text-[9px] font-semibold">{data.distributors} Dist{data.distributors > 1 ? 's' : ''}</span>
+                          </div>
+                        )}
+                        {data.followUps > 0 && (
+                          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-amber-50/80 text-amber-700">
+                            <span className="w-1 h-1 rounded-full bg-amber-500"></span>
+                            <span className="text-[9px] font-semibold">{data.followUps} Follow-up{data.followUps > 1 ? 's' : ''}</span>
                           </div>
                         )}
                       </div>
@@ -457,6 +486,118 @@ export default function Analysis() {
           </div>
         </div>
       </div>
+
+      {/* ── Selected Day Modal ────────────────────────────── */}
+      {selectedDayData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-zinc-400" />
+                <h2 className="text-[16px] font-semibold text-zinc-900">{selectedDayData.dateLabel}</h2>
+              </div>
+              <button type="button" onClick={() => setSelectedDayData(null)} className="text-zinc-400 hover:text-black transition-colors bg-white hover:bg-zinc-100 p-1.5 rounded-lg border border-zinc-200">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-6">
+              {/* Follow Ups Section */}
+              {selectedDayData.itemsList.followUps.length > 0 && (
+                <div>
+                  <h3 className="text-[12px] font-bold text-amber-600 uppercase tracking-wider flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    Follow-ups ({selectedDayData.itemsList.followUps.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedDayData.itemsList.followUps.map((item, i) => (
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-amber-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <div>
+                          <div className="font-semibold text-[13px] text-zinc-900">{item.name || item.clientName || item.distributorName || 'N/A'}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5">Assigned to: {item.assignedToName || item.employeeName || 'N/A'}</div>
+                        </div>
+                        <div className="text-[11px] font-medium px-2 py-1 bg-zinc-100 text-zinc-600 rounded-md whitespace-nowrap self-start sm:self-auto">
+                          {item.currentStatus || 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Added Leads Section */}
+              {selectedDayData.itemsList.leads.length > 0 && (
+                <div>
+                  <h3 className="text-[12px] font-bold text-blue-600 uppercase tracking-wider flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    New Leads ({selectedDayData.itemsList.leads.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedDayData.itemsList.leads.map((item, i) => (
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-blue-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <div>
+                          <div className="font-semibold text-[13px] text-zinc-900">{item.name || item.clientName || 'N/A'}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
+                        </div>
+                        <div className="text-[11px] font-medium px-2 py-1 bg-zinc-100 text-zinc-600 rounded-md whitespace-nowrap self-start sm:self-auto">
+                          {item.currentStatus || 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Added Ad Leads Section */}
+              {selectedDayData.itemsList.adLeads.length > 0 && (
+                <div>
+                  <h3 className="text-[12px] font-bold text-purple-600 uppercase tracking-wider flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                    New Ad Leads ({selectedDayData.itemsList.adLeads.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedDayData.itemsList.adLeads.map((item, i) => (
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-purple-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <div>
+                          <div className="font-semibold text-[13px] text-zinc-900">{item.name || 'N/A'}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
+                        </div>
+                        <div className="text-[11px] font-medium px-2 py-1 bg-zinc-100 text-zinc-600 rounded-md whitespace-nowrap self-start sm:self-auto">
+                          {item.currentStatus || 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Added Distributors Section */}
+              {selectedDayData.itemsList.distributors.length > 0 && (
+                <div>
+                  <h3 className="text-[12px] font-bold text-emerald-600 uppercase tracking-wider flex items-center gap-2 mb-3">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    New Distributors ({selectedDayData.itemsList.distributors.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedDayData.itemsList.distributors.map((item, i) => (
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-emerald-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        <div>
+                          <div className="font-semibold text-[13px] text-zinc-900">{item.distributorName || 'N/A'}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
+                        </div>
+                        <div className="text-[11px] font-medium px-2 py-1 bg-zinc-100 text-zinc-600 rounded-md whitespace-nowrap self-start sm:self-auto">
+                          {item.currentStatus || 'N/A'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

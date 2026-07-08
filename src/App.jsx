@@ -19,16 +19,26 @@ import Employees from './pages/Employees';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
-  const { user, isAdmin } = useAuthStore();
+  const { user, isAdmin, isEmployee } = useAuthStore();
   
-  if (!user || !isAdmin) {
+  if (!user || (!isAdmin && !isEmployee)) {
     return <Navigate to="/login" replace />;
   }
   return children;
 };
 
+// Admin Only Route Wrapper
+const AdminRoute = ({ children }) => {
+  const { isAdmin } = useAuthStore();
+  
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 function App() {
-  const { loading, initAuth, user, isAdmin } = useAuthStore();
+  const { loading, initAuth, user, isAdmin, isEmployee } = useAuthStore();
 
   useEffect(() => {
     initAuth();
@@ -48,17 +58,17 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={user && isAdmin ? <Navigate to="/" replace /> : <Login />} />
+        <Route path="/login" element={user && (isAdmin || isEmployee) ? <Navigate to="/" replace /> : <Login />} />
         
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
-          <Route path="finance" element={<Finance />} />
+          <Route path="finance" element={<AdminRoute><Finance /></AdminRoute>} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="attendance" element={<Attendance />} />
-          <Route path="employees" element={<Employees />} />
+          <Route path="employees" element={<AdminRoute><Employees /></AdminRoute>} />
           <Route path="performance" element={<Performance />} />
           <Route path="clients" element={<Clients />} />
-          <Route path="analysis" element={<Analysis />} />
+          <Route path="analysis" element={<AdminRoute><Analysis /></AdminRoute>} />
           <Route path="documents" element={<Documents />} />
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />

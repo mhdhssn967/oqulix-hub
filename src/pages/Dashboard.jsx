@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { doc, getDoc, updateDoc, setDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useAuthStore } from '../store/authStore';
 
 const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) => {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const [distributors, setDistributors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
+  const { user, isAdmin, companyId, employeeData } = useAuthStore();
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -49,22 +51,161 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
+
+  // Add Lead Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingLeadId, setEditingLeadId] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    institutionName: '',
+    contactNo: '',
+    place: '',
+    leadType: 'Clinic',
+    customLeadType: '',
+    assignedToName: '',
+    priority: 'Medium',
+    followUpDate: '',
+    message: '',
+    remarks: ''
+  });
+
+  // Auto-fill assignedToName for employees when modal opens
+  useEffect(() => {
+    if (isModalOpen && !isAdmin && employeeData) {
+      setFormData(prev => ({ ...prev, assignedToName: employeeData.name }));
+    }
+  }, [isModalOpen, isAdmin, employeeData]);
+
+  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSaveLead = async (e) => {
+    e.preventDefault();
+    if (!companyId) return;
+    setIsSubmitting(true);
+    try {
+      const finalLeadType = formData.leadType === 'Other' ? formData.customLeadType : formData.leadType;
+      
+      const leadPayload = {
+        name: formData.name,
+        institutionName: formData.institutionName,
+        contactNo: formData.contactNo,
+        region: formData.place,
+        place: formData.place,
+        leadType: finalLeadType,
+        assignedToName: formData.assignedToName,
+        priority: formData.priority,
+        followUpDate: formData.followUpDate,
+        message: formData.message,
+        remarks: formData.remarks,
+        updatedAt: new Date()
+      };
+
+      const docRef = doc(db, 'userData', companyId, 'crmData', 'leads');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        let items = snap.data().items || [];
+        
+        if (editingLeadId) {
+          items = items.map(item => item.id === editingLeadId ? { ...item, ...leadPayload } : item);
+        } else {
+          const newLead = {
+            ...leadPayload,
+            id: doc(collection(db, 'temp')).id,
+            currentStatus: 'New Lead',
+            newLead: true,
+            employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+            addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+            userId: user.uid,
+            assignedToUid: user.uid,
+            date: new Date().toISOString().slice(0, 10),
+            createdAt: new Date(),
+          };
+          items = [newLead, ...items];
+        }
+        
+        await updateDoc(docRef, { items });
+        const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+        setRegularLeads(fetchedLeads);
+      }
+      
+      setIsModalOpen(false);
+      setEditingLeadId(null);
+      setFormData({ 
+        name: '', institutionName: '', contactNo: '', place: '', 
+        leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), 
+        priority: 'Medium', followUpDate: '', message: '', remarks: '' 
+      });
+    } catch (err) {
+      console.error("Error saving lead:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditModal = (lead) => {
+    setFormData({
+      name: lead.name || lead.clientName || '',
+      institutionName: lead.institutionName || '',
+      contactNo: lead.contactNo || '',
+      place: lead.place || lead.region || '',
+      leadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? lead.leadType : 'Other',
+      customLeadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? '' : (lead.leadType || ''),
+      assignedToName: lead.assignedToName || '',
+      priority: lead.priority || 'Medium',
+      followUpDate: lead.followUpDate || '',
+      message: lead.message || '',
+      remarks: lead.remarks || ''
+    });
+    setEditingLeadId(lead.id);
+    setSelectedLead(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteLead = async (lead) => {
+    if (!window.confirm("Are you sure you want to delete this record? This action cannot be undone.")) return;
+    
+    let collectionName = 'leads';
+    if (activeTab === 'ads') collectionName = 'adLeads';
+    if (activeTab === 'distributors') collectionName = 'distributors';
+    
+    try {
+      const docRef = doc(db, 'userData', companyId, 'crmData', collectionName);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const items = snap.data().items || [];
+        const newItems = items.filter(item => item.id !== lead.id);
+        await updateDoc(docRef, { items: newItems });
+        
+        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        if (activeTab === 'regular') setRegularLeads(fetchedItems);
+        if (activeTab === 'ads') setAdLeads(fetchedItems);
+        if (activeTab === 'distributors') setDistributors(fetchedItems);
+        
+        setSelectedLead(null);
+      }
+    } catch (err) {
+      console.error("Error deleting lead:", err);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
     setSearchQuery('');
     setStatusFilter('');
     setEmployeeFilter('');
+    setMonthFilter('');
   }, [activeTab]);
 
   useEffect(() => {
     const fetchCRMData = async () => {
+      if (!companyId) return;
       try {
-        const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
-        
-        const leadsDocRef = doc(db, 'userData', userId, 'crmData', 'leads');
-        const adLeadsDocRef = doc(db, 'userData', userId, 'crmData', 'adLeads');
-        const distributorsDocRef = doc(db, 'userData', userId, 'crmData', 'distributors');
+        const leadsDocRef = doc(db, 'userData', companyId, 'crmData', 'leads');
+        const adLeadsDocRef = doc(db, 'userData', companyId, 'crmData', 'adLeads');
+        const distributorsDocRef = doc(db, 'userData', companyId, 'crmData', 'distributors');
         
         const [leadsSnap, adLeadsSnap, distributorsSnap] = await Promise.all([
           getDoc(leadsDocRef),
@@ -72,9 +213,19 @@ export default function Dashboard() {
           getDoc(distributorsDocRef)
         ]);
         
-        if (leadsSnap.exists()) setRegularLeads(leadsSnap.data().items || []);
-        if (adLeadsSnap.exists()) setAdLeads(adLeadsSnap.data().items || []);
-        if (distributorsSnap.exists()) setDistributors(distributorsSnap.data().items || []);
+        let fetchedLeads = leadsSnap.exists() ? (leadsSnap.data().items || []) : [];
+        let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
+        let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
+
+        if (!isAdmin && user?.uid) {
+          fetchedLeads = fetchedLeads.filter(item => item.userId === user.uid);
+          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid);
+          fetchedDistributors = fetchedDistributors.filter(item => item.userId === user.uid);
+        }
+        
+        setRegularLeads(fetchedLeads);
+        setAdLeads(fetchedAdLeads);
+        setDistributors(fetchedDistributors);
         
       } catch (error) {
         console.error("Error fetching CRM data:", error);
@@ -84,7 +235,7 @@ export default function Dashboard() {
     };
     
     fetchCRMData();
-  }, []);
+  }, [companyId, isAdmin, user?.uid]);
 
   const getIconForKey = (key) => {
     const k = key.toLowerCase();
@@ -125,28 +276,53 @@ export default function Dashboard() {
 
   const currentData = activeTab === 'regular' ? regularLeads : activeTab === 'ads' ? adLeads : distributors;
 
-  const statusCounts = {};
-  currentData.forEach(item => {
-    const status = item.currentStatus || 'N/A';
-    statusCounts[status] = (statusCounts[status] || 0) + 1;
-  });
-  const uniqueStatuses = Object.keys(statusCounts).filter(Boolean).sort();
+  const uniqueStatuses = [...new Set(currentData.map(item => item.currentStatus || 'N/A'))].filter(Boolean).sort();
   const uniqueEmployees = [...new Set(currentData.map(item => item.employeeName || item.assignedToName || item.addedByName || 'N/A'))].filter(Boolean).sort();
+  const uniqueMonths = [...new Set(currentData.map(item => {
+    if (!item.date && !item.createdAt) return 'N/A';
+    const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
+    if (isNaN(itemDate)) return 'N/A';
+    return itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }))].filter(m => m !== 'N/A').sort((a, b) => new Date(b) - new Date(a));
 
-  const getFilteredData = (data) => {
+  const isIrregularPhone = (phone) => {
+    if (!phone) return true;
+    const digitsOnly = phone.toString().replace(/\D/g, '');
+    if (digitsOnly.length < 7) return true;
+    if (/^(\d)\1+$/.test(digitsOnly)) return true;
+    if ('01234567890123456789'.includes(digitsOnly) || '98765432109876543210'.includes(digitsOnly)) return true;
+    return false;
+  };
+
+  const getFilteredData = (data, ignoreStatus = false) => {
     return data.filter(item => {
       const searchString = Object.values(item).filter(v => typeof v !== 'object').join(' ').toLowerCase();
       const matchesSearch = searchQuery === '' || searchString.includes(searchQuery.toLowerCase());
       
       const status = item.currentStatus || 'N/A';
-      const matchesStatus = statusFilter === '' || status === statusFilter;
+      const matchesStatus = ignoreStatus || statusFilter === '' || status === statusFilter;
       
       const employee = item.employeeName || item.assignedToName || item.addedByName || 'N/A';
       const matchesEmployee = employeeFilter === '' || employee === employeeFilter;
       
-      return matchesSearch && matchesStatus && matchesEmployee;
+      const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
+      const monthStr = isNaN(itemDate) ? 'N/A' : itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+      const matchesMonth = monthFilter === '' || monthStr === monthFilter;
+      
+      const phone = item.contactNo || item.contactNumber || '';
+      const matchesIrregular = showIrregularPhonesOnly ? isIrregularPhone(phone) : true;
+      
+      return matchesSearch && matchesStatus && matchesEmployee && matchesMonth && matchesIrregular;
     });
   };
+
+  const dataFilteredByOtherThanStatus = getFilteredData(currentData, true);
+  
+  const statusCounts = {};
+  dataFilteredByOtherThanStatus.forEach(item => {
+    const status = item.currentStatus || 'N/A';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  });
 
   const filteredRegularLeads = getFilteredData(regularLeads);
   const filteredAdLeads = getFilteredData(adLeads);
@@ -160,7 +336,10 @@ export default function Dashboard() {
           <p className="text-[15px] text-zinc-500 mt-1.5">Manage your leads, ad campaigns, and distributors.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="bg-black hover:bg-zinc-900 text-white px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-[0_2px_10px_rgba(0,0,0,0.1)] flex items-center gap-2">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-black hover:bg-zinc-900 text-white px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-[0_2px_10px_rgba(0,0,0,0.1)] flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             Add Lead
           </button>
@@ -202,8 +381,18 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Status Pills */}
+      {/* Status Filter Pills */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
+        <button 
+          onClick={() => {
+            setStatusFilter('');
+            setCurrentPage(1);
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all bg-zinc-100 text-zinc-700 ${statusFilter === '' ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
+        >
+          All
+          <span className="bg-black/10 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{dataFilteredByOtherThanStatus.length}</span>
+        </button>
         {uniqueStatuses.map(status => (
           <button 
             key={status}
@@ -211,10 +400,10 @@ export default function Dashboard() {
               setStatusFilter(statusFilter === status ? '' : status);
               setCurrentPage(1);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${getStatusColor(status)} ${statusFilter === status ? 'ring-2 ring-offset-1 ring-black/20' : 'opacity-80 hover:opacity-100'}`}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${getStatusColor(status)} ${statusFilter === status ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
           >
             {status}
-            <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[status]}</span>
+            <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[status] || 0}</span>
           </button>
         ))}
       </div>
@@ -263,6 +452,32 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
+            <div className="relative w-full sm:w-48">
+              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <select 
+                value={monthFilter}
+                onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+              >
+                <option value="">All Months</option>
+                {uniqueMonths.map(month => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+            </div>
+            
+            <button
+              onClick={() => { setShowIrregularPhonesOnly(!showIrregularPhonesOnly); setCurrentPage(1); }}
+              className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
+                showIrregularPhonesOnly 
+                  ? 'bg-amber-100 border-amber-200 text-amber-800' 
+                  : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+              }`}
+              title="Show leads with short, repeating, or blank phone numbers"
+            >
+              <AlertCircle className="w-4 h-4" />
+              {showIrregularPhonesOnly ? 'Irregular Phones' : 'Irregular Phones'}
+            </button>
           </div>
         </div>
 
@@ -273,6 +488,7 @@ export default function Dashboard() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
+                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Added Date</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Client</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Place</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Person of Contact</th>
@@ -283,14 +499,18 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
+                {filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => {
+                  const leadDate = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
+                  const dateString = isNaN(leadDate) ? 'N/A' : leadDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                  return (
                   <tr 
                     key={lead.id} 
                     className="hover:bg-zinc-50/50 transition-colors cursor-pointer group"
                     onClick={() => setSelectedLead(lead)}
                   >
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                    <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || 'N/A'}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
+                    <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || lead.name || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.personOfContact || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.contactNo || 'N/A'}</td>
@@ -302,7 +522,8 @@ export default function Dashboard() {
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600 text-right">{lead.nextFollowUp || 'N/A'}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             <Pagination totalItems={filteredRegularLeads.length} currentPage={currentPage} setCurrentPage={setCurrentPage} itemsPerPage={itemsPerPage} />
@@ -462,12 +683,28 @@ export default function Dashboard() {
                   </p>
                 )}
               </div>
-              <button 
-                onClick={() => setSelectedLead(null)}
-                className="relative z-10 text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 relative z-10">
+                {activeTab === 'regular' && (
+                  <button 
+                    onClick={() => openEditModal(selectedLead)}
+                    className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full px-4 py-2 text-[12px] font-medium flex items-center gap-1.5"
+                  >
+                    Edit
+                  </button>
+                )}
+                <button 
+                  onClick={() => handleDeleteLead(selectedLead)}
+                  className="text-red-400 hover:text-white hover:bg-red-500/20 transition-colors bg-white/5 rounded-full px-4 py-2 text-[12px] font-medium flex items-center gap-1.5"
+                >
+                  Delete
+                </button>
+                <button 
+                  onClick={() => setSelectedLead(null)}
+                  className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 ml-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-6 sm:p-10 overflow-y-auto flex-1 bg-white">
@@ -498,6 +735,112 @@ export default function Dashboard() {
                   })}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Lead Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-100">
+              <h2 className="text-[15px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Lead' : 'Add New Regular Lead'}</h2>
+              <button type="button" onClick={() => {
+                if (!isSubmitting) {
+                  setIsModalOpen(false);
+                  setEditingLeadId(null);
+                  setFormData({ name: '', institutionName: '', contactNo: '', place: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), priority: 'Medium', followUpDate: '', message: '', remarks: '' });
+                }
+              }} className="text-zinc-400 hover:text-black transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveLead} className="p-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto no-scrollbar">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Contact Name</label>
+                  <input type="text" required name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter contact name" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Institution Name</label>
+                  <input type="text" name="institutionName" value={formData.institutionName} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter institution" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Contact Number</label>
+                  <input type="text" required name="contactNo" value={formData.contactNo} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter number" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Region / Place</label>
+                  <input type="text" required name="place" value={formData.place} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="City or State" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Lead Type</label>
+                  <select name="leadType" value={formData.leadType} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all text-zinc-700">
+                    <option value="Clinic">Clinic</option>
+                    <option value="Physiotherapist">Physiotherapist</option>
+                    <option value="Distributor">Distributor</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                {formData.leadType === 'Other' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Custom Lead Type</label>
+                    <input type="text" required name="customLeadType" value={formData.customLeadType} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Specify type" />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Assigned Employee</label>
+                  <input type="text" name="assignedToName" value={formData.assignedToName} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="e.g. Navaneeth" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Priority</label>
+                  <select name="priority" value={formData.priority} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all text-zinc-700">
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Follow-up Date</label>
+                <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Message / Lead Details</label>
+                <textarea name="message" value={formData.message} onChange={handleInputChange} rows="2" className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all resize-none" placeholder="Enter lead details..." />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Internal Remarks</label>
+                <textarea name="remarks" value={formData.remarks} onChange={handleInputChange} rows="2" className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all resize-none" placeholder="Add any internal notes..." />
+              </div>
+
+              <div className="flex gap-2 pt-2 mt-2 sticky bottom-0 bg-white">
+                <button type="button" onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingLeadId(null);
+                  setFormData({ name: '', institutionName: '', contactNo: '', place: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), priority: 'Medium', followUpDate: '', message: '', remarks: '' });
+                }} disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Save Lead')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

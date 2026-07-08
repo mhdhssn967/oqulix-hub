@@ -2,22 +2,24 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
-
-const navItems = [
-  { icon: LayoutDashboard, label: 'CRM', path: '/' },
-  { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
-  { icon: CreditCard, label: 'Finance', path: '/finance' },
-  { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
-  { icon: UserCheck, label: 'Attendance', path: '/attendance' },
-  { icon: UserCog, label: 'Employees', path: '/employees' },
-  { icon: TrendingUp, label: 'Performance', path: '/performance' },
-  { icon: Users, label: 'Clients', path: '/clients' },
-  { icon: FileText, label: 'Documents', path: '/documents' },
-];
+import { useAuthStore } from '../../store/authStore';
 
 export function Sidebar() {
   const isOpen = useUIStore((s) => s.isMobileMenuOpen);
   const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
+  const { isAdmin } = useAuthStore();
+
+  const navItems = [
+    { icon: LayoutDashboard, label: 'CRM', path: '/' },
+    ...(isAdmin ? [{ icon: BarChart2, label: 'CRM Analysis', path: '/analysis' }] : []),
+    ...(isAdmin ? [{ icon: CreditCard, label: 'Finance', path: '/finance' }] : []),
+    { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
+    { icon: UserCheck, label: 'Attendance', path: '/attendance' },
+    ...(isAdmin ? [{ icon: UserCog, label: 'Employees', path: '/employees' }] : []),
+    { icon: TrendingUp, label: 'Performance', path: '/performance' },
+    { icon: Users, label: 'Clients', path: '/clients' },
+    { icon: FileText, label: 'Documents', path: '/documents' },
+  ];
 
   return (
     <>

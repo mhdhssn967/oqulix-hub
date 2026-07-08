@@ -5,7 +5,20 @@ import { useAuthStore } from '../../store/authStore';
 
 export function Header() {
   const toggleMobileMenu = useUIStore((s) => s.toggleMobileMenu);
-  const { logout } = useAuthStore();
+  const { logout, isAdmin, employeeData } = useAuthStore();
+
+  const getInitials = (name) => {
+    if (!name) return 'OQ';
+    const parts = name.split(' ').filter(Boolean);
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const displayName = isAdmin ? 'Oqulix Admin' : (employeeData?.name || 'Employee');
+  const displayRole = isAdmin ? 'Super Admin' : (employeeData?.position || 'Team Member');
+  const displayInitials = isAdmin ? 'OQ' : getInitials(employeeData?.name);
 
   return (
     <header className="h-[72px] sticky top-0 z-20 backdrop-blur-xl bg-[#FBFBFB]/80 border-b border-zinc-200/60 flex items-center justify-between px-4 md:px-8">
@@ -35,11 +48,11 @@ export function Header() {
         <div className="h-6 w-[1px] bg-zinc-200 hidden sm:block"></div>
         <div className="flex items-center gap-3">
            <div className="w-8 h-8 md:w-9 md:h-9 bg-black text-white rounded-full flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-black/5">
-             OQ
+             {displayInitials}
            </div>
            <div className="text-left hidden sm:block">
-             <p className="text-[13px] font-semibold text-black leading-none">Oqulix Admin</p>
-             <p className="text-[11px] text-zinc-500 mt-1">Super Admin</p>
+             <p className="text-[13px] font-semibold text-black leading-none">{displayName}</p>
+             <p className="text-[11px] text-zinc-500 mt-1">{displayRole}</p>
            </div>
            <button 
              onClick={() => logout()}
