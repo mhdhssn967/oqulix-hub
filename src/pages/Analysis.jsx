@@ -162,6 +162,19 @@ export default function Analysis() {
     return cells;
   }, [calendarDate]);
 
+  // ── Monthly Totals ────────────────────────────────────
+  const monthlyTotals = useMemo(() => {
+    let leads = 0;
+    let adLeads = 0;
+    let distributors = 0;
+    Object.values(calendarData).forEach(day => {
+      leads += day.leads;
+      adLeads += day.adLeads;
+      distributors += day.distributors;
+    });
+    return { leads, adLeads, distributors, total: leads + adLeads + distributors };
+  }, [calendarData]);
+
   const monthLabel = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   const navigateMonth = (delta) => {
@@ -314,16 +327,21 @@ export default function Analysis() {
           </div>
         </div>
 
-        {/* Calendar legend */}
-        <div className="flex items-center gap-4 px-4 py-2.5 border-b border-zinc-100 bg-zinc-50/50">
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Leads
+        {/* Calendar legend and totals */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 border-b border-zinc-100 bg-zinc-50/50">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span> Leads <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.leads}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span> Ad Leads <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.adLeads}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Distributors <span className="text-zinc-900 font-bold ml-0.5">{monthlyTotals.distributors}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
-            <span className="w-2 h-2 rounded-full bg-purple-500"></span> Ad Leads
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Distributors
+          <div className="text-[11px] font-semibold text-zinc-600 bg-white px-2 py-1 rounded shadow-sm border border-zinc-200">
+            Monthly Total: <span className="text-black">{monthlyTotals.total}</span>
           </div>
         </div>
 
