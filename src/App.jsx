@@ -1,0 +1,71 @@
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AppLayout } from './components/layout/AppLayout';
+import { useAuthStore } from './store/authStore';
+
+// Import pages
+import Dashboard from './pages/Dashboard';
+import Finance from './pages/Finance';
+import Tasks from './pages/Tasks';
+import Attendance from './pages/Attendance';
+import Performance from './pages/Performance';
+import Clients from './pages/Clients';
+import Analysis from './pages/Analysis';
+import Documents from './pages/Documents';
+import OtherData from './pages/OtherData';
+import Settings from './pages/Settings';
+import Login from './pages/Login';
+import Employees from './pages/Employees';
+
+// Protected Route Wrapper
+const ProtectedRoute = ({ children }) => {
+  const { user, isAdmin } = useAuthStore();
+  
+  if (!user || !isAdmin) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+function App() {
+  const { loading, initAuth, user, isAdmin } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+          <div className="text-[13px] font-medium text-zinc-500">Checking credentials...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={user && isAdmin ? <Navigate to="/" replace /> : <Login />} />
+        
+        <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+          <Route index element={<Dashboard />} />
+          <Route path="finance" element={<Finance />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="attendance" element={<Attendance />} />
+          <Route path="employees" element={<Employees />} />
+          <Route path="performance" element={<Performance />} />
+          <Route path="clients" element={<Clients />} />
+          <Route path="analysis" element={<Analysis />} />
+          <Route path="documents" element={<Documents />} />
+          <Route path="other-data" element={<OtherData />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;

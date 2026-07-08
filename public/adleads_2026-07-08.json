@@ -1,0 +1,956 @@
+[
+  {
+    "id": "85wBRApWljhLYrcDGhFq",
+    "priority": "Medium",
+    "updatedAt": {
+      "seconds": 1780295248,
+      "nanoseconds": 871000000
+    },
+    "newLead": true,
+    "name": "Manager",
+    "message": "",
+    "remarks": "Ask  to product details",
+    "contactNumber": "06363242526",
+    "followUpDate": "",
+    "assignedToName": "Navaneeth K N",
+    "createdAt": {
+      "seconds": 1780295248,
+      "nanoseconds": 871000000
+    },
+    "currentStatus": "New",
+    "addedByName": "Admin",
+    "leadType": "Clinic",
+    "institutionName": "SAHASRA PHYSIO REHAB",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "region": "Telangana"
+  },
+  {
+    "id": "VOf2UN9P1Z5ydG3zzh9z",
+    "region": "Kerala",
+    "assignedToUid": "9xjBd3YTeKRiTkMjEBkcaHiUL3u2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "addedByName": "Admin",
+    "currentStatus": "New",
+    "createdAt": {
+      "seconds": 1775481485,
+      "nanoseconds": 786000000
+    },
+    "assignedToName": "Mohammed Hussain A ",
+    "followUpDate": "",
+    "contactNumber": "+917025707936",
+    "remarks": "",
+    "message": "",
+    "name": "test hussain",
+    "newLead": true,
+    "updatedAt": {
+      "seconds": 1775481485,
+      "nanoseconds": 786000000
+    },
+    "priority": "High"
+  },
+  {
+    "id": "OP7MnfVo3NzYsLLfCtEG",
+    "message": "",
+    "remarks": "",
+    "contactNumber": "+917025707936",
+    "newLead": true,
+    "updatedAt": {
+      "seconds": 1775481311,
+      "nanoseconds": 781000000
+    },
+    "name": "Test Client",
+    "priority": "High",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Physiotherapist",
+    "region": "Kerala",
+    "followUpDate": "",
+    "createdAt": {
+      "seconds": 1775481311,
+      "nanoseconds": 781000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "New",
+    "assignedToName": "Sakeer Shamsudheen"
+  },
+  {
+    "id": "wC8NNGk0ziMYPT72G6SO",
+    "region": "Mumbai",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "",
+    "leadType": "Distributor",
+    "currentStatus": "New",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1775481292,
+      "nanoseconds": 963000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "",
+    "contactNumber": "454665777",
+    "remarks": "",
+    "message": "",
+    "name": "Test name",
+    "updatedAt": {
+      "seconds": 1775481292,
+      "nanoseconds": 963000000
+    },
+    "newLead": true,
+    "priority": "High"
+  },
+  {
+    "id": "eSZ5vL5hlMFU6S96J0i7",
+    "followUpDate": "2026-04-07",
+    "currentStatus": "New",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1775459735,
+      "nanoseconds": 772000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "region": "Orissa",
+    "name": "Subhasish Kabi",
+    "updatedAt": {
+      "seconds": 1775459735,
+      "nanoseconds": 772000000
+    },
+    "newLead": true,
+    "priority": "Medium",
+    "message": "",
+    "contactNumber": "7789952736",
+    "remarks": "Physiotherapist From Odisha interested in our product"
+  },
+  {
+    "id": "Ensx3yctbdiLT34AskkQ",
+    "assignedToName": "Navaneeth K N",
+    "createdAt": {
+      "seconds": 1775368732,
+      "nanoseconds": 781000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "followUpDate": "2026-04-08",
+    "region": "Hyderabad",
+    "leadType": "Physiotherapist",
+    "institutionName": "LAXMINIVAS PHYSIOTHERPY REHABILITATION",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "priority": "Urgent",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775637897,
+      "nanoseconds": 923000000
+    },
+    "name": "Santhosh Reddy",
+    "remarks": "He called to ask about our product. Asked if we have sales team in hyderabad. If yes he needs to connect and want to purchase it now",
+    "contactNumber": "+91 99515 10645",
+    "message": ""
+  },
+  {
+    "id": "EOu4uiW5qIOOWgYIfJxD",
+    "remarks": "",
+    "contactNumber": "+91 93097 00599",
+    "message": " This is dr akash from physiqcian . I would like Kindly connect tomorrow at 11 am",
+    "updatedAt": {
+      "seconds": 1775479257,
+      "nanoseconds": 120000000
+    },
+    "newLead": false,
+    "name": "Dr Akash",
+    "priority": "High",
+    "region": "Mumbai",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Physiotherapist",
+    "createdAt": {
+      "seconds": 1775366512,
+      "nanoseconds": 283000000
+    },
+    "currentStatus": "Meeting Scheduled",
+    "addedByName": "Admin",
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "2026-04-05"
+  },
+  {
+    "id": "WFAAs50d4dF6tqTMn7uf",
+    "followUpDate": "2026-04-08",
+    "assignedToName": "Navaneeth K N",
+    "createdAt": {
+      "seconds": 1775365102,
+      "nanoseconds": 889000000
+    },
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "leadType": "Financial Advisor",
+    "institutionName": "",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "region": "Gujarat",
+    "priority": "High",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775637684,
+      "nanoseconds": 434000000
+    },
+    "name": "Bharghav",
+    "message": "I am from Bhuj Kachchh\nI am a financial advisor with a good network.Yes Partnership or Distributorship or like",
+    "remarks": "He is a financial advisor with a good network in medical field. Contact him to discuss potential possibilities",
+    "contactNumber": "+91 90334 00114"
+  },
+  {
+    "id": "3iH8g4oSxyBbEhs3evBf",
+    "region": "Delhi",
+    "leadType": "Distributor",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "International Electro Medicals",
+    "assignedToName": "Sakeer Shamsudheen",
+    "addedByName": "Admin",
+    "currentStatus": "Meeting Scheduled",
+    "createdAt": {
+      "seconds": 1775319704,
+      "nanoseconds": 445000000
+    },
+    "followUpDate": "2026-04-05",
+    "contactNumber": "9810209040",
+    "remarks": "Contact him tomorrow",
+    "message": "He is from an international distributor company",
+    "priority": "Urgent",
+    "name": "Gurpreet Singh",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775451574,
+      "nanoseconds": 450000000
+    }
+  },
+  {
+    "id": "f0HAIzQryFw7ODUS0sNy",
+    "priority": "Urgent",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775209484,
+      "nanoseconds": 510000000
+    },
+    "name": "RM",
+    "message": " I wanna take the distribution rights\n I'm working as wellness coach on International cruise line. Mediora\nJust started looking for brand distribution rights",
+    "remarks": "Distributor company based in Bangalore. Looking for reselling rights",
+    "contactNumber": "8951230228",
+    "followUpDate": "2026-04-04",
+    "assignedToName": "Navaneeth K N",
+    "createdAt": {
+      "seconds": 1775198176,
+      "nanoseconds": 55000000
+    },
+    "currentStatus": "New",
+    "addedByName": "Admin",
+    "leadType": "Distributor",
+    "institutionName": "Mediora",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "region": "Bangalore"
+  },
+  {
+    "id": "aky7kqEEHDl9XmMd6dGO",
+    "name": "SVP",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775209545,
+      "nanoseconds": 190000000
+    },
+    "priority": "Urgent",
+    "contactNumber": "7349645251",
+    "remarks": "Medicurate Surgical is a Bangalore-based medical distributor with high potential for our VR rehab product due to their focus on surgical and orthopedic instruments. Their local network in the Karnataka healthcare market makes them an ideal candidate to drive our regional expansion. Let's move quickly to assess their clinic partnerships and finalize the dealership terms.",
+    "message": "www.medicuaretsurgicals.com - looking for dealership in VR",
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "createdAt": {
+      "seconds": 1775197131,
+      "nanoseconds": 943000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "2026-04-06",
+    "region": "Bangalore",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "Medicurate Surgicals",
+    "leadType": "Distributor"
+  },
+  {
+    "id": "GR3bcKQTy35mhqa9o5hh",
+    "remarks": "Meeting at 4th April morning 10 am",
+    "contactNumber": "9871080711",
+    "message": "I work in hospital in Delhi and have my clinic in Gurgaon",
+    "priority": "Urgent",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775280101,
+      "nanoseconds": 731000000
+    },
+    "name": "Dr Neeru Dhir",
+    "region": "Delhi",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1775196778,
+      "nanoseconds": 8000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Demo Done",
+    "followUpDate": "2026-04-26"
+  },
+  {
+    "id": "rTLeUFZkXBjzS2dsMGIc",
+    "priority": "Medium",
+    "name": "Dr. Zyotirmay Sarangi",
+    "updatedAt": {
+      "seconds": 1775637359,
+      "nanoseconds": 787000000
+    },
+    "newLead": false,
+    "message": "Enquired Details",
+    "contactNumber": "9078675938",
+    "remarks": "",
+    "followUpDate": "2026-04-08",
+    "assignedToName": "Navaneeth K N",
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "createdAt": {
+      "seconds": 1775131496,
+      "nanoseconds": 511000000
+    },
+    "leadType": "Physiotherapist",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "",
+    "region": "Bubaneswar"
+  },
+  {
+    "id": "BZyn6yYz9ixaHkFcwjLH",
+    "name": "Dr Aditya Pandey ",
+    "updatedAt": {
+      "seconds": 1775025950,
+      "nanoseconds": 97000000
+    },
+    "newLead": false,
+    "priority": "Urgent",
+    "contactNumber": "7851065874",
+    "remarks": "Distributor based in Jaipur, Rajastan. ",
+    "message": "Dr Aditya Pandey \nHOD Physiotherapy \nPrimus hospital and Shri Narayan hospital this side\nI have 4 centres plus I am wholevseller of physiotherapy equipment\nI needing someone for VR based devices",
+    "addedByName": "Admin",
+    "currentStatus": "Meeting Scheduled",
+    "createdAt": {
+      "seconds": 1775023507,
+      "nanoseconds": 520000000
+    },
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "2026-04-01",
+    "region": "Rajasthan",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "Primus hospital and Shri Narayan hospital",
+    "leadType": "Distributor"
+  },
+  {
+    "id": "CHzbsIaXlu5VLh1XnTOb",
+    "region": "Mumbai",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Physiotherapist",
+    "createdAt": {
+      "seconds": 1775022907,
+      "nanoseconds": 511000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Meeting Scheduled",
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "",
+    "remarks": "She needa to know more about the product ",
+    "contactNumber": "7208294434",
+    "message": "I’m an occupational therapist \nRunning an OT & PT clinic",
+    "updatedAt": {
+      "seconds": 1775026510,
+      "nanoseconds": 874000000
+    },
+    "newLead": false,
+    "name": "Renitta Tejas Chande",
+    "priority": "High"
+  },
+  {
+    "id": "QoDMovj6P0zJu4WzM2Rt",
+    "institutionName": "",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "leadType": "Physiotherapist",
+    "region": "Karnataka",
+    "followUpDate": "2026-04-12",
+    "createdAt": {
+      "seconds": 1775008766,
+      "nanoseconds": 686000000
+    },
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "assignedToName": "Navaneeth K N",
+    "message": "I’m a physiotherapist,  I need to Coll. ,,\nWhere I can do marketing",
+    "remarks": "He is a physiotherapist from Kolar Karnataka. He wants to do marketing or redesell our product. Call him and ask what kind of collaboration he expects.",
+    "contactNumber": "9901174836",
+    "newLead": false,
+    "updatedAt": {
+      "seconds": 1775040555,
+      "nanoseconds": 589000000
+    },
+    "name": "Varun Amara V",
+    "priority": "Medium"
+  },
+  {
+    "id": "3cmiqJ23L8q38zKuHv81",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "Theo Medical services",
+    "leadType": "Distributor",
+    "region": "Chennai",
+    "followUpDate": "",
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "createdAt": {
+      "seconds": 1774943744,
+      "nanoseconds": 195000000
+    },
+    "assignedToName": "Sakeer Shamsudheen",
+    "message": "Hi we are the dealers of physiotherapy and rehabilitation products based at Chennai",
+    "contactNumber": "+91 81248 14696",
+    "remarks": "Distributor based in chennai. concat him",
+    "name": " N Selvaraj",
+    "newLead": true,
+    "updatedAt": {
+      "seconds": 1774945700,
+      "nanoseconds": 201000000
+    },
+    "priority": "High"
+  },
+  {
+    "id": "882LWjk4xBBvLLaommPl",
+    "region": "Gujarat",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "Kadji Rehab",
+    "leadType": "Hospital",
+    "addedByName": "Admin",
+    "currentStatus": "New",
+    "createdAt": {
+      "seconds": 1774943471,
+      "nanoseconds": 623000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "2026-03-31",
+    "contactNumber": "8866006442",
+    "remarks": "He have a hospital and a vr unit already he wants some discount and integrate to his existing VR wihtout hardware",
+    "message": "Price seems very high I have a VR  unit\n\nCan you integrate that?\n\nWith cost of software?",
+    "name": "N M Chavda",
+    "updatedAt": {
+      "seconds": 1775629957,
+      "nanoseconds": 17000000
+    },
+    "newLead": false,
+    "priority": "Urgent"
+  },
+  {
+    "id": "SO4gqtHAFUkUPE1UjYeP",
+    "addedByName": "Admin",
+    "currentStatus": "Meeting Scheduled",
+    "createdAt": {
+      "seconds": 1774939616,
+      "nanoseconds": 284000000
+    },
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "2026-03-31",
+    "region": "Chennai",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "Theo biomedicals",
+    "leadType": "Distributor",
+    "name": "N Selvaraj",
+    "updatedAt": {
+      "seconds": 1774941668,
+      "nanoseconds": 539000000
+    },
+    "priority": "High",
+    "contactNumber": "+91 81248 14696",
+    "remarks": "",
+    "message": "Hi we are the dealers of physiotherapy and rehabilitation products based at Chennai"
+  },
+  {
+    "id": "NBcyC9iu3TF8tOxyvCjm",
+    "message": "",
+    "contactNumber": "8075037201",
+    "remarks": "He has a clinic. he is from kannur and needs to know more about our product",
+    "priority": "High",
+    "name": "Dr. Sakhil Sajeendarn",
+    "updatedAt": {
+      "seconds": 1775626387,
+      "nanoseconds": 739000000
+    },
+    "leadType": "Physiotherapist",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "",
+    "region": "Kannur",
+    "followUpDate": "2026-04-08",
+    "assignedToName": "Navaneeth K N",
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1774936988,
+      "nanoseconds": 896000000
+    }
+  },
+  {
+    "id": "OWqDki9Qba2ZoUek3p8h",
+    "createdAt": {
+      "seconds": 1774885911,
+      "nanoseconds": 485000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "",
+    "region": "Mumbai",
+    "institutionName": "Cureplus Health Solutions",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Physiotherapist",
+    "updatedAt": {
+      "seconds": 1774931300,
+      "nanoseconds": 459000000
+    },
+    "name": "Dr Chetan",
+    "priority": "Medium",
+    "remarks": "",
+    "contactNumber": "8087505277",
+    "message": "Hello,\nMyself Dr. Chetan, I am a Physiotherapist by profession practicing for the past 8+ years.\n\nI have a Health Care brand by the Name\nCureplus Health Solutions.\nWe deal in Physiotherapy  & Rehab Equipment. We are based in near Mumbai"
+  },
+  {
+    "id": "v0AW5KyIYm1TnqsIHttM",
+    "updatedAt": {
+      "seconds": 1774931467,
+      "nanoseconds": 727000000
+    },
+    "name": "Sachin Goyal",
+    "priority": "Medium",
+    "remarks": "They are a startup who deals in physiotherapy and similar similar equipments. Contact them and see how we can collaborate",
+    "contactNumber": "+917733043246",
+    "message": "I’m Dr. Sachin Goyal, PT, PhD scholar, Academician, clinician  and CEO of NeuroSantulan Private Limited, Jaipur.\n\nI’m reaching out not as a traditional distributor, but as a clinical innovator. \n\nAt NeuroSantulan, we specialize in high-fidelity neuro-technology, focusing on stability and neuromuscular control. I also run the Auptimo Gait Lab, where we prioritize precision movement analysis.\n\nGiven my current research in Spastic CP and our focus on advanced neuro-rehab, I see a perfect synergy for HappyMoves here. I have the clinical infrastructure and the patient base to act as a strategic partner/center of excellence in Rajasthan.\nI'm ready to move forward—let’s discuss technical specs or a pilot launch to integrate VR into our neuro-protocols. We are a funded health-tech startup currently developing proprietary wearable sensors and prototypes for neuromuscular stability.",
+    "createdAt": {
+      "seconds": 1774885011,
+      "nanoseconds": 747000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "",
+    "region": "Jaipur",
+    "institutionName": "NeuroSantulan Private Limited",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Distributor"
+  },
+  {
+    "id": "ohs3T7myPma0RPQ2tpBh",
+    "region": "Chennai",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "currentStatus": "Meeting Scheduled",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1774884810,
+      "nanoseconds": 47000000
+    },
+    "assignedToName": "Sakeer Shamsudheen",
+    "followUpDate": "",
+    "contactNumber": "9360936100",
+    "remarks": "He needs to see a demo. Schedule one soon",
+    "message": "Am developing a senior assisted care center and am professional physiotherapist as well. I would like to see a demo.",
+    "name": "Raj",
+    "updatedAt": {
+      "seconds": 1774931625,
+      "nanoseconds": 390000000
+    },
+    "priority": "Medium"
+  },
+  {
+    "id": "kNqr7Xgj9dwGBwtxhK29",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "region": "Andhra Pradesh",
+    "followUpDate": "2026-03-31",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774884701,
+      "nanoseconds": 901000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "message": "",
+    "remarks": "Doctor from Andra interested in VR Rehab",
+    "contactNumber": "7330833964",
+    "priority": "Medium",
+    "updatedAt": {
+      "seconds": 1774932516,
+      "nanoseconds": 879000000
+    },
+    "name": "Unkown"
+  },
+  {
+    "id": "m9sDKxiSbWhvsOM6mYdw",
+    "message": "",
+    "remarks": "From Madagadipett",
+    "contactNumber": "9842884097",
+    "updatedAt": {
+      "seconds": 1774933102,
+      "nanoseconds": 719000000
+    },
+    "name": "Rajesh Kumar S",
+    "priority": "High",
+    "institutionName": "PhysioCare Rehab Center",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Physiotherapist",
+    "region": "Puduchery",
+    "followUpDate": "2026-03-31",
+    "createdAt": {
+      "seconds": 1774884632,
+      "nanoseconds": 497000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "assignedToName": "Sakeer Shamsudheen"
+  },
+  {
+    "id": "i7uxeGWuUeCN2t2yQ2lB",
+    "name": "Kadiervel. K",
+    "updatedAt": {
+      "seconds": 1774941193,
+      "nanoseconds": 706000000
+    },
+    "priority": "Medium",
+    "message": "",
+    "contactNumber": "7598215268",
+    "remarks": "Filled form",
+    "followUpDate": "",
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "createdAt": {
+      "seconds": 1774884542,
+      "nanoseconds": 578000000
+    },
+    "assignedToName": "Sakeer Shamsudheen",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "region": "Puducherry"
+  },
+  {
+    "id": "ZBXI7lfBeDizGGn1ZHHn",
+    "message": "Im a physiotherapist working in a hospital at chennai",
+    "contactNumber": "9843621153",
+    "remarks": "",
+    "name": "Dr. Kishore",
+    "updatedAt": {
+      "seconds": 1774945568,
+      "nanoseconds": 386000000
+    },
+    "priority": "Medium",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "region": "Chennai",
+    "followUpDate": "2026-03-30",
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "createdAt": {
+      "seconds": 1774884465,
+      "nanoseconds": 719000000
+    },
+    "assignedToName": "Sakeer Shamsudheen"
+  },
+  {
+    "id": "CEkN5QgzFYiBhoTMf3Xe",
+    "message": "I am tauseef Ahmad and I am a founder of ProMed Medical Equipments and we are fully into the physiotherapy and rehabilitation equipments since last 12 years and we cover almost entire part of the Maharashtra and specially Vidarbha and Marathwada, and we have set up many Neuro rehab centres in Maharashtra and we are looking for the virtual reality equipments that can be helpful for the haemolytic, patient and neuro patient and neuro popularisation. We would be happy to have your reply.",
+    "remarks": "A good distributor who handles across Maharashtra. Contact them urgently",
+    "contactNumber": "7020950673",
+    "priority": "Urgent",
+    "updatedAt": {
+      "seconds": 1774946312,
+      "nanoseconds": 829000000
+    },
+    "name": "Tauseeh Ahmad",
+    "leadType": "Distributor",
+    "institutionName": "ProMed Medical Equipments",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "region": "Maharashtra",
+    "followUpDate": "2026-03-30",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774884420,
+      "nanoseconds": 829000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted"
+  },
+  {
+    "id": "llxb0HIAewLFx5bCkCXj",
+    "remarks": "Filled form",
+    "contactNumber": "+916304055105",
+    "message": "",
+    "priority": "Medium",
+    "updatedAt": {
+      "seconds": 1774947630,
+      "nanoseconds": 142000000
+    },
+    "name": "Sahithi",
+    "region": "",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774884308,
+      "nanoseconds": 465000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "followUpDate": ""
+  },
+  {
+    "id": "pS3SICJEKad6ZZmN3w88",
+    "updatedAt": {
+      "seconds": 1774940176,
+      "nanoseconds": 840000000
+    },
+    "name": "Dr Dixit Vasani",
+    "priority": "Medium",
+    "remarks": "Physiotherapist from Ahmedabad interested in our product",
+    "contactNumber": "9426424236",
+    "message": "",
+    "createdAt": {
+      "seconds": 1774884252,
+      "nanoseconds": 563000000
+    },
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "2026-03-31",
+    "region": "Ahmedabad",
+    "institutionName": "",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "leadType": "Physiotherapist"
+  },
+  {
+    "id": "NxCwJgvmcYDck4sM75Ky",
+    "followUpDate": "2026-03-31",
+    "createdAt": {
+      "seconds": 1774884162,
+      "nanoseconds": 475000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Meeting Scheduled",
+    "assignedToName": "Sakeer Shamsudheen",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "leadType": "Distributor",
+    "region": "Malappuram",
+    "updatedAt": {
+      "seconds": 1774947196,
+      "nanoseconds": 821000000
+    },
+    "name": "Unknown name",
+    "priority": "Urgent",
+    "message": "We are option medicals we do physiotherapy exercise equipment supplying and department settings",
+    "remarks": "They are from Malapuram, Kottakkal. They deal with physiotherapy equipments and interested to distribute our product. Since they are from Kerala its highly potential. Contact them",
+    "contactNumber": "9061705515"
+  },
+  {
+    "id": "YiMWFCZE0WpBcwxvgUOf",
+    "followUpDate": "2026-03-31",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774884046,
+      "nanoseconds": 789000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "leadType": "Fitness Trainers",
+    "institutionName": "Universal Fitness Training Academy",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "region": "Assam",
+    "priority": "High",
+    "updatedAt": {
+      "seconds": 1774947965,
+      "nanoseconds": 443000000
+    },
+    "name": "Bibhu Moni Singa",
+    "message": "Let's collaborate for business. You can showcase your products at our facility. I can help promote your products at various government departments, higher institutions, High Performance centers through my network, workshop and seminars",
+    "remarks": "They are a member of International Fitness unit. They do much for physiotherapy in schools, institutions etc. Call them and ask what kind of collaboration they are expecting.",
+    "contactNumber": "+919864047046"
+  },
+  {
+    "id": "VIrpnEvBay35BXQkenLR",
+    "priority": "Urgent",
+    "updatedAt": {
+      "seconds": 1774948960,
+      "nanoseconds": 579000000
+    },
+    "name": "Dr Mustafa Murtuza",
+    "remarks": "He likes the product. Need more details about price and features",
+    "contactNumber": "9150285253",
+    "message": "Hi there I need to know more about it it's features and price. I am Dr Mustafa Physiotherapist from Chennai",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774883806,
+      "nanoseconds": 755000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "Contacted",
+    "followUpDate": "2026-03-30",
+    "region": "Chennai",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2"
+  },
+  {
+    "id": "q7UtOeUg3mtXm4pnnc7g",
+    "region": "Faridabad",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774883704,
+      "nanoseconds": 265000000
+    },
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "followUpDate": "",
+    "remarks": "They have a physiotherapy center is is searching for VR Rehab platforms",
+    "contactNumber": "8178908355",
+    "message": "",
+    "priority": "High",
+    "updatedAt": {
+      "seconds": 1774949292,
+      "nanoseconds": 994000000
+    },
+    "name": "Manjeet"
+  },
+  {
+    "id": "kzNyZQF9d51E2lxFi3T0",
+    "createdAt": {
+      "seconds": 1774883456,
+      "nanoseconds": 508000000
+    },
+    "addedByName": "Admin",
+    "currentStatus": "New",
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "2026-04-08",
+    "region": "Meghalaya",
+    "institutionName": "",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "leadType": "Clinic",
+    "updatedAt": {
+      "seconds": 1775627241,
+      "nanoseconds": 381000000
+    },
+    "name": "Brandon Adam Marbaniang",
+    "priority": "Medium",
+    "remarks": "They are from a clinic & is actively looking for VR therapy",
+    "contactNumber": "8256942744",
+    "message": ""
+  },
+  {
+    "id": "E8ZHX6rrgzqTsCiHzwzf",
+    "name": "Dr. Manoj Repaswal",
+    "updatedAt": {
+      "seconds": 1775636153,
+      "nanoseconds": 277000000
+    },
+    "priority": "Medium",
+    "message": "",
+    "contactNumber": "9978921180",
+    "remarks": "He told he will think after sending all the details. I have send him the details. You can follow up now",
+    "followUpDate": "2026-04-08",
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1774883196,
+      "nanoseconds": 351000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "",
+    "leadType": "Physiotherapist",
+    "region": "Gujarat"
+  },
+  {
+    "id": "yA6O1816PdVC3jBcR3St",
+    "region": "Chennai",
+    "leadType": "Physiotherapist",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "institutionName": "",
+    "assignedToName": "Sakeer Shamsudheen",
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "createdAt": {
+      "seconds": 1774883093,
+      "nanoseconds": 524000000
+    },
+    "followUpDate": "",
+    "contactNumber": "8891618881",
+    "remarks": "He said he needs VR therapy for his clinic",
+    "message": "",
+    "priority": "High",
+    "name": "Dr. Anas",
+    "updatedAt": {
+      "seconds": 1774949590,
+      "nanoseconds": 822000000
+    }
+  },
+  {
+    "id": "d7P9jvNnBx7yuFRJwBlM",
+    "contactNumber": "9725033691",
+    "remarks": "He inquired about our product. He is a physiotherapist.",
+    "message": "",
+    "name": "Dr Jatin Patel",
+    "updatedAt": {
+      "seconds": 1775627618,
+      "nanoseconds": 283000000
+    },
+    "priority": "Low",
+    "region": "Gujarat",
+    "assignedToUid": "MQxxoO20V3cFnZf9IFZZARq1SYZ2",
+    "institutionName": "\"Rays of Hope Super Speciality Physiotherapy Clinic",
+    "leadType": "Physiotherapist",
+    "addedByName": "Admin",
+    "currentStatus": "New",
+    "createdAt": {
+      "seconds": 1774882994,
+      "nanoseconds": 790000000
+    },
+    "assignedToName": "Navaneeth K N",
+    "followUpDate": "2026-04-08"
+  },
+  {
+    "id": "dr7TdLJorJ3QiDko2nxt",
+    "remarks": "He just inquired about the product. He is a physiotherapist. Call him",
+    "contactNumber": "+91 73308 33964",
+    "message": "",
+    "priority": "Medium",
+    "updatedAt": {
+      "seconds": 1774949690,
+      "nanoseconds": 423000000
+    },
+    "name": "Rasamsetty Chandrakaladar",
+    "region": "Andhra Pradesh",
+    "leadType": "Physiotherapist",
+    "institutionName": "",
+    "assignedToUid": "ZwvDE1Rb5QXtg64xlAcFcR1P3KH2",
+    "assignedToName": "Sakeer Shamsudheen",
+    "createdAt": {
+      "seconds": 1774796273,
+      "nanoseconds": 742000000
+    },
+    "currentStatus": "Contacted",
+    "addedByName": "Admin",
+    "followUpDate": ""
+  }
+]
