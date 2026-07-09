@@ -7,6 +7,7 @@ export const useAuthStore = create((set) => ({
   user: null,
   isAdmin: false,
   isEmployee: false,
+  isManager: false,
   companyId: null,
   loading: true,
 
@@ -24,9 +25,11 @@ export const useAuthStore = create((set) => ({
             const empDoc = await getDoc(doc(db, 'employees', user.uid));
             if (empDoc.exists()) {
               const empData = empDoc.data();
-              set({ user, isAdmin: false, isEmployee: true, employeeData: empData, companyId: empData.companyid, loading: false });
+              const managerDoc = await getDoc(doc(db, 'manager', user.uid));
+              const isManager = managerDoc.exists();
+              set({ user, isAdmin: false, isEmployee: true, isManager, employeeData: empData, companyId: empData.companyid, loading: false });
             } else {
-              set({ user: null, isAdmin: false, isEmployee: false, companyId: null, loading: false });
+              set({ user: null, isAdmin: false, isEmployee: false, isManager: false, companyId: null, loading: false });
             }
           }
         } catch (error) {

@@ -23,14 +23,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function checkEmp() {
-  const docRef = doc(db, 'employees', '2K5X44krNabacvlJFgpvsVpDQHi1');
-  const docSnap = await getDoc(docRef);
-  if (docSnap.exists()) {
-    console.log('Employee exists:', docSnap.data());
-  } else {
-    console.log('No such employee!');
-  }
+async function checkManager() {
+  const snap = await getDocs(collection(db, 'manager'));
+  snap.forEach(doc => {
+    console.log(doc.id, '=>', doc.data());
+  });
+  console.log("Done");
   process.exit(0);
 }
-checkEmp();
+checkManager();

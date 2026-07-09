@@ -3,8 +3,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   Users, ChevronLeft, ChevronRight, CheckSquare, User, Calendar, PieChart,
-  BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap, X
+  BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap, X, Download
 } from 'lucide-react';
+import ReportGenerator from '../components/crm/ReportGenerator';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
 const getItemDate = (item) => {
@@ -32,6 +33,7 @@ export default function Analysis() {
   const [showAdLeads, setShowAdLeads] = useState(true);
   const [showDistributors, setShowDistributors] = useState(true);
   const [employeeFilter, setEmployeeFilter] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Calendar
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -228,6 +230,13 @@ export default function Analysis() {
           <h1 className="text-3xl font-semibold text-black tracking-tight">CRM Analysis</h1>
           <p className="text-[15px] text-zinc-500 mt-1.5">Comprehensive performance insights across all pipelines.</p>
         </div>
+        <button 
+          onClick={() => setIsReportModalOpen(true)}
+          className="bg-black text-white px-5 py-2.5 rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-all shadow-lg shadow-black/10 flex items-center gap-2 whitespace-nowrap"
+        >
+          <Download className="w-4 h-4" />
+          Export Report
+        </button>
       </header>
 
       {/* ── Filters Bar ────────────────────────────────── */}
@@ -598,6 +607,14 @@ export default function Analysis() {
           </div>
         </div>
       )}
+
+      {/* ── Report Generator Overlay ────────────────────────────── */}
+      <ReportGenerator 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        allData={{ leads: regularLeads, adLeads: adLeads, distributors: distributors }} 
+        allEmployees={allEmployees} 
+      />
     </div>
   );
 }

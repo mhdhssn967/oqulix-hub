@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { doc, getDoc, updateDoc, setDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, updateDoc, setDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
+import Swal from 'sweetalert2';
 
 const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) => {
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -43,7 +44,10 @@ export default function Dashboard() {
   const [distributors, setDistributors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
-  const { user, isAdmin, companyId, employeeData } = useAuthStore();
+  const [quickUpdateLead, setQuickUpdateLead] = useState(null);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [updateRemarks, setUpdateRemarks] = useState('');
+  const { user, isAdmin, isManager, companyId, employeeData } = useAuthStore();
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -56,30 +60,71 @@ export default function Dashboard() {
 
   // Add Lead Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdLeadModalOpen, setIsAdLeadModalOpen] = useState(false);
+  const [isDistributorModalOpen, setIsDistributorModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
+  const [allEmployees, setAllEmployees] = useState([]);
   const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
     name: '',
-    institutionName: '',
-    contactNo: '',
+    clientName: '',
+    priority: '',
     place: '',
+    country: '',
+    personOfContact: '',
+    pocDesignation: '',
+    contactNo: '',
+    personOfContact2: '',
+    contactNo2: '',
+    referralPerson: '',
+    email: '',
+    currentStatus: 'New Lead',
+    fPrice: '',
+    lPrice: '',
+    lastContacted: '',
+    nextFollowUp: '',
+    remarks: '',
     leadType: 'Clinic',
     customLeadType: '',
     assignedToName: '',
+    message: ''
+  });
+
+  const [adLeadFormData, setAdLeadFormData] = useState({
+    name: '',
+    institutionName: '',
+    contactNumber: '',
+    region: '',
+    leadType: '',
+    customLeadType: '',
     priority: 'Medium',
+    remarks: '',
     followUpDate: '',
-    message: '',
-    remarks: ''
+    assignedToUid: '',
+    assignedToName: '',
+    message: ''
+  });
+
+  const [distributorFormData, setDistributorFormData] = useState({
+    distributorName: '', state: '', region: '', exclusive: '',
+    teamSize: '', contactPersonName: '', contactNumber: '', email: '',
+    address: '', gstNumber: '', establishedYear: '',
+    currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '',
+    productLinesHandled: '', territoryDescription: '', remarks: '',
   });
 
   // Auto-fill assignedToName for employees when modal opens
   useEffect(() => {
-    if (isModalOpen && !isAdmin && employeeData) {
+    if ((isModalOpen || isAdLeadModalOpen || isDistributorModalOpen) && (!isAdmin && !isManager) && employeeData) {
       setFormData(prev => ({ ...prev, assignedToName: employeeData.name }));
+      setAdLeadFormData(prev => ({ ...prev, assignedToName: employeeData.name, assignedToUid: user.uid }));
     }
-  }, [isModalOpen, isAdmin, employeeData]);
+  }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, employeeData, user]);
 
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleAdLeadInputChange = (e) => setAdLeadFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleDistributorInputChange = (e) => setDistributorFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleSaveLead = async (e) => {
     e.preventDefault();
@@ -89,17 +134,29 @@ export default function Dashboard() {
       const finalLeadType = formData.leadType === 'Other' ? formData.customLeadType : formData.leadType;
       
       const leadPayload = {
-        name: formData.name,
-        institutionName: formData.institutionName,
-        contactNo: formData.contactNo,
-        region: formData.place,
+        date: formData.date,
+        name: formData.clientName || formData.name,
+        clientName: formData.clientName || formData.name,
+        priority: formData.priority,
         place: formData.place,
+        region: formData.place,
+        country: formData.country,
+        personOfContact: formData.personOfContact,
+        pocDesignation: formData.pocDesignation,
+        contactNo: formData.contactNo,
+        personOfContact2: formData.personOfContact2,
+        contactNo2: formData.contactNo2,
+        referralPerson: formData.referralPerson,
+        email: formData.email,
+        currentStatus: formData.currentStatus,
+        fPrice: formData.fPrice,
+        lPrice: formData.lPrice,
+        lastContacted: formData.lastContacted,
+        nextFollowUp: formData.nextFollowUp,
+        remarks: formData.remarks,
         leadType: finalLeadType,
         assignedToName: formData.assignedToName,
-        priority: formData.priority,
-        followUpDate: formData.followUpDate,
         message: formData.message,
-        remarks: formData.remarks,
         updatedAt: new Date()
       };
 
@@ -134,9 +191,11 @@ export default function Dashboard() {
       setIsModalOpen(false);
       setEditingLeadId(null);
       setFormData({ 
-        name: '', institutionName: '', contactNo: '', place: '', 
-        leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), 
-        priority: 'Medium', followUpDate: '', message: '', remarks: '' 
+        date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', 
+        personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', 
+        referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', 
+        lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', 
+        assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' 
       });
     } catch (err) {
       console.error("Error saving lead:", err);
@@ -145,27 +204,239 @@ export default function Dashboard() {
     }
   };
 
+  const handleSaveAdLead = async (e) => {
+    e.preventDefault();
+    if (!companyId) return;
+    
+    if (!adLeadFormData.name.trim() || !adLeadFormData.contactNumber.trim() || !adLeadFormData.leadType) {
+      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Name, Contact Number and Lead Type are required." });
+      return;
+    }
+    if (!adLeadFormData.assignedToUid && isAdmin) {
+      Swal.fire({ icon: "warning", title: "Please assign this lead to an employee." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const finalLeadType = adLeadFormData.leadType === 'Other' ? adLeadFormData.customLeadType : adLeadFormData.leadType;
+      
+      const payload = {
+        name: adLeadFormData.name,
+        institutionName: adLeadFormData.institutionName,
+        contactNumber: adLeadFormData.contactNumber,
+        contactNo: adLeadFormData.contactNumber, // for consistency
+        region: adLeadFormData.region,
+        leadType: finalLeadType,
+        priority: adLeadFormData.priority,
+        remarks: adLeadFormData.remarks,
+        followUpDate: adLeadFormData.followUpDate,
+        assignedToUid: (isAdmin || isManager) ? adLeadFormData.assignedToUid : user.uid,
+        assignedToName: (isAdmin || isManager) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
+        message: adLeadFormData.message,
+        updatedAt: new Date(),
+        currentStatus: 'New Lead'
+      };
+
+      const docRef = doc(db, 'userData', companyId, 'crmData', 'adLeads');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        let items = snap.data().items || [];
+        if (editingLeadId) {
+          items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
+        } else {
+          const newLead = {
+            ...payload,
+            id: doc(collection(db, 'temp')).id,
+            newLead: true,
+            employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+            addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+            userId: (isAdmin || isManager) ? payload.assignedToUid : user.uid,
+            date: new Date().toISOString().slice(0, 10),
+            createdAt: new Date(),
+          };
+          items = [newLead, ...items];
+        }
+        await updateDoc(docRef, { items });
+        const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+        setAdLeads(fetchedLeads);
+      }
+      
+      setIsAdLeadModalOpen(false);
+      setEditingLeadId(null);
+      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+      
+      Swal.fire({
+        title: editingLeadId ? 'Updated!' : 'Added!',
+        text: editingLeadId ? 'Ad lead updated successfully.' : 'Ad lead added successfully.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error saving ad lead:", err);
+      Swal.fire({ title: 'Error', text: 'Failed to save ad lead', icon: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveDistributor = async (e) => {
+    e.preventDefault();
+    if (!companyId) return;
+
+    if (!distributorFormData.distributorName || !distributorFormData.contactNumber || !distributorFormData.state) {
+      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Distributor Name, State and Contact Number are required." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        ...distributorFormData,
+        name: distributorFormData.distributorName,
+        clientName: distributorFormData.distributorName,
+        updatedAt: new Date()
+      };
+
+      const docRef = doc(db, 'userData', companyId, 'crmData', 'distributors');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        let items = snap.data().items || [];
+        if (editingLeadId) {
+          items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
+        } else {
+          const newDistributor = {
+            ...payload,
+            id: doc(collection(db, 'temp')).id,
+            newLead: true,
+            employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+            addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+            userId: user.uid,
+            date: new Date().toISOString().slice(0, 10),
+            createdAt: new Date(),
+          };
+          items = [newDistributor, ...items];
+        }
+        await updateDoc(docRef, { items });
+        const fetchedDistributors = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+        setDistributors(fetchedDistributors);
+      }
+
+      setIsDistributorModalOpen(false);
+      setEditingLeadId(null);
+      setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
+      
+      Swal.fire({
+        title: editingLeadId ? 'Updated!' : 'Added!',
+        text: editingLeadId ? 'Distributor updated successfully.' : 'Distributor added successfully.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error saving distributor:", err);
+      Swal.fire({ title: 'Error', text: 'Failed to save distributor', icon: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const openEditModal = (lead) => {
-    setFormData({
-      name: lead.name || lead.clientName || '',
-      institutionName: lead.institutionName || '',
-      contactNo: lead.contactNo || '',
+    if (activeTab === 'ads') {
+      setAdLeadFormData({
+        name: lead.name || '',
+        institutionName: lead.institutionName || '',
+        contactNumber: lead.contactNumber || lead.contactNo || '',
+        region: lead.region || lead.place || '',
+        leadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? lead.leadType : 'Other',
+        customLeadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? '' : (lead.leadType || ''),
+        priority: lead.priority || 'Medium',
+        remarks: lead.remarks || '',
+        followUpDate: lead.followUpDate || lead.nextFollowUp || '',
+        assignedToUid: lead.assignedToUid || '',
+        assignedToName: lead.assignedToName || '',
+        message: lead.message || ''
+      });
+      setEditingLeadId(lead.id);
+      setSelectedLead(null);
+      setIsAdLeadModalOpen(true);
+    } else if (activeTab === 'distributors') {
+      setDistributorFormData({
+        distributorName: lead.distributorName || lead.name || lead.clientName || '',
+        state: lead.state || '',
+        region: lead.region || lead.place || '',
+        exclusive: lead.exclusive || '',
+        teamSize: lead.teamSize || '',
+        contactPersonName: lead.contactPersonName || lead.personOfContact || '',
+        contactNumber: lead.contactNumber || lead.contactNo || '',
+        email: lead.email || '',
+        address: lead.address || '',
+        gstNumber: lead.gstNumber || '',
+        establishedYear: lead.establishedYear || '',
+        currentStatus: lead.currentStatus || 'Contacted',
+        lastMeetingDate: lead.lastMeetingDate || '',
+        nextFollowUp: lead.nextFollowUp || lead.followUpDate || '',
+        productLinesHandled: lead.productLinesHandled || '',
+        territoryDescription: lead.territoryDescription || '',
+        remarks: lead.remarks || ''
+      });
+      setEditingLeadId(lead.id);
+      setSelectedLead(null);
+      setIsDistributorModalOpen(true);
+    } else {
+      setFormData({
+        date: lead.date || new Date().toISOString().split('T')[0],
+        name: lead.name || lead.clientName || '',
+      clientName: lead.clientName || lead.name || '',
+      priority: lead.priority || '',
       place: lead.place || lead.region || '',
+      country: lead.country || '',
+      personOfContact: lead.personOfContact || '',
+      pocDesignation: lead.pocDesignation || '',
+      contactNo: lead.contactNo || '',
+      personOfContact2: lead.personOfContact2 || '',
+      contactNo2: lead.contactNo2 || '',
+      referralPerson: lead.referralPerson || '',
+      email: lead.email || '',
+      currentStatus: lead.currentStatus || 'New Lead',
+      fPrice: lead.fPrice || '',
+      lPrice: lead.lPrice || '',
+      lastContacted: lead.lastContacted || '',
+      nextFollowUp: lead.nextFollowUp || lead.followUpDate || '',
+      remarks: lead.remarks || '',
       leadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? lead.leadType : 'Other',
       customLeadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? '' : (lead.leadType || ''),
       assignedToName: lead.assignedToName || '',
-      priority: lead.priority || 'Medium',
-      followUpDate: lead.followUpDate || '',
-      message: lead.message || '',
-      remarks: lead.remarks || ''
+      message: lead.message || ''
     });
     setEditingLeadId(lead.id);
     setSelectedLead(null);
     setIsModalOpen(true);
+    }
   };
 
   const handleDeleteLead = async (lead) => {
-    if (!window.confirm("Are you sure you want to delete this record? This action cannot be undone.")) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this! This record will be permanently deleted.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#3f3f46',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Deleting...',
+      text: 'Please wait while the record is being deleted.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
     
     let collectionName = 'leads';
     if (activeTab === 'ads') collectionName = 'adLeads';
@@ -185,9 +456,68 @@ export default function Dashboard() {
         if (activeTab === 'distributors') setDistributors(fetchedItems);
         
         setSelectedLead(null);
+        Swal.fire({
+          title: 'Deleted!',
+          text: 'The lead has been permanently deleted.',
+          icon: 'success',
+          timer: 1500,
+          showConfirmButton: false
+        });
       }
     } catch (err) {
       console.error("Error deleting lead:", err);
+      Swal.fire({
+        title: 'Error!',
+        text: 'Failed to delete the lead.',
+        icon: 'error'
+      });
+    }
+  };
+
+  const handleQuickUpdate = async (e) => {
+    e.preventDefault();
+    if (!companyId || !quickUpdateLead) return;
+    setIsSubmitting(true);
+    
+    let collectionName = 'leads';
+    if (activeTab === 'ads') collectionName = 'adLeads';
+    if (activeTab === 'distributors') collectionName = 'distributors';
+
+    try {
+      const docRef = doc(db, 'userData', companyId, 'crmData', collectionName);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const items = snap.data().items || [];
+        const newItems = items.map(item => {
+          if (item.id === quickUpdateLead.id) {
+            const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
+            const newRemarks = remarkAddition 
+              ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
+              : item.remarks;
+              
+            return {
+              ...item,
+              currentStatus: updateStatus,
+              remarks: newRemarks,
+              lastContacted: new Date().toISOString().split('T')[0]
+            };
+          }
+          return item;
+        });
+        
+        await updateDoc(docRef, { items: newItems });
+        
+        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        if (activeTab === 'regular') setRegularLeads(fetchedItems);
+        if (activeTab === 'ads') setAdLeads(fetchedItems);
+        if (activeTab === 'distributors') setDistributors(fetchedItems);
+      }
+      setQuickUpdateLead(null);
+    } catch (err) {
+      console.error("Error updating status:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -206,13 +536,18 @@ export default function Dashboard() {
         const leadsDocRef = doc(db, 'userData', companyId, 'crmData', 'leads');
         const adLeadsDocRef = doc(db, 'userData', companyId, 'crmData', 'adLeads');
         const distributorsDocRef = doc(db, 'userData', companyId, 'crmData', 'distributors');
+        const empsColRef = collection(db, 'userData', companyId, 'employees');
         
-        const [leadsSnap, adLeadsSnap, distributorsSnap] = await Promise.all([
+        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap] = await Promise.all([
           getDoc(leadsDocRef),
           getDoc(adLeadsDocRef),
-          getDoc(distributorsDocRef)
+          getDoc(distributorsDocRef),
+          getDocs(empsColRef)
         ]);
         
+        const empsList = empsSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
+        setAllEmployees(empsList);
+
         let fetchedLeads = leadsSnap.exists() ? (leadsSnap.data().items || []) : [];
         let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
         let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
@@ -337,11 +672,23 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setEditingLeadId(null);
+              if (activeTab === 'ads') {
+                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                setIsAdLeadModalOpen(true);
+              } else if (activeTab === 'distributors') {
+                setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
+                setIsDistributorModalOpen(true);
+              } else {
+                setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
+                setIsModalOpen(true);
+              }
+            }}
             className="bg-black hover:bg-zinc-900 text-white px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-[0_2px_10px_rgba(0,0,0,0.1)] flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add Lead
+            {activeTab === 'ads' ? 'Add Ad Lead' : activeTab === 'distributors' ? 'Add Distributor' : 'Add Regular Lead'}
           </button>
         </div>
       </header>
@@ -506,7 +853,7 @@ export default function Dashboard() {
                   <tr 
                     key={lead.id} 
                     className="hover:bg-zinc-50/50 transition-colors cursor-pointer group"
-                    onClick={() => setSelectedLead(lead)}
+                    onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
                   >
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
@@ -546,7 +893,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
-                  <tr key={lead.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => setSelectedLead(lead)}>
+                  <tr key={lead.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
@@ -612,7 +959,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
-                  <tr key={dist.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => setSelectedLead(dist)}>
+                  <tr key={dist.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
@@ -655,6 +1002,89 @@ export default function Dashboard() {
       </div>
         </>
       )}
+      {quickUpdateLead && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setQuickUpdateLead(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden">
+               <div className="relative z-10">
+                 <h2 className="text-xl font-bold text-white tracking-tight">Quick Update</h2>
+                 <p className="text-zinc-400 text-sm mt-1">{quickUpdateLead.clientName || quickUpdateLead.name || quickUpdateLead.distributorName || 'Lead'}</p>
+               </div>
+               <button onClick={() => setQuickUpdateLead(null)} className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 z-20">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            
+            <form onSubmit={handleQuickUpdate} className="p-6 flex flex-col gap-4">
+              <div>
+                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Update Status</label>
+                <select 
+                  value={updateStatus} 
+                  onChange={(e) => setUpdateStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
+                >
+                  {activeTab === 'distributors' ? (
+                    <>
+                      <option value="Haven't yet contacted">Haven't yet contacted</option>
+                      <option value="Called, no response">Called, no response</option>
+                      <option value="Contacted and discussed via phone">Contacted and discussed via phone</option>
+                      <option value="Online demo done">Online demo done</option>
+                      <option value="Live demo done">Live demo done</option>
+                      <option value="Hospital presentation done">Hospital presentation done</option>
+                      <option value="Agreement Sent & awaiting response">Agreement Sent & waiting</option>
+                      <option value="Agreement Signed">Agreement Signed</option>
+                      <option value="Purchased Demo Piece">Purchased Demo Piece</option>
+                      <option value="Doing Sales">Doing Sales</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Terminated">Terminated</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="New Lead">New Lead</option>
+                      <option value="Contacted">Contacted</option>
+                      <option value="Interested">Interested</option>
+                      <option value="Follow up needed">Follow-Up Needed</option>
+                      <option value="Quotation Sent">Quotation Sent</option>
+                      <option value="Awaiting Decision">Awaiting Decision</option>
+                      <option value="Token Recieved">Token Recieved</option>
+                      <option value="Deal Closed">Converted (Deal Won)</option>
+                      <option value="Deal Lost">Not Interested (Deal Lost)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Add Remarks (Optional)</label>
+                <textarea 
+                  value={updateRemarks} 
+                  onChange={(e) => setUpdateRemarks(e.target.value)}
+                  rows="3"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
+                  placeholder="Note down what was discussed..."
+                ></textarea>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2">
+                <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : 'Update Status'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setSelectedLead(quickUpdateLead);
+                    setQuickUpdateLead(null);
+                  }} 
+                  className="w-full py-3 rounded-xl text-[14px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                >
+                  View Full Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {selectedLead && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all" onClick={e => e.stopPropagation()}>
@@ -683,24 +1113,24 @@ export default function Dashboard() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2 relative z-10">
-                {activeTab === 'regular' && (
+              <div className="flex items-center gap-3 relative z-10">
+                {(activeTab === 'regular' || activeTab === 'ads') && (
                   <button 
                     onClick={() => openEditModal(selectedLead)}
-                    className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full px-4 py-2 text-[12px] font-medium flex items-center gap-1.5"
+                    className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
                   >
-                    Edit
+                    Edit Profile
                   </button>
                 )}
                 <button 
                   onClick={() => handleDeleteLead(selectedLead)}
-                  className="text-red-400 hover:text-white hover:bg-red-500/20 transition-colors bg-white/5 rounded-full px-4 py-2 text-[12px] font-medium flex items-center gap-1.5"
+                  className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
                 >
                   Delete
                 </button>
                 <button 
                   onClick={() => setSelectedLead(null)}
-                  className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 ml-2"
+                  className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl p-2 ml-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -743,101 +1173,444 @@ export default function Dashboard() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-100">
-              <h2 className="text-[15px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Lead' : 'Add New Regular Lead'}</h2>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Lead Profile' : 'New Lead Profile'}</h2>
               <button type="button" onClick={() => {
                 if (!isSubmitting) {
                   setIsModalOpen(false);
                   setEditingLeadId(null);
-                  setFormData({ name: '', institutionName: '', contactNo: '', place: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), priority: 'Medium', followUpDate: '', message: '', remarks: '' });
+                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
                 }
-              }} className="text-zinc-400 hover:text-black transition-colors">
+              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             
-            <form onSubmit={handleSaveLead} className="p-5 flex flex-col gap-4 max-h-[80vh] overflow-y-auto no-scrollbar">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Contact Name</label>
-                  <input type="text" required name="name" value={formData.name} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter contact name" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Institution Name</label>
-                  <input type="text" name="institutionName" value={formData.institutionName} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter institution" />
-                </div>
-              </div>
+            <form onSubmit={handleSaveLead} className="flex flex-col max-h-[85vh]">
+              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
+                  
+                  {/* Left Column */}
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Date</label>
+                      <input type="date" required name="date" value={formData.date} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Contact Number</label>
-                  <input type="text" required name="contactNo" value={formData.contactNo} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Enter number" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Region / Place</label>
-                  <input type="text" required name="place" value={formData.place} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="City or State" />
-                </div>
-              </div>
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
+                      <input type="text" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
+                    </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Lead Type</label>
-                  <select name="leadType" value={formData.leadType} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all text-zinc-700">
-                    <option value="Clinic">Clinic</option>
-                    <option value="Physiotherapist">Physiotherapist</option>
-                    <option value="Distributor">Distributor</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                {formData.leadType === 'Other' && (
-                  <div>
-                    <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Custom Lead Type</label>
-                    <input type="text" required name="customLeadType" value={formData.customLeadType} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="Specify type" />
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Status</label>
+                      <select name="currentStatus" value={formData.currentStatus} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="New Lead">New Lead</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Interested">Interested</option>
+                        <option value="Follow up needed">Follow-Up Needed</option>
+                        <option value="Quotation Sent">Quotation Sent</option>
+                        <option value="Awaiting Decision">Awaiting Decision</option>
+                        <option value="Token Recieved">Token Recieved</option>
+                        <option value="Deal Closed">Converted (Deal Won)</option>
+                        <option value="Deal Lost">Not Interested (Deal Lost)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Priority</label>
+                      <select name="priority" value={formData.priority} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="" disabled>Select Priority</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type</label>
+                      <select name="leadType" value={formData.leadType} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="Clinic">Clinic</option>
+                        <option value="Physiotherapist">Physiotherapist</option>
+                        <option value="Distributor">Distributor</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    {formData.leadType === 'Other' && (
+                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Custom Type</label>
+                        <input type="text" required name="customLeadType" value={formData.customLeadType} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Specify type" />
+                      </div>
+                    )}
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Place</label>
+                      <input type="text" name="place" value={formData.place} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="City or State" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Country</label>
+                      <input type="text" name="country" value={formData.country} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Country" />
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Assigned Employee</label>
-                  <input type="text" name="assignedToName" value={formData.assignedToName} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" placeholder="e.g. Navaneeth" />
+                  {/* Right Column */}
+                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Contact & Pipeline</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name</label>
+                      <input type="text" name="personOfContact" value={formData.personOfContact} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Primary Contact" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Role / Title</label>
+                      <input type="text" name="pocDesignation" value={formData.pocDesignation} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Director" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Phone Number*</label>
+                      <input type="text" required name="contactNo" value={formData.contactNo} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+1 (555) 000-0000" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email Address</label>
+                      <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="email@example.com" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Referral Source</label>
+                      <input type="text" name="referralPerson" value={formData.referralPerson} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Website, Partner" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Quoted Price</label>
+                      <input type="number" name="fPrice" value={formData.fPrice} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="0.00" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Agreed Price</label>
+                      <input type="number" name="lPrice" value={formData.lPrice} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="0.00" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Next Follow-Up</label>
+                      <input type="date" name="nextFollowUp" value={formData.nextFollowUp} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Priority</label>
-                  <select name="priority" value={formData.priority} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all text-zinc-700">
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
+
+                <div className="mt-8">
+                  <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Notes & Remarks</h3>
+                  <textarea name="remarks" value={formData.remarks} onChange={handleInputChange} rows="3" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Add any additional context, meeting notes, or internal remarks here..."></textarea>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Follow-up Date</label>
-                <input type="date" name="followUpDate" value={formData.followUpDate} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all" />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Message / Lead Details</label>
-                <textarea name="message" value={formData.message} onChange={handleInputChange} rows="2" className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all resize-none" placeholder="Enter lead details..." />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Internal Remarks</label>
-                <textarea name="remarks" value={formData.remarks} onChange={handleInputChange} rows="2" className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all resize-none" placeholder="Add any internal notes..." />
-              </div>
-
-              <div className="flex gap-2 pt-2 mt-2 sticky bottom-0 bg-white">
+              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
                 <button type="button" onClick={() => {
                   setIsModalOpen(false);
                   setEditingLeadId(null);
-                  setFormData({ name: '', institutionName: '', contactNo: '', place: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), priority: 'Medium', followUpDate: '', message: '', remarks: '' });
-                }} disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors">
-                  Cancel
+                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
+                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
+                  Discard
                 </button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Save Lead')}
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Create Lead')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Add Ad Lead Modal */}
+      {isAdLeadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsAdLeadModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Ad Lead' : 'New Ad Lead'}</h2>
+              <button type="button" onClick={() => {
+                if (!isSubmitting) {
+                  setIsAdLeadModalOpen(false);
+                  setEditingLeadId(null);
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                }
+              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveAdLead} className="flex flex-col max-h-[85vh]">
+              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
+                  
+                  {/* Left Column */}
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
+                      <input type="text" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Institution</label>
+                      <input type="text" name="institutionName" value={adLeadFormData.institutionName} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. City Hospital" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
+                      <input type="text" required name="contactNumber" value={adLeadFormData.contactNumber} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+91 98765 43210" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
+                      <input type="text" name="region" value={adLeadFormData.region} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Ernakulam" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type*</label>
+                      <select required name="leadType" value={adLeadFormData.leadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="" disabled>Select Type</option>
+                        <option value="Hospital">Hospital</option>
+                        <option value="Distributor">Distributor</option>
+                        <option value="Physiotherapist">Physiotherapist</option>
+                        <option value="Clinic">Clinic</option>
+                        <option value="Pharmacy">Pharmacy</option>
+                        <option value="Nursing Home">Nursing Home</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    {adLeadFormData.leadType === 'Other' && (
+                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Specify Type*</label>
+                        <input type="text" required name="customLeadType" value={adLeadFormData.customLeadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Rehab Center" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Tracking & Assignment</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Priority</label>
+                      <select name="priority" value={adLeadFormData.priority} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="Urgent">⚡ Urgent</option>
+                        <option value="High">🔴 High</option>
+                        <option value="Medium">🟡 Medium</option>
+                        <option value="Low">🟢 Low</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Follow-Up Date</label>
+                      <input type="date" name="followUpDate" value={adLeadFormData.followUpDate} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
+                    </div>
+
+                    {(isAdmin || isManager) && (
+                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Assign To*</label>
+                        <select 
+                          required 
+                          name="assignedToUid" 
+                          value={adLeadFormData.assignedToUid} 
+                          onChange={(e) => {
+                            const emp = allEmployees.find(emp => emp.uid === e.target.value);
+                            setAdLeadFormData(prev => ({
+                              ...prev,
+                              assignedToUid: e.target.value,
+                              assignedToName: emp ? (emp.name || emp.empName) : ''
+                            }));
+                          }} 
+                          className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer"
+                        >
+                          <option value="" disabled>Select Employee</option>
+                          {allEmployees.map(emp => (
+                            <option key={emp.uid} value={emp.uid}>{emp.name || emp.empName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-col gap-6">
+                  <div>
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Context & Details</h3>
+                    <textarea name="message" value={adLeadFormData.message} onChange={handleAdLeadInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="What did the lead enquire about? Any context from the ad..."></textarea>
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Internal Remarks</h3>
+                    <textarea name="remarks" value={adLeadFormData.remarks} onChange={handleAdLeadInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Internal notes for the team..."></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
+                <button type="button" onClick={() => {
+                  setIsAdLeadModalOpen(false);
+                  setEditingLeadId(null);
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
+                  Discard
+                </button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Create Ad Lead')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Distributor Modal */}
+      {isDistributorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsDistributorModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Distributor' : 'New Distributor'}</h2>
+              <button type="button" onClick={() => {
+                if (!isSubmitting) {
+                  setIsDistributorModalOpen(false);
+                  setEditingLeadId(null);
+                  setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
+                }
+              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSaveDistributor} className="flex flex-col max-h-[85vh]">
+              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
+                  
+                  {/* Left Column */}
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Distributor Profile</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Firm Name*</label>
+                      <input type="text" required name="distributorName" value={distributorFormData.distributorName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. MedSupply Co." />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">State*</label>
+                      <select required name="state" value={distributorFormData.state} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="" disabled>Select State</option>
+                        {["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh","Puducherry"].map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
+                      <input type="text" name="region" value={distributorFormData.region} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. North, South" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Exclusive?</label>
+                      <select name="exclusive" value={distributorFormData.exclusive} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="" disabled>Select</option>
+                        <option value="Yes">Yes – Exclusive</option>
+                        <option value="No">No – Non-exclusive</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Team Size</label>
+                      <input type="number" min="1" name="teamSize" value={distributorFormData.teamSize} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="No. of reps" />
+                    </div>
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Contact & Legal</h3>
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
+                      <input type="text" required name="contactPersonName" value={distributorFormData.contactPersonName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Primary Contact" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
+                      <input type="tel" required name="contactNumber" value={distributorFormData.contactNumber} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email</label>
+                      <input type="email" name="email" value={distributorFormData.email} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">GST Number</label>
+                      <input type="text" name="gstNumber" value={distributorFormData.gstNumber} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
+                    </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Year Est.</label>
+                      <input type="number" name="establishedYear" value={distributorFormData.establishedYear} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. 2010" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-col gap-6">
+                  <div>
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Business Coverage</h3>
+                    <textarea name="productLinesHandled" value={distributorFormData.productLinesHandled} onChange={handleDistributorInputChange} rows="2" className="w-full mb-3 bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Product Lines Handled (e.g. Surgical instruments)"></textarea>
+                    <textarea name="territoryDescription" value={distributorFormData.territoryDescription} onChange={handleDistributorInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Territory / Coverage Description (e.g. All districts in Kerala)"></textarea>
+                    <textarea name="address" value={distributorFormData.address} onChange={handleDistributorInputChange} rows="2" className="w-full mt-3 bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Full Postal Address"></textarea>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Status & Tracking</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-zinc-500">Current Status</label>
+                        <select name="currentStatus" value={distributorFormData.currentStatus} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors cursor-pointer">
+                          <option value="Haven't yet contacted">Haven't yet contacted</option>
+                          <option value="Called, no response">Called, no response</option>
+                          <option value="Contacted and discussed via phone">Contacted and discussed via phone</option>
+                          <option value="Online demo done">Online demo done</option>
+                          <option value="Live demo done">Live demo done</option>
+                          <option value="Hospital presentation done">Hospital presentation done</option>
+                          <option value="Agreement Sent & awaiting response">Agreement Sent & waiting</option>
+                          <option value="Agreement Signed">Agreement Signed</option>
+                          <option value="Purchased Demo Piece">Purchased Demo Piece</option>
+                          <option value="Doing Sales">Doing Sales</option>
+                          <option value="Inactive">Inactive</option>
+                          <option value="Terminated">Terminated</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-zinc-500">Last Meeting Date</label>
+                        <input type="date" name="lastMeetingDate" value={distributorFormData.lastMeetingDate} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] font-semibold text-zinc-500">Next Follow-Up</label>
+                        <input type="date" name="nextFollowUp" value={distributorFormData.nextFollowUp} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" />
+                      </div>
+                    </div>
+                    <textarea name="remarks" value={distributorFormData.remarks} onChange={handleDistributorInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Internal remarks & notes..."></textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
+                <button type="button" onClick={() => {
+                  setIsDistributorModalOpen(false);
+                  setEditingLeadId(null);
+                  setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
+                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
+                  Discard
+                </button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Add Distributor')}
                 </button>
               </div>
             </form>
