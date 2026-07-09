@@ -164,31 +164,29 @@ export default function Dashboard() {
 
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
       const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        let items = snap.data().items || [];
-        
-        if (editingLeadId) {
-          items = items.map(item => item.id === editingLeadId ? { ...item, ...leadPayload } : item);
-        } else {
-          const newLead = {
-            ...leadPayload,
-            id: doc(collection(db, 'temp')).id,
-            currentStatus: 'New Lead',
-            newLead: true,
-            employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-            addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-            userId: user.uid,
-            assignedToUid: user.uid,
-            date: new Date().toISOString().slice(0, 10),
-            createdAt: new Date(),
-          };
-          items = [newLead, ...items];
-        }
-        
-        await updateDoc(docRef, { items });
-        const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
-        setRegularLeads(fetchedLeads);
+      let items = snap.exists() ? (snap.data().items || []) : [];
+      
+      if (editingLeadId) {
+        items = items.map(item => item.id === editingLeadId ? { ...item, ...leadPayload } : item);
+      } else {
+        const newLead = {
+          ...leadPayload,
+          id: doc(collection(db, 'temp')).id,
+          currentStatus: 'New Lead',
+          newLead: true,
+          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+          userId: user.uid,
+          assignedToUid: user.uid,
+          date: new Date().toISOString().slice(0, 10),
+          createdAt: new Date(),
+        };
+        items = [newLead, ...items];
       }
+      
+      await setDoc(docRef, { items }, { merge: true });
+      const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      setRegularLeads(fetchedLeads);
       
       setIsModalOpen(false);
       setEditingLeadId(null);
@@ -242,27 +240,25 @@ export default function Dashboard() {
 
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
       const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        let items = snap.data().items || [];
-        if (editingLeadId) {
-          items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-        } else {
-          const newLead = {
-            ...payload,
-            id: doc(collection(db, 'temp')).id,
-            newLead: true,
-            employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-            addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-            userId: (isAdmin || isManager) ? payload.assignedToUid : user.uid,
-            date: new Date().toISOString().slice(0, 10),
-            createdAt: new Date(),
-          };
-          items = [newLead, ...items];
-        }
-        await updateDoc(docRef, { items });
-        const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
-        setAdLeads(fetchedLeads);
+      let items = snap.exists() ? (snap.data().items || []) : [];
+      if (editingLeadId) {
+        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
+      } else {
+        const newLead = {
+          ...payload,
+          id: doc(collection(db, 'temp')).id,
+          newLead: true,
+          employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+          addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+          userId: (isAdmin || isManager) ? payload.assignedToUid : user.uid,
+          date: new Date().toISOString().slice(0, 10),
+          createdAt: new Date(),
+        };
+        items = [newLead, ...items];
       }
+      await setDoc(docRef, { items }, { merge: true });
+      const fetchedLeads = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      setAdLeads(fetchedLeads);
       
       setIsAdLeadModalOpen(false);
       setEditingLeadId(null);
@@ -303,27 +299,25 @@ export default function Dashboard() {
 
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
       const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        let items = snap.data().items || [];
-        if (editingLeadId) {
-          items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-        } else {
-          const newDistributor = {
-            ...payload,
-            id: doc(collection(db, 'temp')).id,
-            newLead: true,
-            employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-            addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-            userId: user.uid,
-            date: new Date().toISOString().slice(0, 10),
-            createdAt: new Date(),
-          };
-          items = [newDistributor, ...items];
-        }
-        await updateDoc(docRef, { items });
-        const fetchedDistributors = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
-        setDistributors(fetchedDistributors);
+      let items = snap.exists() ? (snap.data().items || []) : [];
+      if (editingLeadId) {
+        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
+      } else {
+        const newDistributor = {
+          ...payload,
+          id: doc(collection(db, 'temp')).id,
+          newLead: true,
+          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
+          userId: user.uid,
+          date: new Date().toISOString().slice(0, 10),
+          createdAt: new Date(),
+        };
+        items = [newDistributor, ...items];
       }
+      await setDoc(docRef, { items }, { merge: true });
+      const fetchedDistributors = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      setDistributors(fetchedDistributors);
 
       setIsDistributorModalOpen(false);
       setEditingLeadId(null);
