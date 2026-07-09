@@ -38,6 +38,7 @@ const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) =
 };
 
 export default function Dashboard() {
+  const [activeSegment, setActiveSegment] = useState('happymoves');
   const [activeTab, setActiveTab] = useState('regular');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
@@ -160,7 +161,7 @@ export default function Dashboard() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crmData', 'leads');
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         let items = snap.data().items || [];
@@ -238,7 +239,7 @@ export default function Dashboard() {
         currentStatus: 'New Lead'
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crmData', 'adLeads');
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         let items = snap.data().items || [];
@@ -299,7 +300,7 @@ export default function Dashboard() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crmData', 'distributors');
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         let items = snap.data().items || [];
@@ -443,7 +444,7 @@ export default function Dashboard() {
     if (activeTab === 'distributors') collectionName = 'distributors';
     
     try {
-      const docRef = doc(db, 'userData', companyId, 'crmData', collectionName);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const items = snap.data().items || [];
@@ -484,7 +485,7 @@ export default function Dashboard() {
     if (activeTab === 'distributors') collectionName = 'distributors';
 
     try {
-      const docRef = doc(db, 'userData', companyId, 'crmData', collectionName);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const items = snap.data().items || [];
@@ -533,9 +534,9 @@ export default function Dashboard() {
     const fetchCRMData = async () => {
       if (!companyId) return;
       try {
-        const leadsDocRef = doc(db, 'userData', companyId, 'crmData', 'leads');
-        const adLeadsDocRef = doc(db, 'userData', companyId, 'crmData', 'adLeads');
-        const distributorsDocRef = doc(db, 'userData', companyId, 'crmData', 'distributors');
+        const leadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
+        const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
+        const distributorsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
         const empsColRef = collection(db, 'userData', companyId, 'employees');
         
         const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap] = await Promise.all([
@@ -570,7 +571,7 @@ export default function Dashboard() {
     };
     
     fetchCRMData();
-  }, [companyId, isAdmin, user?.uid]);
+  }, [companyId, isAdmin, user?.uid, activeSegment]);
 
   const getIconForKey = (key) => {
     const k = key.toLowerCase();
@@ -667,6 +668,22 @@ export default function Dashboard() {
     <div className="flex flex-col h-full">
       <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <div className="flex items-center gap-1 mb-6 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/80 w-fit shadow-inner">
+            <button 
+              onClick={() => setActiveSegment('happymoves')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeSegment === 'happymoves' ? 'bg-emerald-500' : 'bg-transparent'}`} />
+              Happy Moves
+            </button>
+            <button 
+              onClick={() => setActiveSegment('gamefaktory')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'gamefaktory' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeSegment === 'gamefaktory' ? 'bg-blue-500' : 'bg-transparent'}`} />
+              Game Faktory
+            </button>
+          </div>
           <h1 className="text-3xl font-semibold text-black tracking-tight">CRM Pipeline</h1>
           <p className="text-[15px] text-zinc-500 mt-1.5">Manage your leads, ad campaigns, and distributors.</p>
         </div>
