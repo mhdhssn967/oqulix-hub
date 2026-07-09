@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
+  const [segmentClients, setSegmentClients] = useState([]);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     name: '',
@@ -538,13 +539,21 @@ export default function Dashboard() {
         const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
         const distributorsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
         const empsColRef = collection(db, 'userData', companyId, 'employees');
+        const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
         
-        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap] = await Promise.all([
+        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap] = await Promise.all([
           getDoc(leadsDocRef),
           getDoc(adLeadsDocRef),
           getDoc(distributorsDocRef),
-          getDocs(empsColRef)
+          getDocs(empsColRef),
+          getDoc(segmentDocRef)
         ]);
+        
+        if (segmentSnap.exists()) {
+          setSegmentClients(segmentSnap.data().clients || []);
+        } else {
+          setSegmentClients([]);
+        }
         
         const empsList = empsSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
         setAllEmployees(empsList);
@@ -1250,9 +1259,16 @@ export default function Dashboard() {
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type</label>
                       <select name="leadType" value={formData.leadType} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="Clinic">Clinic</option>
-                        <option value="Physiotherapist">Physiotherapist</option>
-                        <option value="Distributor">Distributor</option>
+                        <option value="" disabled>Select Type</option>
+                        {segmentClients.length > 0 ? segmentClients.map(client => (
+                          <option key={client} value={client}>{client}</option>
+                        )) : (
+                          <>
+                            <option value="Clinic">Clinic</option>
+                            <option value="Physiotherapist">Physiotherapist</option>
+                            <option value="Distributor">Distributor</option>
+                          </>
+                        )}
                         <option value="Other">Other</option>
                       </select>
                     </div>
@@ -1393,12 +1409,18 @@ export default function Dashboard() {
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type*</label>
                       <select required name="leadType" value={adLeadFormData.leadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
                         <option value="" disabled>Select Type</option>
-                        <option value="Hospital">Hospital</option>
-                        <option value="Distributor">Distributor</option>
-                        <option value="Physiotherapist">Physiotherapist</option>
-                        <option value="Clinic">Clinic</option>
-                        <option value="Pharmacy">Pharmacy</option>
-                        <option value="Nursing Home">Nursing Home</option>
+                        {segmentClients.length > 0 ? segmentClients.map(client => (
+                          <option key={client} value={client}>{client}</option>
+                        )) : (
+                          <>
+                            <option value="Hospital">Hospital</option>
+                            <option value="Distributor">Distributor</option>
+                            <option value="Physiotherapist">Physiotherapist</option>
+                            <option value="Clinic">Clinic</option>
+                            <option value="Pharmacy">Pharmacy</option>
+                            <option value="Nursing Home">Nursing Home</option>
+                          </>
+                        )}
                         <option value="Other">Other</option>
                       </select>
                     </div>
