@@ -37,6 +37,33 @@ const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) =
   );
 };
 
+const LEAD_STATUS_OPTIONS = [
+  { value: 'New Lead', label: 'New Lead' },
+  { value: 'Contacted', label: 'Contacted' },
+  { value: 'Interested', label: 'Interested' },
+  { value: 'Follow up needed', label: 'Follow-Up Needed' },
+  { value: 'Quotation Sent', label: 'Quotation Sent' },
+  { value: 'Awaiting Decision', label: 'Awaiting Decision' },
+  { value: 'Token Recieved', label: 'Token Recieved' },
+  { value: 'Deal Closed', label: 'Converted (Deal Won)' },
+  { value: 'Deal Lost', label: 'Not Interested (Deal Lost)' }
+];
+
+const DISTRIBUTOR_STATUS_OPTIONS = [
+  { value: "Haven't yet contacted", label: "Haven't yet contacted" },
+  { value: "Called, no response", label: "Called, no response" },
+  { value: "Contacted and discussed via phone", label: "Contacted and discussed via phone" },
+  { value: "Online demo done", label: "Online demo done" },
+  { value: "Live demo done", label: "Live demo done" },
+  { value: "Hospital presentation done", label: "Hospital presentation done" },
+  { value: "Agreement Sent & awaiting response", label: "Agreement Sent & waiting" },
+  { value: "Agreement Signed", label: "Agreement Signed" },
+  { value: "Purchased Demo Piece", label: "Purchased Demo Piece" },
+  { value: "Doing Sales", label: "Doing Sales" },
+  { value: "Inactive", label: "Inactive" },
+  { value: "Terminated", label: "Terminated" }
+];
+
 export default function Dashboard() {
   const [activeSegment, setActiveSegment] = useState('happymoves');
   const [activeTab, setActiveTab] = useState('regular');
@@ -57,6 +84,7 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [leadTypeFilter, setLeadTypeFilter] = useState('');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
 
   // Add Lead Modal State
@@ -446,7 +474,13 @@ export default function Dashboard() {
         const newItems = items.filter(item => item.id !== lead.id);
         await updateDoc(docRef, { items: newItems });
         
-        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        let fetchedItems;
+        if (activeTab === 'ads') {
+          fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        } else {
+          fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        }
+        
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
         if (activeTab === 'distributors') setDistributors(fetchedItems);
@@ -465,6 +499,98 @@ export default function Dashboard() {
       Swal.fire({
         title: 'Error!',
         text: 'Failed to delete the lead.',
+        icon: 'error'
+      });
+    }
+  };
+
+  const handleConvertToAdLead = async (lead) => {
+    const result = await Swal.fire({
+      title: 'Convert to Ad Lead?',
+      text: "This will move the current record to Ad Leads.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#000000',
+      cancelButtonColor: '#3f3f46',
+      confirmButtonText: 'Yes, Convert'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Converting...',
+      text: 'Please wait while the lead is being converted.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+    
+    try {
+      const sourceCollection = activeTab === 'regular' ? 'leads' : 'distributors';
+      
+      // 1. Delete from source collection
+      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', sourceCollection);
+      const sourceSnap = await getDoc(sourceDocRef);
+      if (sourceSnap.exists()) {
+        const items = sourceSnap.data().items || [];
+        const newItems = items.filter(item => item.id !== lead.id);
+        await updateDoc(sourceDocRef, { items: newItems });
+        
+        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        if (activeTab === 'regular') setRegularLeads(fetchedItems);
+        if (activeTab === 'distributors') setDistributors(fetchedItems);
+      }
+      
+      // 2. Add to adLeads collection
+      const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
+      const adLeadsSnap = await getDoc(adLeadsDocRef);
+      let adItems = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
+      
+      const newAdLead = {
+        id: doc(collection(db, 'temp')).id,
+        name: activeTab === 'regular' ? (lead.personOfContact || lead.clientName || lead.name || '') : (lead.contactPersonName || lead.distributorName || ''),
+        institutionName: activeTab === 'regular' ? (lead.clientName || lead.name || '') : (lead.distributorName || ''),
+        contactNumber: lead.contactNo || lead.contactNumber || '',
+        contactNo: lead.contactNo || lead.contactNumber || '', 
+        region: lead.place || lead.region || lead.state || '',
+        leadType: lead.leadType || (activeTab === 'distributors' ? 'Distributor' : 'Other'),
+        priority: lead.priority || 'Medium',
+        remarks: lead.remarks || '',
+        followUpDate: lead.nextFollowUp || lead.followUpDate || lead.lastMeetingDate || '',
+        assignedToUid: lead.assignedToUid || lead.userId || user.uid,
+        assignedToName: lead.assignedToName || lead.employeeName || employeeData?.name || '',
+        message: lead.message || 'Converted from ' + (activeTab === 'regular' ? 'Regular Lead' : 'Distributor'),
+        updatedAt: new Date(),
+        currentStatus: lead.currentStatus || 'New Lead',
+        newLead: true,
+        employeeName: lead.employeeName || employeeData?.name || '',
+        addedByName: lead.addedByName || employeeData?.name || '',
+        userId: lead.userId || user.uid,
+        date: new Date().toISOString().slice(0, 10),
+        createdAt: new Date(),
+      };
+      
+      adItems = [newAdLead, ...adItems];
+      await setDoc(adLeadsDocRef, { items: adItems }, { merge: true });
+      
+      const adFetchedItems = (!isAdmin && !isManager) && user?.uid ? adItems.filter(item => item.userId === user.uid) : adItems;
+      setAdLeads(adFetchedItems);
+      
+      setSelectedLead(null);
+      setQuickUpdateLead(null);
+      Swal.fire({
+        title: 'Converted!',
+        text: 'The lead has been successfully moved to Ad Leads.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error converting lead:", err);
+      Swal.fire({
+        title: 'Error!',
+        text: 'Failed to convert the lead.',
         icon: 'error'
       });
     }
@@ -504,7 +630,13 @@ export default function Dashboard() {
         
         await updateDoc(docRef, { items: newItems });
         
-        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        let fetchedItems;
+        if (activeTab === 'ads') {
+          fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        } else {
+          fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        }
+        
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
         if (activeTab === 'distributors') setDistributors(fetchedItems);
@@ -523,6 +655,7 @@ export default function Dashboard() {
     setStatusFilter('');
     setEmployeeFilter('');
     setMonthFilter('');
+    setLeadTypeFilter('');
   }, [activeTab]);
 
   useEffect(() => {
@@ -558,8 +691,10 @@ export default function Dashboard() {
 
         if (!isAdmin && user?.uid) {
           fetchedLeads = fetchedLeads.filter(item => item.userId === user.uid);
-          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid);
           fetchedDistributors = fetchedDistributors.filter(item => item.userId === user.uid);
+        }
+        if (!isAdmin && !isManager && user?.uid) {
+          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid);
         }
         
         setRegularLeads(fetchedLeads);
@@ -624,6 +759,8 @@ export default function Dashboard() {
     return itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
   }))].filter(m => m !== 'N/A').sort((a, b) => new Date(b) - new Date(a));
 
+  const uniqueLeadTypes = [...new Set(currentData.map(item => item.leadType || 'N/A'))].filter(Boolean).sort();
+
   const isIrregularPhone = (phone) => {
     if (!phone) return true;
     const digitsOnly = phone.toString().replace(/\D/g, '');
@@ -651,7 +788,9 @@ export default function Dashboard() {
       const phone = item.contactNo || item.contactNumber || '';
       const matchesIrregular = showIrregularPhonesOnly ? isIrregularPhone(phone) : true;
       
-      return matchesSearch && matchesStatus && matchesEmployee && matchesMonth && matchesIrregular;
+      const matchesLeadType = leadTypeFilter === '' || (item.leadType || 'N/A') === leadTypeFilter;
+      
+      return matchesSearch && matchesStatus && matchesEmployee && matchesMonth && matchesIrregular && matchesLeadType;
     });
   };
 
@@ -760,17 +899,17 @@ export default function Dashboard() {
           All
           <span className="bg-black/10 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{dataFilteredByOtherThanStatus.length}</span>
         </button>
-        {uniqueStatuses.map(status => (
+        {(activeTab === 'distributors' ? DISTRIBUTOR_STATUS_OPTIONS : LEAD_STATUS_OPTIONS).map(opt => (
           <button 
-            key={status}
+            key={opt.value}
             onClick={() => {
-              setStatusFilter(statusFilter === status ? '' : status);
+              setStatusFilter(statusFilter === opt.value ? '' : opt.value);
               setCurrentPage(1);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${getStatusColor(status)} ${statusFilter === status ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${getStatusColor(opt.value)} ${statusFilter === opt.value ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
           >
-            {status}
-            <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[status] || 0}</span>
+            {opt.label}
+            <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[opt.value] || 0}</span>
           </button>
         ))}
       </div>
@@ -800,8 +939,8 @@ export default function Dashboard() {
                 className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
               >
                 <option value="">All Statuses</option>
-                {uniqueStatuses.map(status => (
-                  <option key={status} value={status}>{status}</option>
+                {(activeTab === 'distributors' ? DISTRIBUTOR_STATUS_OPTIONS : LEAD_STATUS_OPTIONS).map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
@@ -829,6 +968,20 @@ export default function Dashboard() {
                 <option value="">All Months</option>
                 {uniqueMonths.map(month => (
                   <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="relative w-full sm:w-48">
+              <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <select 
+                value={leadTypeFilter}
+                onChange={(e) => { setLeadTypeFilter(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+              >
+                <option value="">All Lead Types</option>
+                {uniqueLeadTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
             </div>
@@ -1099,6 +1252,15 @@ export default function Dashboard() {
                 >
                   View Full Profile
                 </button>
+                {(activeTab === 'regular' || activeTab === 'distributors') && (
+                  <button 
+                    type="button"
+                    onClick={() => handleConvertToAdLead(quickUpdateLead)} 
+                    className="w-full py-3 rounded-xl text-[14px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200"
+                  >
+                    Convert to Ad Lead
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -1134,7 +1296,7 @@ export default function Dashboard() {
                 )}
               </div>
               <div className="flex items-center gap-3 relative z-10">
-                {(activeTab === 'regular' || activeTab === 'ads') && (
+                {(activeTab === 'regular' || activeTab === 'ads' || activeTab === 'distributors') && (
                   <button 
                     onClick={() => openEditModal(selectedLead)}
                     className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
@@ -1161,7 +1323,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                 {Object.entries(selectedLead)
                   .filter(([k,v]) => {
-                    const ignoredKeys = ['clientName', 'name', 'distributorName', 'companyId', 'associate', 'id', 'addedBy', 'addedByName', 'assignedToUid'];
+                    const ignoredKeys = ['clientName', 'name', 'distributorName', 'companyId', 'associate', 'id', 'addedBy', 'addedByName', 'assignedToUid', 'userId'];
                     return typeof v !== 'object' && !ignoredKeys.includes(k);
                   })
                   .sort(([a], [b]) => a.localeCompare(b))
