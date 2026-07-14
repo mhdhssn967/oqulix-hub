@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import {
   Users, ChevronLeft, ChevronRight, CheckSquare, User, Calendar, PieChart,
@@ -25,6 +25,7 @@ const getEmployee = (item) =>
 // ─── Main Component ─────────────────────────────────────
 export default function Analysis() {
   const { user, isAdmin, isManager, companyId } = useAuthStore();
+  const [activeSegment, setActiveSegment] = useState('happymoves');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
   const [distributors, setDistributors] = useState([]);
@@ -45,22 +46,32 @@ export default function Analysis() {
   useEffect(() => {
     const fetchData = async () => {
       if (!companyId) return;
+      setLoading(true);
       try {
-        const [leadsSnap, adSnap, distSnap] = await Promise.all([
-          getDoc(doc(db, 'userData', companyId, 'crmData', 'leads')),
-          getDoc(doc(db, 'userData', companyId, 'crmData', 'adLeads')),
-          getDoc(doc(db, 'userData', companyId, 'crmData', 'distributors')),
+        const [lSnap, aSnap, dSnap] = await Promise.all([
+          getDoc(doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads')),
+          getDoc(doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads')),
+          getDoc(doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors'))
         ]);
+
+        let allLeads = lSnap.exists() ? lSnap.data().items || [] : [];
+        let allAds = aSnap.exists() ? aSnap.data().items || [] : [];
+        let allDists = dSnap.exists() ? dSnap.data().items || [] : [];
         
         const filterData = (items) => {
           if (!items) return [];
           if (isAdmin || isManager) return items;
-          return items.filter(i => i.employeeUid === user?.uid || i.addedBy === user?.uid || i.assignedTo === user?.uid);
+          return items.filter(i => 
+            i.userId === user?.uid || 
+            i.assignedToUid === user?.uid || 
+            i.employeeUid === user?.uid || 
+            i.addedBy === user?.uid
+          );
         };
 
-        setRegularLeads(filterData(leadsSnap.data()?.items));
-        setAdLeads(filterData(adSnap.data()?.items));
-        setDistributors(filterData(distSnap.data()?.items));
+        setRegularLeads(filterData(allLeads));
+        setAdLeads(filterData(allAds));
+        setDistributors(filterData(allDists));
       } catch (e) {
         console.error('Error fetching CRM data for analysis:', e);
       } finally {
@@ -68,7 +79,7 @@ export default function Analysis() {
       }
     };
     fetchData();
-  }, [companyId, isAdmin, isManager, user?.uid]);
+  }, [companyId, isAdmin, isManager, user?.uid, activeSegment]);
 
   // ── Filtered master dataset ───────────────────────────
   const filtered = useMemo(() => {
@@ -236,8 +247,24 @@ export default function Analysis() {
       {/* ── Header ─────────────────────────────────────── */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
+          <div className="flex items-center gap-1 mb-6 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/80 w-fit shadow-inner">
+            <button 
+              onClick={() => setActiveSegment('happymoves')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeSegment === 'happymoves' ? 'bg-emerald-500' : 'bg-transparent'}`} />
+              Happy Moves
+            </button>
+            <button 
+              onClick={() => setActiveSegment('gamefaktory')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'gamefaktory' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${activeSegment === 'gamefaktory' ? 'bg-blue-500' : 'bg-transparent'}`} />
+              Game Faktory
+            </button>
+          </div>
           <h1 className="text-3xl font-semibold text-black tracking-tight">CRM Analysis</h1>
-          <p className="text-[15px] text-zinc-500 mt-1.5">Comprehensive performance insights across all pipelines.</p>
+          <p className="text-[15px] text-zinc-500 mt-1.5">Comprehensive performance insights across pipelines.</p>
         </div>
         {(isAdmin || isManager) && (
           <button 

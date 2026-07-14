@@ -20,19 +20,23 @@ export default function Reimbursements() {
     segment: 'General',
     expenseType: '',
     otherExpenseType: '',
-    coEmployees: ''
+    coEmployees: '',
+    clientName: ''
   });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [segments, setSegments] = useState(['General']);
+  const [employeesList, setEmployeesList] = useState([]);
+  const [clientsList, setClientsList] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!companyId) return;
       try {
-        const [reimbSnapshot, segSnapshot] = await Promise.all([
+        const [reimbSnapshot, segSnapshot, empSnapshot] = await Promise.all([
           getDocs(query(collection(db, 'userData', companyId, 'reimbursements'), orderBy('createdAt', 'desc'))),
-          getDocs(collection(db, 'userData', companyId, 'segments')).catch(() => ({ docs: [] }))
+          getDocs(collection(db, 'userData', companyId, 'segments')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'userData', companyId, 'employees')).catch(() => ({ docs: [] }))
         ]);
 
         let data = reimbSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -44,7 +48,31 @@ export default function Reimbursements() {
         setReimbursements(data);
 
         const fetchedSegments = segSnapshot.docs.map(doc => doc.id);
-        setSegments(['General', ...fetchedSegments]);
+        const uniqueSegments = ['General', ...fetchedSegments];
+        setSegments(uniqueSegments);
+
+        const fetchedEmployees = empSnapshot.docs.map(doc => doc.data().name).filter(Boolean);
+        setEmployeesList(fetchedEmployees);
+
+        // Fetch clients from all segments
+        const allClientNames = new Set();
+        await Promise.all(uniqueSegments.map(async (segment) => {
+          try {
+            const [lSnap, aSnap, dSnap] = await Promise.all([
+              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'leads')),
+              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'adLeads')),
+              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'distributors'))
+            ]);
+            
+            if (lSnap.exists()) lSnap.data().items?.forEach(i => { if (i.clientName || i.name) allClientNames.add(i.clientName || i.name) });
+            if (aSnap.exists()) aSnap.data().items?.forEach(i => { if (i.name) allClientNames.add(i.name) });
+            if (dSnap.exists()) dSnap.data().items?.forEach(i => { if (i.distributorName) allClientNames.add(i.distributorName) });
+          } catch (e) {
+             console.error("Error fetching segment data for clients:", e);
+          }
+        }));
+        
+        setClientsList(Array.from(allClientNames).sort());
       } catch (err) {
         console.error("Error fetching reimbursements:", err);
       } finally {
@@ -81,7 +109,8 @@ export default function Reimbursements() {
         segment: 'General',
         expenseType: '',
         otherExpenseType: '',
-        coEmployees: ''
+        coEmployees: '',
+        clientName: ''
       });
       setActiveTab('Pending');
     } catch (err) {
@@ -231,6 +260,13 @@ export default function Reimbursements() {
                       </div>
                     )}
 
+                    {item.clientName && (
+                      <div className="text-[12px] text-zinc-500 flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                        Client: <span className="font-medium text-zinc-700">{item.clientName}</span>
+                      </div>
+                    )}
+
                     {item.description && (
                       <div className="text-[13px] text-zinc-600 line-clamp-3 mt-1">
                         {item.description}
@@ -374,15 +410,37 @@ export default function Reimbursements() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Co-Employees (Optional)</label>
-                <input 
-                  type="text" 
-                  value={formData.coEmployees}
-                  onChange={(e) => setFormData({...formData, coEmployees: e.target.value})}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px]"
-                  placeholder="Names of other employees joined (if any)..."
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Co-Employee (Optional)</label>
+                  <select 
+                    value={formData.coEmployees}
+                    onChange={(e) => setFormData({...formData, coEmployees: e.target.value})}
+                    className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] cursor-pointer"
+                  >
+                    <option value="">None</option>
+                    {employeesList.map(emp => (
+                      <option key={emp} value={emp}>{emp}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Client Details (Optional)</label>
+                  <input 
+                    type="text"
+                    list="clientsDataList"
+                    value={formData.clientName}
+                    onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+                    className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px]"
+                    placeholder="Search or type client name..."
+                    autoComplete="off"
+                  />
+                  <datalist id="clientsDataList">
+                    {clientsList.map(client => (
+                      <option key={client} value={client} />
+                    ))}
+                  </datalist>
+                </div>
               </div>
 
               <div>
