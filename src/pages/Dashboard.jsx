@@ -86,6 +86,7 @@ export default function Dashboard() {
   const [monthFilter, setMonthFilter] = useState('');
   const [leadTypeFilter, setLeadTypeFilter] = useState('');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
+  const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
 
   // Add Lead Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -618,11 +619,35 @@ export default function Dashboard() {
               ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
               : item.remarks;
               
+            let currentHistory = item.statusHistory || [];
+            if (currentHistory.length === 0) {
+              let initialDate = new Date().toISOString();
+              const oldDateRaw = item.date || item.lastContacted || item.createdAt;
+              if (oldDateRaw) {
+                if (oldDateRaw.seconds) initialDate = new Date(oldDateRaw.seconds * 1000).toISOString();
+                else if (!isNaN(new Date(oldDateRaw))) initialDate = new Date(oldDateRaw).toISOString();
+              }
+              currentHistory.push({
+                date: initialDate,
+                status: item.currentStatus || 'New Lead',
+                remarks: item.remarks || ''
+              });
+            }
+
+            const historyEntry = {
+              date: new Date().toISOString(),
+              status: updateStatus,
+              remarks: updateRemarks.trim()
+            };
+            const statusHistory = [...currentHistory, historyEntry];
+
             return {
               ...item,
               currentStatus: updateStatus,
               remarks: newRemarks,
-              lastContacted: new Date().toISOString().split('T')[0]
+              statusHistory,
+              lastContacted: new Date().toISOString().split('T')[0],
+              lastFollowedUp: new Date().toISOString().split('T')[0]
             };
           }
           return item;
@@ -656,6 +681,7 @@ export default function Dashboard() {
     setEmployeeFilter('');
     setMonthFilter('');
     setLeadTypeFilter('');
+    setShowMissedFollowUpsOnly(false);
   }, [activeTab]);
 
   useEffect(() => {
@@ -730,17 +756,40 @@ export default function Dashboard() {
   };
 
   const getStatusColor = (status) => {
-    if (!status) return 'bg-zinc-50 text-zinc-600 ring-zinc-500/10';
+    if (!status) return 'bg-zinc-50 text-zinc-600 ring-zinc-500/10 border-zinc-200';
     const s = status.toLowerCase();
     
-    if (s.includes('lost') || s.includes('fail') || s.includes('cancel')) return 'bg-red-50 text-red-700 ring-red-600/10';
-    if (s.includes('won') || s.includes('success') || s.includes('converted')) return 'bg-emerald-50 text-emerald-700 ring-emerald-600/10';
-    if (s.includes('progress') || s.includes('contacted') || s.includes('discuss')) return 'bg-blue-50 text-blue-700 ring-blue-600/10';
-    if (s.includes('meeting') || s.includes('schedule') || s.includes('appoint')) return 'bg-purple-50 text-purple-700 ring-purple-600/10';
-    if (s.includes('active') || s.includes('onboard')) return 'bg-emerald-50 text-emerald-700 ring-emerald-600/10';
-    if (s.includes('new') || s.includes('lead')) return 'bg-sky-50 text-sky-700 ring-sky-600/10';
+    // Regular Leads & Ad Leads
+    if (s === 'new lead') return 'bg-sky-50 text-sky-700 ring-sky-600/20 border-sky-200';
+    if (s === 'contacted') return 'bg-blue-50 text-blue-700 ring-blue-600/20 border-blue-200';
+    if (s === 'interested') return 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 border-indigo-200';
+    if (s === 'follow up needed' || s === 'follow-up needed') return 'bg-amber-50 text-amber-700 ring-amber-600/20 border-amber-200';
+    if (s === 'quotation sent') return 'bg-orange-50 text-orange-700 ring-orange-600/20 border-orange-200';
+    if (s === 'awaiting decision') return 'bg-yellow-50 text-yellow-700 ring-yellow-600/20 border-yellow-200';
+    if (s === 'token recieved' || s === 'token received') return 'bg-lime-50 text-lime-700 ring-lime-600/20 border-lime-200';
+    if (s === 'deal closed' || s === 'converted (deal won)' || s === 'converted') return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 border-emerald-200';
+    if (s === 'deal lost' || s === 'not interested (deal lost)') return 'bg-red-50 text-red-700 ring-red-600/20 border-red-200';
+
+    // Distributors
+    if (s === "haven't yet contacted") return 'bg-slate-50 text-slate-700 ring-slate-600/20 border-slate-200';
+    if (s === 'called, no response') return 'bg-rose-50 text-rose-700 ring-rose-600/20 border-rose-200';
+    if (s === 'contacted and discussed via phone') return 'bg-cyan-50 text-cyan-700 ring-cyan-600/20 border-cyan-200';
+    if (s === 'online demo done') return 'bg-violet-50 text-violet-700 ring-violet-600/20 border-violet-200';
+    if (s === 'live demo done') return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-600/20 border-fuchsia-200';
+    if (s === 'hospital presentation done') return 'bg-purple-50 text-purple-700 ring-purple-600/20 border-purple-200';
+    if (s === 'agreement sent & waiting' || s === 'agreement sent & awaiting response') return 'bg-amber-100 text-amber-800 ring-amber-600/20 border-amber-300';
+    if (s === 'agreement signed') return 'bg-teal-50 text-teal-700 ring-teal-600/20 border-teal-200';
+    if (s === 'purchased demo piece') return 'bg-green-50 text-green-700 ring-green-600/20 border-green-200';
+    if (s === 'doing sales') return 'bg-emerald-100 text-emerald-800 ring-emerald-600/30 border-emerald-300';
+    if (s === 'inactive') return 'bg-stone-100 text-stone-600 ring-stone-500/20 border-stone-200';
+    if (s === 'terminated') return 'bg-red-100 text-red-800 ring-red-600/30 border-red-300';
     
-    return 'bg-amber-50 text-amber-700 ring-amber-600/10';
+    // Fallbacks
+    if (s.includes('lost') || s.includes('fail') || s.includes('cancel')) return 'bg-red-50 text-red-700 ring-red-600/20 border-red-200';
+    if (s.includes('won') || s.includes('success') || s.includes('converted')) return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 border-emerald-200';
+    if (s.includes('progress') || s.includes('contacted') || s.includes('discuss')) return 'bg-blue-50 text-blue-700 ring-blue-600/20 border-blue-200';
+    
+    return 'bg-zinc-50 text-zinc-700 ring-zinc-600/20 border-zinc-200';
   };
 
   const getPriorityColor = (priority) => {
@@ -770,27 +819,52 @@ export default function Dashboard() {
     return false;
   };
 
+  const isMissedFollowUp = (item) => {
+    const s = (item.currentStatus || '').toLowerCase();
+    const closedStatuses = ['closed', 'lost', 'won', 'signed', 'terminated', 'inactive', 'doing sales', 'purchased', 'converted'];
+    if (closedStatuses.some(st => s.includes(st))) return false;
+
+    const followUpStr = item.nextFollowUp || item.followUpDate;
+    if (!followUpStr) return false;
+    
+    const followUpDate = new Date(followUpStr);
+    if (isNaN(followUpDate)) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return followUpDate < today;
+  };
+
   const getFilteredData = (data, ignoreStatus = false) => {
+    const lowerQuery = searchQuery.toLowerCase();
     return data.filter(item => {
-      const searchString = Object.values(item).filter(v => typeof v !== 'object').join(' ').toLowerCase();
-      const matchesSearch = searchQuery === '' || searchString.includes(searchQuery.toLowerCase());
-      
       const status = item.currentStatus || 'N/A';
-      const matchesStatus = ignoreStatus || statusFilter === '' || status === statusFilter;
+      if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
       
       const employee = item.employeeName || item.assignedToName || item.addedByName || 'N/A';
-      const matchesEmployee = employeeFilter === '' || employee === employeeFilter;
-      
-      const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
-      const monthStr = isNaN(itemDate) ? 'N/A' : itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-      const matchesMonth = monthFilter === '' || monthStr === monthFilter;
+      if (employeeFilter !== '' && employee !== employeeFilter) return false;
       
       const phone = item.contactNo || item.contactNumber || '';
-      const matchesIrregular = showIrregularPhonesOnly ? isIrregularPhone(phone) : true;
+      if (showIrregularPhonesOnly && !isIrregularPhone(phone)) return false;
       
-      const matchesLeadType = leadTypeFilter === '' || (item.leadType || 'N/A') === leadTypeFilter;
+      if (showMissedFollowUpsOnly && !isMissedFollowUp(item)) return false;
+
+      const leadType = item.leadType || 'N/A';
+      if (leadTypeFilter !== '' && leadType !== leadTypeFilter) return false;
+
+      if (monthFilter !== '') {
+        const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
+        const monthStr = isNaN(itemDate) ? 'N/A' : itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        if (monthStr !== monthFilter) return false;
+      }
       
-      return matchesSearch && matchesStatus && matchesEmployee && matchesMonth && matchesIrregular && matchesLeadType;
+      if (lowerQuery !== '') {
+        const searchString = Object.values(item).filter(v => typeof v !== 'object' && v !== null && v !== undefined).join(' ').toLowerCase();
+        if (!searchString.includes(lowerQuery)) return false;
+      }
+      
+      return true;
     });
   };
 
@@ -894,7 +968,7 @@ export default function Dashboard() {
             setStatusFilter('');
             setCurrentPage(1);
           }}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all bg-zinc-100 text-zinc-700 ${statusFilter === '' ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all border bg-zinc-50 border-zinc-200 text-zinc-700 ${statusFilter === '' ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
         >
           All
           <span className="bg-black/10 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{dataFilteredByOtherThanStatus.length}</span>
@@ -906,7 +980,7 @@ export default function Dashboard() {
               setStatusFilter(statusFilter === opt.value ? '' : opt.value);
               setCurrentPage(1);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all ${getStatusColor(opt.value)} ${statusFilter === opt.value ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all border ${getStatusColor(opt.value)} ${statusFilter === opt.value ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
           >
             {opt.label}
             <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[opt.value] || 0}</span>
@@ -918,8 +992,8 @@ export default function Dashboard() {
       <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex-1 flex flex-col">
         
         {/* Search & Filters */}
-        <div className="p-4 border-b border-zinc-100 flex flex-col lg:flex-row items-center justify-between gap-4">
-          <div className="relative w-full lg:w-96">
+        <div className="p-4 border-b border-zinc-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="relative w-full xl:w-[400px] shrink-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input 
               type="text" 
@@ -930,8 +1004,8 @@ export default function Dashboard() {
             />
           </div>
           
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-            <div className="relative w-full sm:w-48">
+          <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
+            <div className="relative w-40 sm:w-48 shrink-0">
               <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
                 value={statusFilter}
@@ -945,7 +1019,7 @@ export default function Dashboard() {
               </select>
             </div>
             
-            <div className="relative w-full sm:w-48">
+            <div className="relative w-40 sm:w-48 shrink-0">
               <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
                 value={employeeFilter}
@@ -958,7 +1032,7 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
-            <div className="relative w-full sm:w-48">
+            <div className="relative w-40 sm:w-48 shrink-0">
               <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
                 value={monthFilter}
@@ -972,7 +1046,7 @@ export default function Dashboard() {
               </select>
             </div>
 
-            <div className="relative w-full sm:w-48">
+            <div className="relative w-40 sm:w-48 shrink-0">
               <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
                 value={leadTypeFilter}
@@ -988,7 +1062,7 @@ export default function Dashboard() {
             
             <button
               onClick={() => { setShowIrregularPhonesOnly(!showIrregularPhonesOnly); setCurrentPage(1); }}
-              className={`px-3 py-2 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
+              className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
                 showIrregularPhonesOnly 
                   ? 'bg-amber-100 border-amber-200 text-amber-800' 
                   : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
@@ -997,6 +1071,18 @@ export default function Dashboard() {
             >
               <AlertCircle className="w-4 h-4" />
               {showIrregularPhonesOnly ? 'Irregular Phones' : 'Irregular Phones'}
+            </button>
+            <button
+              onClick={() => { setShowMissedFollowUpsOnly(!showMissedFollowUpsOnly); setCurrentPage(1); }}
+              className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
+                showMissedFollowUpsOnly 
+                  ? 'bg-red-100 border-red-200 text-red-800' 
+                  : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+              }`}
+              title="Show leads that missed their follow-up date"
+            >
+              <Calendar className="w-4 h-4" />
+              Missed Follow Ups
             </button>
           </div>
         </div>
@@ -1025,7 +1111,7 @@ export default function Dashboard() {
                   return (
                   <tr 
                     key={lead.id} 
-                    className="hover:bg-zinc-50/50 transition-colors cursor-pointer group"
+                    className={`transition-colors cursor-pointer group ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
                     onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
                   >
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
@@ -1039,8 +1125,9 @@ export default function Dashboard() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
                         {lead.currentStatus || 'N/A'}
                       </span>
+                      {isMissedFollowUp(lead) && <div className="text-[10px] text-red-600 font-bold mt-1 uppercase tracking-wider">Missed Follow-up</div>}
                     </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600 text-right">{lead.nextFollowUp || 'N/A'}</td>
+                    <td className={`px-5 py-4 text-[13px] text-right ${isMissedFollowUp(lead) ? 'text-red-600 font-semibold' : 'text-zinc-600'}`}>{lead.nextFollowUp || 'N/A'}</td>
                   </tr>
                   );
                 })}
@@ -1066,7 +1153,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
-                  <tr key={lead.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
+                  <tr key={lead.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
@@ -1076,11 +1163,12 @@ export default function Dashboard() {
                       <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
                         <Phone className="w-3 h-3" /> {lead.contactNumber}
                       </div>
-                      <div className="mt-1.5">
+                      <div className="mt-1.5 flex items-center gap-2">
                         <span className={getPriorityColor(lead.priority)}>
                           {lead.priority === 'Urgent' && <AlertCircle className="w-3 h-3" />}
                           {lead.priority}
                         </span>
+                        {isMissedFollowUp(lead) && <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider">Missed Follow-up</span>}
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -1132,7 +1220,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
-                  <tr key={dist.id} className="hover:bg-zinc-50/50 transition-colors group cursor-pointer" onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
+                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
@@ -1159,6 +1247,7 @@ export default function Dashboard() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(dist.currentStatus)}`}>
                         {dist.currentStatus || 'N/A'}
                       </span>
+                      {isMissedFollowUp(dist) && <div className="text-[10px] text-red-600 font-bold mt-1 uppercase tracking-wider">Missed Follow-up</div>}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <button className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover:opacity-100">
@@ -1262,6 +1351,49 @@ export default function Dashboard() {
                   </button>
                 )}
               </div>
+
+              {quickUpdateLead.statusHistory && quickUpdateLead.statusHistory.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-zinc-100">
+                  <h3 className="text-[11px] font-bold text-zinc-500 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-zinc-400" />
+                    Recent History
+                  </h3>
+                  <div className="space-y-4 max-h-[160px] overflow-y-auto pr-1 no-scrollbar">
+                    {[...quickUpdateLead.statusHistory].reverse().map((history, idx, arr) => {
+                      const colorClass = getStatusColor(history.status);
+                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
+                      const dotColor = textClass.replace('text-', 'bg-');
+                      
+                      return (
+                        <div key={idx} className="flex gap-2 items-stretch relative">
+                          <div className="w-[3.5rem] shrink-0 text-right pt-0.5">
+                            <div className="text-[10px] font-bold text-zinc-700">
+                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric' })}
+                            </div>
+                            <div className="text-[9px] font-medium text-zinc-400 mt-0.5">
+                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+
+                          <div className="relative flex flex-col items-center shrink-0 w-3 pt-1">
+                            {idx !== arr.length - 1 && (
+                              <div className="absolute top-3 bottom-[-16px] w-[1px] bg-zinc-200"></div>
+                            )}
+                            <div className={`w-2.5 h-2.5 rounded-full z-10 border border-black ${dotColor} ring-2 ring-white`}></div>
+                          </div>
+
+                          <div className={`flex-1 rounded-lg p-2.5 border ${colorClass}`}>
+                            <div className="font-bold text-[11px] mb-0.5">{history.status}</div>
+                            {history.remarks && (
+                              <p className="text-[10px] leading-relaxed opacity-90 mt-1 whitespace-pre-wrap">{history.remarks}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>
@@ -1346,6 +1478,55 @@ export default function Dashboard() {
                     );
                   })}
               </div>
+              
+              {selectedLead.statusHistory && selectedLead.statusHistory.length > 0 && (
+                <div className="mt-8 border-t border-zinc-100 pt-6">
+                  <h3 className="text-[12px] font-bold text-zinc-800 mb-4 uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-zinc-400" />
+                    Update History
+                  </h3>
+                  <div className="space-y-6">
+                    {selectedLead.statusHistory.map((history, idx) => {
+                      const colorClass = getStatusColor(history.status);
+                      const bgClass = colorClass.split(' ')[0] || 'bg-zinc-50';
+                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
+                      const dotColor = textClass.replace('text-', 'bg-');
+                      
+                      return (
+                        <div key={idx} className="flex gap-4 items-stretch relative">
+                          
+                          {/* Date on the Left */}
+                          <div className="w-24 shrink-0 text-right pt-1">
+                            <div className="text-[12px] font-bold text-zinc-700">
+                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                            <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mt-0.5">
+                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+
+                          {/* Timeline Dot & Line */}
+                          <div className="relative flex flex-col items-center shrink-0 w-6 pt-1.5">
+                            {idx !== selectedLead.statusHistory.length - 1 && (
+                              <div className="absolute top-5 bottom-[-24px] w-0.5 bg-zinc-200"></div>
+                            )}
+                            <div className={`w-3.5 h-3.5 rounded-full z-10 border-2 border-black ${dotColor} ring-[3px] ring-white`}></div>
+                          </div>
+
+                          {/* Status & Remarks Box */}
+                          <div className={`flex-1 rounded-xl p-4 border ${colorClass}`}>
+                            <div className="font-bold text-[14px] mb-1">{history.status}</div>
+                            {history.remarks && (
+                              <p className="text-[13px] leading-relaxed opacity-90 mt-2 whitespace-pre-wrap">{history.remarks}</p>
+                            )}
+                          </div>
+                          
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1376,11 +1557,6 @@ export default function Dashboard() {
                   {/* Left Column */}
                   <div className="flex flex-col gap-1">
                     <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
-                    
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Date</label>
-                      <input type="date" required name="date" value={formData.date} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
-                    </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>

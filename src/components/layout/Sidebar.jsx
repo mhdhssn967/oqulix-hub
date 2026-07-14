@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 
@@ -11,8 +11,9 @@ export function Sidebar() {
 
   const navItems = [
     { icon: LayoutDashboard, label: 'CRM', path: '/' },
-    ...(isAdmin ? [{ icon: BarChart2, label: 'CRM Analysis', path: '/analysis' }] : []),
+    { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
     ...(isAdmin ? [{ icon: CreditCard, label: 'Finance', path: '/finance' }] : []),
+    { icon: Receipt, label: 'Reimbursements', path: '/reimbursements' },
     { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
     ...(isAdmin ? [{ icon: UserCog, label: 'Employees', path: '/employees' }] : []),

@@ -30,14 +30,7 @@ export function Header() {
           <Menu className="w-5 h-5" />
         </button>
         
-        <div className="relative w-full md:w-72 group">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-black transition-colors" />
-          <input 
-            type="text" 
-            placeholder="Search anything..." 
-            className="w-full pl-10 pr-4 py-2 bg-zinc-100/50 hover:bg-zinc-100 border border-transparent focus:bg-white focus:border-zinc-300 focus:ring-4 focus:ring-zinc-100 outline-none rounded-lg text-[14px] transition-all"
-          />
-        </div>
+
       </div>
 
       <div className="flex items-center gap-2 md:gap-5 ml-4">

@@ -16,6 +16,7 @@ import OtherData from './pages/OtherData';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Employees from './pages/Employees';
+import Reimbursements from './pages/Reimbursements';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -68,7 +69,8 @@ function App() {
           <Route path="employees" element={<AdminRoute><Employees /></AdminRoute>} />
           <Route path="performance" element={<Performance />} />
           <Route path="clients" element={<Clients />} />
-          <Route path="analysis" element={<AdminRoute><Analysis /></AdminRoute>} />
+          <Route path="analysis" element={<Analysis />} />
+          <Route path="reimbursements" element={<Reimbursements />} />
           <Route path="documents" element={<Documents />} />
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />

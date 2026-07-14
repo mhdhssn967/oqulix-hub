@@ -6,6 +6,7 @@ import {
   BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap, X, Download
 } from 'lucide-react';
 import ReportGenerator from '../components/crm/ReportGenerator';
+import { useAuthStore } from '../store/authStore';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
 const getItemDate = (item) => {
@@ -23,6 +24,7 @@ const getEmployee = (item) =>
 
 // ─── Main Component ─────────────────────────────────────
 export default function Analysis() {
+  const { user, isAdmin, isManager, companyId } = useAuthStore();
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
   const [distributors, setDistributors] = useState([]);
@@ -42,16 +44,23 @@ export default function Analysis() {
   // ── Fetch data ────────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
+      if (!companyId) return;
       try {
-        const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
         const [leadsSnap, adSnap, distSnap] = await Promise.all([
-          getDoc(doc(db, 'userData', userId, 'crmData', 'leads')),
-          getDoc(doc(db, 'userData', userId, 'crmData', 'adLeads')),
-          getDoc(doc(db, 'userData', userId, 'crmData', 'distributors')),
+          getDoc(doc(db, 'userData', companyId, 'crmData', 'leads')),
+          getDoc(doc(db, 'userData', companyId, 'crmData', 'adLeads')),
+          getDoc(doc(db, 'userData', companyId, 'crmData', 'distributors')),
         ]);
-        if (leadsSnap.exists()) setRegularLeads(leadsSnap.data().items || []);
-        if (adSnap.exists()) setAdLeads(adSnap.data().items || []);
-        if (distSnap.exists()) setDistributors(distSnap.data().items || []);
+        
+        const filterData = (items) => {
+          if (!items) return [];
+          if (isAdmin || isManager) return items;
+          return items.filter(i => i.employeeUid === user?.uid || i.addedBy === user?.uid || i.assignedTo === user?.uid);
+        };
+
+        setRegularLeads(filterData(leadsSnap.data()?.items));
+        setAdLeads(filterData(adSnap.data()?.items));
+        setDistributors(filterData(distSnap.data()?.items));
       } catch (e) {
         console.error('Error fetching CRM data for analysis:', e);
       } finally {
@@ -59,7 +68,7 @@ export default function Analysis() {
       }
     };
     fetchData();
-  }, []);
+  }, [companyId, isAdmin, isManager, user?.uid]);
 
   // ── Filtered master dataset ───────────────────────────
   const filtered = useMemo(() => {
@@ -230,13 +239,15 @@ export default function Analysis() {
           <h1 className="text-3xl font-semibold text-black tracking-tight">CRM Analysis</h1>
           <p className="text-[15px] text-zinc-500 mt-1.5">Comprehensive performance insights across all pipelines.</p>
         </div>
-        <button 
-          onClick={() => setIsReportModalOpen(true)}
-          className="bg-black text-white px-5 py-2.5 rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-all shadow-lg shadow-black/10 flex items-center gap-2 whitespace-nowrap"
-        >
-          <Download className="w-4 h-4" />
-          Export Report
-        </button>
+        {(isAdmin || isManager) && (
+          <button 
+            onClick={() => setIsReportModalOpen(true)}
+            className="bg-black text-white px-5 py-2.5 rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-all shadow-lg shadow-black/10 flex items-center gap-2 whitespace-nowrap"
+          >
+            <Download className="w-4 h-4" />
+            Export Report
+          </button>
+        )}
       </header>
 
       {/* ── Filters Bar ────────────────────────────────── */}
@@ -271,20 +282,22 @@ export default function Analysis() {
           ))}
         </div>
 
-        {/* Employee filter */}
-        <div className="relative lg:ml-auto w-full lg:w-56">
-          <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <select
-            value={employeeFilter}
-            onChange={(e) => setEmployeeFilter(e.target.value)}
-            className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-xl text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-          >
-            <option value="">All Associates</option>
-            {allEmployees.map(emp => (
-              <option key={emp} value={emp}>{emp}</option>
-            ))}
-          </select>
-        </div>
+        {/* Employee filter (Admins/Managers Only) */}
+        {(isAdmin || isManager) && (
+          <div className="relative lg:ml-auto w-full lg:w-56">
+            <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <select
+              value={employeeFilter}
+              onChange={(e) => setEmployeeFilter(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-xl text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+            >
+              <option value="">All Associates</option>
+              {allEmployees.map(emp => (
+                <option key={emp} value={emp}>{emp}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── Compact Stats Strip ─────────────────────────── */}
