@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
-import { collection, query, getDocs, addDoc, updateDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { Receipt, Plus, Search, Check, X, Clock, FileText, Loader2, IndianRupee, Send, Calendar, User } from 'lucide-react';
 
 export default function Reimbursements() {
@@ -28,6 +28,7 @@ export default function Reimbursements() {
   const [segments, setSegments] = useState(['General']);
   const [employeesList, setEmployeesList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
+  const [clientSearchFocused, setClientSearchFocused] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,31 +49,26 @@ export default function Reimbursements() {
         setReimbursements(data);
 
         const fetchedSegments = segSnapshot.docs.map(doc => doc.id);
-        const uniqueSegments = ['General', ...fetchedSegments];
+        const uniqueSegments = Array.from(new Set(['General', 'happymoves', 'gamefaktory', ...fetchedSegments]));
         setSegments(uniqueSegments);
 
         const fetchedEmployees = empSnapshot.docs.map(doc => doc.data().name).filter(Boolean);
         setEmployeesList(fetchedEmployees);
 
-        // Fetch clients from all segments
-        const allClientNames = new Set();
-        await Promise.all(uniqueSegments.map(async (segment) => {
-          try {
-            const [lSnap, aSnap, dSnap] = await Promise.all([
-              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'leads')),
-              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'adLeads')),
-              getDoc(doc(db, 'userData', companyId, 'segments', segment, 'crmData', 'distributors'))
-            ]);
-            
-            if (lSnap.exists()) lSnap.data().items?.forEach(i => { if (i.clientName || i.name) allClientNames.add(i.clientName || i.name) });
-            if (aSnap.exists()) aSnap.data().items?.forEach(i => { if (i.name) allClientNames.add(i.name) });
-            if (dSnap.exists()) dSnap.data().items?.forEach(i => { if (i.distributorName) allClientNames.add(i.distributorName) });
-          } catch (e) {
-             console.error("Error fetching segment data for clients:", e);
+        // Fetch clients from segments/General/crmData/allClients to bypass any rule restrictions
+        try {
+          const clientsDoc = await getDoc(doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients'));
+          if (clientsDoc.exists()) {
+            const allClients = clientsDoc.data().clients || [];
+            setClientsList(allClients.map(c => c.formattedString || `${c.clientName} (${c.associateName})`).sort());
+          } else {
+            console.log("segments/General/crmData/allClients doc does not exist.");
+            setClientsList(["ERROR: Document does not exist at paths"]);
           }
-        }));
-        
-        setClientsList(Array.from(allClientNames).sort());
+        } catch (e) {
+          console.error("Error fetching global clients list:", e);
+          setClientsList(["ERROR: " + e.message]);
+        }
       } catch (err) {
         console.error("Error fetching reimbursements:", err);
       } finally {
@@ -424,22 +420,37 @@ export default function Reimbursements() {
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="relative">
                   <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Client Details (Optional)</label>
                   <input 
                     type="text"
-                    list="clientsDataList"
                     value={formData.clientName}
                     onChange={(e) => setFormData({...formData, clientName: e.target.value})}
+                    onFocus={() => setClientSearchFocused(true)}
+                    onBlur={() => setTimeout(() => setClientSearchFocused(false), 200)}
                     className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px]"
-                    placeholder="Search or type client name..."
+                    placeholder={`Search from ${clientsList.length} clients...`}
                     autoComplete="off"
                   />
-                  <datalist id="clientsDataList">
-                    {clientsList.map(client => (
-                      <option key={client} value={client} />
-                    ))}
-                  </datalist>
+                  {clientSearchFocused && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg max-h-48 overflow-y-auto no-scrollbar">
+                      {clientsList.length === 0 ? (
+                        <div className="px-3 py-2 text-[13px] text-zinc-500 italic">No clients loaded yet...</div>
+                      ) : clientsList.filter(c => c.toLowerCase().includes((formData.clientName || '').toLowerCase())).length > 0 ? (
+                        clientsList.filter(c => c.toLowerCase().includes((formData.clientName || '').toLowerCase())).slice(0, 30).map((client, idx) => (
+                          <div 
+                            key={`${client}-${idx}`}
+                            className="px-3 py-2 text-[13px] text-zinc-700 hover:bg-zinc-100 cursor-pointer border-b border-zinc-100 last:border-0"
+                            onMouseDown={() => setFormData({...formData, clientName: client})}
+                          >
+                            {client}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-3 py-2 text-[13px] text-zinc-500 italic">No matching clients found</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

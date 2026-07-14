@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { doc, getDoc, getDocs, updateDoc, setDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, updateDoc, setDoc, collection, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
@@ -96,6 +96,7 @@ export default function Dashboard() {
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
   const [segmentClients, setSegmentClients] = useState([]);
+  const [globalClients, setGlobalClients] = useState([]);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     name: '',
@@ -146,6 +147,18 @@ export default function Dashboard() {
   });
 
   // Auto-fill assignedToName for employees when modal opens
+  const availableRegions = React.useMemo(() => {
+    const regions = new Set();
+    allEmployees.forEach(emp => {
+      if (emp.assignedRegions) {
+        emp.assignedRegions.split(',').forEach(r => {
+          const trimmed = r.trim();
+          if (trimmed) regions.add(trimmed);
+        });
+      }
+    });
+    return Array.from(regions).sort();
+  }, [allEmployees]);
   useEffect(() => {
     if ((isModalOpen || isAdLeadModalOpen || isDistributorModalOpen) && (!isAdmin && !isManager) && employeeData) {
       setFormData(prev => ({ ...prev, assignedToName: employeeData.name }));
@@ -154,8 +167,64 @@ export default function Dashboard() {
   }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, employeeData, user]);
 
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  const handleAdLeadInputChange = (e) => setAdLeadFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleAdLeadInputChange = (e) => {
+    const { name, value } = e.target;
+    setAdLeadFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+      // Auto-assign employee based on region match
+      if (name === 'region' && value.trim() && (isAdmin || isManager)) {
+        const searchRegion = value.trim().toLowerCase();
+        const matchedEmp = allEmployees.find(emp => {
+          if (!emp.assignedRegions) return false;
+          const empRegions = emp.assignedRegions.split(',').map(r => r.trim().toLowerCase());
+          return empRegions.includes(searchRegion);
+        });
+        
+        if (matchedEmp) {
+           newData.assignedToUid = matchedEmp.uid;
+           newData.assignedToName = matchedEmp.name;
+        }
+      }
+      
+      return newData;
+    });
+  };
   const handleDistributorInputChange = (e) => setDistributorFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const updateGlobalClientList = async (clientName, associateName) => {
+    if (!clientName || !companyId) return;
+    try {
+      const formattedString = `${clientName} (${associateName || 'Unknown Associate'})`;
+      const globalRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
+      await setDoc(globalRef, {
+        clients: arrayUnion({
+          clientName: clientName,
+          associateName: associateName || 'Unknown Associate',
+          segment: activeSegment,
+          formattedString
+        })
+      }, { merge: true });
+    } catch (error) {
+      console.error("Error updating global client list:", error);
+    }
+  };
+
+  const getDuplicateWarning = (name) => {
+    if (!name || name.trim() === '') return null;
+    const match = globalClients.find(c => c.clientName.toLowerCase() === name.trim().toLowerCase());
+    if (match) {
+      return (
+        <div className="w-full mt-2 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="text-[12px] text-amber-800 font-medium">
+            This client already exists! (Added by: <span className="font-bold">{match.associateName}</span>).
+          </span>
+        </div>
+      );
+    }
+    return null;
+  };
 
   const handleSaveLead = async (e) => {
     e.preventDefault();
@@ -214,6 +283,11 @@ export default function Dashboard() {
       }
       
       await setDoc(docRef, { items }, { merge: true });
+      
+      const savedClientName = leadPayload.clientName || leadPayload.name;
+      const savedAssociate = leadPayload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
+      await updateGlobalClientList(savedClientName, savedAssociate);
+
       const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
       setRegularLeads(fetchedLeads);
       
@@ -286,6 +360,11 @@ export default function Dashboard() {
         items = [newLead, ...items];
       }
       await setDoc(docRef, { items }, { merge: true });
+
+      const savedClientName = payload.name || payload.institutionName;
+      const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')));
+      await updateGlobalClientList(savedClientName, savedAssociate);
+
       const fetchedLeads = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid) : items;
       setAdLeads(fetchedLeads);
       
@@ -345,6 +424,11 @@ export default function Dashboard() {
         items = [newDistributor, ...items];
       }
       await setDoc(docRef, { items }, { merge: true });
+
+      const savedClientName = payload.distributorName;
+      const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
+      await updateGlobalClientList(savedClientName, savedAssociate);
+
       const fetchedDistributors = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
       setDistributors(fetchedDistributors);
 
@@ -693,14 +777,22 @@ export default function Dashboard() {
         const distributorsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
         const empsColRef = collection(db, 'userData', companyId, 'employees');
         const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
+        const globalClientsDocRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
         
-        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap] = await Promise.all([
+        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap] = await Promise.all([
           getDoc(leadsDocRef),
           getDoc(adLeadsDocRef),
           getDoc(distributorsDocRef),
           getDocs(empsColRef),
-          getDoc(segmentDocRef)
+          getDoc(segmentDocRef),
+          getDoc(globalClientsDocRef)
         ]);
+        
+        if (globalClientsSnap.exists()) {
+          setGlobalClients(globalClientsSnap.data().clients || []);
+        } else {
+          setGlobalClients([]);
+        }
         
         if (segmentSnap.exists()) {
           setSegmentClients(segmentSnap.data().clients || []);
@@ -1558,9 +1650,12 @@ export default function Dashboard() {
                   <div className="flex flex-col gap-1">
                     <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
 
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
-                      <input type="text" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
+                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <div className="flex items-center w-full">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
+                        <input type="text" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
+                      </div>
+                      {getDuplicateWarning(formData.clientName)}
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
@@ -1717,9 +1812,12 @@ export default function Dashboard() {
                   <div className="flex flex-col gap-1">
                     <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
                     
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
-                      <input type="text" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
+                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <div className="flex items-center w-full">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
+                        <input type="text" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
+                      </div>
+                      {getDuplicateWarning(adLeadFormData.name)}
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
@@ -1734,7 +1832,10 @@ export default function Dashboard() {
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
-                      <input type="text" name="region" value={adLeadFormData.region} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Ernakulam" />
+                      <input type="text" list="ad-lead-regions" name="region" value={adLeadFormData.region} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Ernakulam" />
+                      <datalist id="ad-lead-regions">
+                        {availableRegions.map(r => <option key={r} value={r} />)}
+                      </datalist>
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
@@ -1866,9 +1967,12 @@ export default function Dashboard() {
                   <div className="flex flex-col gap-1">
                     <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Distributor Profile</h3>
                     
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Firm Name*</label>
-                      <input type="text" required name="distributorName" value={distributorFormData.distributorName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. MedSupply Co." />
+                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <div className="flex items-center w-full">
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Firm Name*</label>
+                        <input type="text" required name="distributorName" value={distributorFormData.distributorName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. MedSupply Co." />
+                      </div>
+                      {getDuplicateWarning(distributorFormData.distributorName)}
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">

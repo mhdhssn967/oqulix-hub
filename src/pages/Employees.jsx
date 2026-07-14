@@ -12,6 +12,7 @@ export default function Employees() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [showPassword, setShowPassword] = useState(false);
 
@@ -20,7 +21,8 @@ export default function Employees() {
     position: '',
     phone: '',
     email: '',
-    password: ''
+    password: '',
+    assignedRegions: ''
   });
 
   // Fetch existing employees
@@ -57,35 +59,48 @@ export default function Employees() {
     setIsSubmitting(true);
 
     try {
-      // 1. Create user in Firebase Auth using the secondary app (so admin isn't logged out)
-      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
-      const employeeId = userCredential.user.uid;
+      if (editingEmployeeId) {
+        const updateData = {
+          name: formData.name,
+          position: formData.position,
+          phone: formData.phone,
+          assignedRegions: formData.assignedRegions
+        };
+        await setDoc(doc(db, `userData/${user.uid}/employees`, editingEmployeeId), updateData, { merge: true });
+        
+        await setDoc(doc(db, 'employees', editingEmployeeId), {
+          name: formData.name
+        }, { merge: true });
+        
+      } else {
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
+        const employeeId = userCredential.user.uid;
 
-      // 2. Save full profile in Admin's userData
-      const employeeData = {
-        name: formData.name,
-        position: formData.position,
-        phone: formData.phone,
-        email: formData.email,
-        password: formData.password, // requested by prompt, but typically avoid storing raw passwords
-        createdAt: serverTimestamp(),
-        userId: employeeId
-      };
-      await setDoc(doc(db, `userData/${user.uid}/employees`, employeeId), employeeData);
+        const employeeData = {
+          name: formData.name,
+          position: formData.position,
+          phone: formData.phone,
+          email: formData.email,
+          password: formData.password,
+          assignedRegions: formData.assignedRegions,
+          createdAt: serverTimestamp(),
+          userId: employeeId
+        };
+        await setDoc(doc(db, `userData/${user.uid}/employees`, employeeId), employeeData);
 
-      // 3. Save reference in root employees collection
-      await setDoc(doc(db, 'employees', employeeId), {
-        name: formData.name,
-        email: formData.email,
-        companyid: user.uid,
-        userId: employeeId
-      });
+        await setDoc(doc(db, 'employees', employeeId), {
+          name: formData.name,
+          email: formData.email,
+          companyid: user.uid,
+          userId: employeeId
+        });
 
-      // Optional: Sign out from secondary app to clean up state
-      await signOut(secondaryAuth);
+        await signOut(secondaryAuth);
+      }
 
       setIsModalOpen(false);
-      setFormData({ name: '', position: '', phone: '', email: '', password: '' });
+      setEditingEmployeeId(null);
+      setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '' });
       fetchEmployees();
     } catch (err) {
       console.error("Error adding employee:", err);
@@ -103,7 +118,11 @@ export default function Employees() {
           <p className="text-[15px] text-zinc-500 mt-1.5">Manage your team and staff access.</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingEmployeeId(null);
+            setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '' });
+            setIsModalOpen(true);
+          }}
           className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[14px] font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
@@ -128,14 +147,25 @@ export default function Employees() {
               <thead>
                 <tr className="bg-zinc-50/50 border-b border-zinc-100">
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Position</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Position & Regions</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Password</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {employees.map((emp) => (
-                  <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors">
+                  <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors cursor-pointer" onClick={() => {
+                    setFormData({
+                      name: emp.name || '',
+                      position: emp.position || '',
+                      phone: emp.phone || '',
+                      email: emp.email || '',
+                      password: emp.password || '',
+                      assignedRegions: emp.assignedRegions || ''
+                    });
+                    setEditingEmployeeId(emp.id);
+                    setIsModalOpen(true);
+                  }}>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px]">
@@ -145,10 +175,17 @@ export default function Employees() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 text-[12px] font-medium">
-                        <Briefcase className="w-3.5 h-3.5" />
-                        {emp.position}
-                      </span>
+                      <div className="flex flex-col gap-2 items-start">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-700 text-[12px] font-medium">
+                          <Briefcase className="w-3.5 h-3.5" />
+                          {emp.position}
+                        </span>
+                        {emp.assignedRegions && (
+                          <div className="text-[12px] text-zinc-500 max-w-[200px] truncate" title={emp.assignedRegions}>
+                            <span className="font-semibold">Regions:</span> {emp.assignedRegions}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col gap-1">
@@ -169,7 +206,10 @@ export default function Employees() {
                           <span className="truncate">{visiblePasswords[emp.id] ? emp.password : '••••••••'}</span>
                         </div>
                         <button 
-                          onClick={() => togglePasswordVisibility(emp.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePasswordVisibility(emp.id);
+                          }}
                           className="p-1 text-zinc-400 hover:text-zinc-600 transition-colors rounded-md hover:bg-zinc-100"
                           title={visiblePasswords[emp.id] ? "Hide password" : "Show password"}
                         >
@@ -191,7 +231,7 @@ export default function Employees() {
           <div  className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{maxWidth:'500px'}}>
             <div className="flex items-center justify-between p-4 border-b border-zinc-100" >
-              <h2 className="text-[15px] font-semibold text-zinc-900">Add New Employee</h2>
+              <h2 className="text-[15px] font-semibold text-zinc-900">{editingEmployeeId ? 'Edit Employee' : 'Add New Employee'}</h2>
               <button type="button" onClick={() => !isSubmitting && setIsModalOpen(false)} className="text-zinc-400 hover:text-black transition-colors">
                 <X className="w-4 h-4" />
               </button>
@@ -231,12 +271,22 @@ export default function Employees() {
                   placeholder="+1 (555) 000-0000"
                 />
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Assigned Regions</label>
+                <input 
+                  type="text" name="assignedRegions" value={formData.assignedRegions} onChange={handleInputChange}
+                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                  placeholder="e.g. Ernakulam, Thrissur (Comma separated)"
+                />
+              </div>
               
               <div>
                 <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Email Address</label>
                 <input 
                   type="email" required name="email" value={formData.email} onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                  disabled={!!editingEmployeeId}
+                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="john@example.com"
                 />
               </div>
@@ -245,17 +295,20 @@ export default function Employees() {
                 <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Account Password</label>
                 <div className="relative">
                   <input 
-                    type={showPassword ? "text" : "password"} required minLength="6" name="password" value={formData.password} onChange={handleInputChange}
-                    className="w-full pl-3 pr-10 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                    type={showPassword ? "text" : "password"} required={!editingEmployeeId} minLength="6" name="password" value={formData.password} onChange={handleInputChange}
+                    disabled={!!editingEmployeeId}
+                    className="w-full pl-3 pr-10 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Min. 6 characters"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  {!editingEmployeeId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -272,7 +325,7 @@ export default function Employees() {
                   disabled={isSubmitting}
                   className="flex-[2] py-2 px-3 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-70 flex items-center justify-center"
                 >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Employee'}
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingEmployeeId ? 'Save Changes' : 'Add Employee')}
                 </button>
               </div>
             </form>
