@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, collection, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -39,6 +39,7 @@ const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) =
 
 const LEAD_STATUS_OPTIONS = [
   { value: 'New Lead', label: 'New Lead' },
+  { value: 'Called, no response', label: 'Called, No Response' },
   { value: 'Contacted', label: 'Contacted' },
   { value: 'Interested', label: 'Interested' },
   { value: 'Follow up needed', label: 'Follow-Up Needed' },
@@ -117,7 +118,7 @@ export default function Dashboard() {
     lastContacted: '',
     nextFollowUp: '',
     remarks: '',
-    leadType: 'Clinic',
+    leadType: 'Hospital',
     customLeadType: '',
     assignedToName: '',
     message: ''
@@ -297,7 +298,7 @@ export default function Dashboard() {
         date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', 
         personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', 
         referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', 
-        lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', 
+        lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', 
         assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' 
       });
     } catch (err) {
@@ -514,8 +515,8 @@ export default function Dashboard() {
       lastContacted: lead.lastContacted || '',
       nextFollowUp: lead.nextFollowUp || lead.followUpDate || '',
       remarks: lead.remarks || '',
-      leadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? lead.leadType : 'Other',
-      customLeadType: ['Clinic', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? '' : (lead.leadType || ''),
+      leadType: ['Clinic', 'Hospital', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? lead.leadType : 'Other',
+      customLeadType: ['Clinic', 'Hospital', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? '' : (lead.leadType || ''),
       assignedToName: lead.assignedToName || '',
       message: lead.message || ''
     });
@@ -808,11 +809,11 @@ export default function Dashboard() {
         let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
 
         if (!isAdmin && user?.uid) {
-          fetchedLeads = fetchedLeads.filter(item => item.userId === user.uid);
-          fetchedDistributors = fetchedDistributors.filter(item => item.userId === user.uid);
+          fetchedLeads = fetchedLeads.filter(item => item.userId === user.uid || item.isGlobal);
+          fetchedDistributors = fetchedDistributors.filter(item => item.userId === user.uid || item.isGlobal);
         }
         if (!isAdmin && !isManager && user?.uid) {
-          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid);
+          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid || item.isGlobal);
         }
         
         setRegularLeads(fetchedLeads);
@@ -1006,7 +1007,7 @@ export default function Dashboard() {
                 setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
                 setIsDistributorModalOpen(true);
               } else {
-                setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
+                setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
                 setIsModalOpen(true);
               }
             }}
@@ -1211,7 +1212,36 @@ export default function Dashboard() {
                     <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || lead.name || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.personOfContact || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.contactNo || 'N/A'}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-600">
+                      <div className="flex items-center gap-2">
+                        <span>{lead.contactNo || 'N/A'}</span>
+                        {lead.contactNo && (
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(lead.contactNo);
+                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
+                              }}
+                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
+                              title="Copy Number"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            <a
+                              href={`https://wa.me/${(lead.contactNo || '').replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
+                              title="Chat on WhatsApp"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.employeeName || 'N/A'}</td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
@@ -1253,7 +1283,33 @@ export default function Dashboard() {
                         {lead.name}
                       </div>
                       <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {lead.contactNumber}
+                        <Phone className="w-3 h-3" /> 
+                        <span>{lead.contactNumber}</span>
+                        {lead.contactNumber && (
+                          <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(lead.contactNumber);
+                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
+                              }}
+                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
+                              title="Copy Number"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            <a
+                              href={`https://wa.me/${(lead.contactNumber || '').replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
+                              title="Chat on WhatsApp"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                       <div className="mt-1.5 flex items-center gap-2">
                         <span className={getPriorityColor(lead.priority)}>
@@ -1326,7 +1382,33 @@ export default function Dashboard() {
                     <td className="px-5 py-4">
                       <div className="text-[13px] font-medium text-zinc-900">{dist.contactPersonName || 'N/A'}</div>
                       <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {dist.contactNumber || 'N/A'}
+                        <Phone className="w-3 h-3" /> 
+                        <span>{dist.contactNumber || 'N/A'}</span>
+                        {dist.contactNumber && (
+                          <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(dist.contactNumber);
+                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
+                              }}
+                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
+                              title="Copy Number"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            <a
+                              href={`https://wa.me/${(dist.contactNumber || '').replace(/[^0-9]/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
+                              title="Chat on WhatsApp"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -1395,6 +1477,7 @@ export default function Dashboard() {
                   ) : (
                     <>
                       <option value="New Lead">New Lead</option>
+                      <option value="Called, no response">Called, No Response</option>
                       <option value="Contacted">Contacted</option>
                       <option value="Interested">Interested</option>
                       <option value="Follow up needed">Follow-Up Needed</option>
@@ -1417,6 +1500,32 @@ export default function Dashboard() {
                   className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
                   placeholder="Note down what was discussed..."
                 ></textarea>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    const phone = quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '';
+                    if (phone) {
+                      navigator.clipboard.writeText(phone);
+                      Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
+                    } else {
+                      Swal.fire({ title: 'No Phone', text: 'This lead does not have a phone number.', icon: 'warning', timer: 1500, showConfirmButton: false });
+                    }
+                  }} 
+                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Phone className="w-3.5 h-3.5" /> Copy Number
+                </button>
+                <a 
+                  href={`https://wa.me/${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9]/g, '')}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                </a>
               </div>
 
               <div className="flex flex-col gap-2 mt-2">
@@ -1635,7 +1744,7 @@ export default function Dashboard() {
                 if (!isSubmitting) {
                   setIsModalOpen(false);
                   setEditingLeadId(null);
-                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
+                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
                 }
               }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
                 <X className="w-4 h-4" />
@@ -1662,6 +1771,7 @@ export default function Dashboard() {
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Status</label>
                       <select name="currentStatus" value={formData.currentStatus} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
                         <option value="New Lead">New Lead</option>
+                        <option value="Called, no response">Called, No Response</option>
                         <option value="Contacted">Contacted</option>
                         <option value="Interested">Interested</option>
                         <option value="Follow up needed">Follow-Up Needed</option>
@@ -1692,6 +1802,7 @@ export default function Dashboard() {
                         )) : (
                           <>
                             <option value="Clinic">Clinic</option>
+                            <option value="Hospital">Hospital</option>
                             <option value="Physiotherapist">Physiotherapist</option>
                             <option value="Distributor">Distributor</option>
                           </>
@@ -1774,7 +1885,7 @@ export default function Dashboard() {
                 <button type="button" onClick={() => {
                   setIsModalOpen(false);
                   setEditingLeadId(null);
-                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Clinic', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
+                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
                 }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
                   Discard
                 </button>
