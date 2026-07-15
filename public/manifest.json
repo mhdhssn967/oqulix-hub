@@ -8,15 +8,21 @@
   "icons": [
     {
       "src": "/icon.png",
-      "sizes": "192x192",
+      "sizes": "263x264",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/icon.png",
-      "sizes": "512x512",
+      "sizes": "263x264",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
