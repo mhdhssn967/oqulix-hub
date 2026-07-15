@@ -247,7 +247,7 @@ export default function Analysis() {
       {/* ── Header ─────────────────────────────────────── */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-1 mb-6 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/80 w-fit shadow-inner">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-6 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/80 w-full sm:w-fit shadow-inner">
             <button 
               onClick={() => setActiveSegment('happymoves')}
               className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
@@ -278,9 +278,9 @@ export default function Analysis() {
       </header>
 
       {/* ── Filters Bar ────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row items-center gap-4">
+      <div className="bg-white rounded-2xl border border-zinc-200/80 p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row items-center gap-4 lg:items-center">
         {/* Data-source toggles */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap justify-center lg:justify-start items-center gap-2 sm:gap-4 w-full lg:w-auto">
           {[
             { label: 'Regular Leads', count: regularLeads.length, checked: showLeads, toggle: () => setShowLeads(!showLeads), color: 'bg-blue-500' },
             { label: 'Ad Leads', count: adLeads.length, checked: showAdLeads, toggle: () => setShowAdLeads(!showAdLeads), color: 'bg-purple-500' },

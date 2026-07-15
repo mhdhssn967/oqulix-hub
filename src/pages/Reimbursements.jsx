@@ -151,7 +151,7 @@ export default function Reimbursements() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)]">
-      <header className="mb-6 flex-shrink-0 flex items-end justify-between">
+      <header className="mb-6 flex-shrink-0 flex flex-col sm:flex-row sm:items-end items-start gap-4 justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2">
             <Receipt className="w-8 h-8 text-black" />
@@ -270,7 +270,7 @@ export default function Reimbursements() {
                     )}
                   </div>
 
-                  <div className="mt-auto pt-4 border-t border-zinc-100 flex items-center justify-between">
+                  <div className="mt-auto pt-4 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="text-[12px] font-medium text-zinc-500 flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-zinc-400" />
@@ -336,7 +336,7 @@ export default function Reimbursements() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Amount (₹) *</label>
                   <input 
@@ -362,7 +362,7 @@ export default function Reimbursements() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Segment *</label>
                   <select 
@@ -406,7 +406,7 @@ export default function Reimbursements() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Co-Employee (Optional)</label>
                   <select 
