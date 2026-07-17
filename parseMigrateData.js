@@ -63,26 +63,27 @@ if (currentLead && (currentLead.contactNo || currentLead.name)) {
 const finalData = leads.map(lead => {
   return {
     addedByName: "Muhammed Suhail",
-    assignedToName: "Sakeer Shamsudheen",
-    assignedToUid: "6dJMJHOtJpQflLbPi4aYPyEWmft1",
+    assignedToName: "Navaneeth K N",
+    assignedToUid: "TGCUg8xyPlSWiXKML8M5A7xwuB82",
     contactNo: lead.contactNo || "",
     contactNumber: lead.contactNo || "",
-    createdAt: { seconds: Math.floor(Date.now() / 1000) }, // Firestore timestamp like
+    createdAt: { seconds: Math.floor(Date.now() / 1000) },
     currentStatus: "Contacted",
-    date: "2026-07-15",
+    date: "2026-07-13",
     employeeName: "Muhammed Suhail",
     followUpDate: "",
     id: crypto.randomBytes(10).toString('hex'),
     institutionName: "",
-    lastContacted: "2026-07-15",
-    lastFollowedUp: "2026-07-15",
+    lastContacted: "2026-07-13",
     leadType: "Distributor",
     message: lead.message || "",
     name: lead.name || "Unknown",
     newLead: true,
-    priority: "Urgent",
+    priority: "Medium",
     region: lead.region || "",
-    remarks: ""
+    remarks: "",
+    updatedAt: { seconds: Math.floor(Date.now() / 1000) },
+    userId: "TGCUg8xyPlSWiXKML8M5A7xwuB82"
   };
 });
 
