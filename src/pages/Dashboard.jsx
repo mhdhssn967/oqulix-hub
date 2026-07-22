@@ -271,7 +271,7 @@ export default function Dashboard() {
         const newLead = {
           ...leadPayload,
           id: doc(collection(db, 'temp')).id,
-          currentStatus: 'New Lead',
+          currentStatus: leadPayload.currentStatus || 'New Lead',
           newLead: true,
           employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
           addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
@@ -289,7 +289,7 @@ export default function Dashboard() {
       const savedAssociate = leadPayload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedLeads = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      const fetchedLeads = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : items;
       setRegularLeads(fetchedLeads);
       
       setIsModalOpen(false);
@@ -339,7 +339,7 @@ export default function Dashboard() {
         assignedToName: (isAdmin || isManager) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
         message: adLeadFormData.message,
         updatedAt: new Date(),
-        currentStatus: 'New Lead'
+        currentStatus: adLeadFormData.currentStatus || 'New Lead'
       };
 
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
@@ -430,7 +430,7 @@ export default function Dashboard() {
       const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedDistributors = !isAdmin && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      const fetchedDistributors = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : items;
       setDistributors(fetchedDistributors);
 
       setIsDistributorModalOpen(false);
@@ -560,12 +560,7 @@ export default function Dashboard() {
         const newItems = items.filter(item => item.id !== lead.id);
         await updateDoc(docRef, { items: newItems });
         
-        let fetchedItems;
-        if (activeTab === 'ads') {
-          fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
-        } else {
-          fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
-        }
+        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
         
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
@@ -623,7 +618,7 @@ export default function Dashboard() {
         const newItems = items.filter(item => item.id !== lead.id);
         await updateDoc(sourceDocRef, { items: newItems });
         
-        const fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
+        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'distributors') setDistributors(fetchedItems);
       }
@@ -660,7 +655,7 @@ export default function Dashboard() {
       adItems = [newAdLead, ...adItems];
       await setDoc(adLeadsDocRef, { items: adItems }, { merge: true });
       
-      const adFetchedItems = (!isAdmin && !isManager) && user?.uid ? adItems.filter(item => item.userId === user.uid) : adItems;
+      const adFetchedItems = (!isAdmin && !isManager) && user?.uid ? adItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : adItems;
       setAdLeads(adFetchedItems);
       
       setSelectedLead(null);
@@ -740,12 +735,7 @@ export default function Dashboard() {
         
         await updateDoc(docRef, { items: newItems });
         
-        let fetchedItems;
-        if (activeTab === 'ads') {
-          fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
-        } else {
-          fetchedItems = !isAdmin && user?.uid ? newItems.filter(item => item.userId === user.uid) : newItems;
-        }
+        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
         
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
@@ -808,12 +798,11 @@ export default function Dashboard() {
         let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
         let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
 
-        if (!isAdmin && user?.uid) {
-          fetchedLeads = fetchedLeads.filter(item => item.userId === user.uid || item.isGlobal);
-          fetchedDistributors = fetchedDistributors.filter(item => item.userId === user.uid || item.isGlobal);
-        }
         if (!isAdmin && !isManager && user?.uid) {
-          fetchedAdLeads = fetchedAdLeads.filter(item => item.userId === user.uid || item.isGlobal);
+          const isAssigned = (item) => item.userId === user.uid || item.assignedToUid === user.uid;
+          fetchedLeads = fetchedLeads.filter(isAssigned);
+          fetchedDistributors = fetchedDistributors.filter(isAssigned);
+          fetchedAdLeads = fetchedAdLeads.filter(isAssigned);
         }
         
         setRegularLeads(fetchedLeads);
@@ -927,6 +916,29 @@ export default function Dashboard() {
     today.setHours(0, 0, 0, 0);
     
     return followUpDate < today;
+  };
+
+  const isRecentLead = (item) => {
+    if (!item) return false;
+    let itemDate = null;
+    const rawDate = item.date || item.createdAt || item.addedDate;
+    if (rawDate) {
+      if (rawDate.seconds) {
+        itemDate = new Date(rawDate.seconds * 1000);
+      } else if (typeof rawDate === 'string' || typeof rawDate === 'number' || rawDate instanceof Date) {
+        itemDate = new Date(rawDate);
+      }
+    }
+    if (!itemDate || isNaN(itemDate.getTime())) return false;
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    threeDaysAgo.setHours(0, 0, 0, 0);
+
+    return itemDate >= threeDaysAgo && itemDate <= today;
   };
 
   const getFilteredData = (data, ignoreStatus = false) => {
@@ -1112,19 +1124,21 @@ export default function Dashboard() {
               </select>
             </div>
             
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <select 
-                value={employeeFilter}
-                onChange={(e) => { setEmployeeFilter(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-              >
-                <option value="">All Associates</option>
-                {uniqueEmployees.map(emp => (
-                  <option key={emp} value={emp}>{emp}</option>
-                ))}
-              </select>
-            </div>
+            {(isAdmin || isManager) && (
+              <div className="relative w-40 sm:w-48 shrink-0">
+                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <select 
+                  value={employeeFilter}
+                  onChange={(e) => { setEmployeeFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+                >
+                  <option value="">All Associates</option>
+                  {uniqueEmployees.map(emp => (
+                    <option key={emp} value={emp}>{emp}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="relative w-40 sm:w-48 shrink-0">
               <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
@@ -1207,7 +1221,14 @@ export default function Dashboard() {
                     className={`transition-colors cursor-pointer group ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
                     onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
                   >
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
+                      {isRecentLead(lead) && (
+                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
+                          NEW
+                        </span>
+                      )}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
                     <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || lead.name || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
@@ -1276,7 +1297,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-zinc-100">
                 {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
                   <tr key={lead.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
+                      {isRecentLead(lead) && (
+                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
+                          NEW
+                        </span>
+                      )}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
                         <User className="w-4 h-4 text-zinc-400" />
@@ -1369,7 +1397,14 @@ export default function Dashboard() {
               <tbody className="divide-y divide-zinc-100">
                 {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
                   <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
+                      {isRecentLead(dist) && (
+                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
+                          NEW
+                        </span>
+                      )}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
                         <Target className="w-4 h-4 text-zinc-400" />

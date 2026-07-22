@@ -62,7 +62,6 @@ export default function Analysis() {
           if (!items) return [];
           if (isAdmin || isManager) return items;
           return items.filter(i => 
-            i.isGlobal ||
             i.userId === user?.uid || 
             i.assignedToUid === user?.uid || 
             i.employeeUid === user?.uid || 
