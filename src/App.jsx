@@ -2,6 +2,9 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { useAuthStore } from './store/authStore';
+import { messaging } from './firebase';
+import { onMessage } from 'firebase/messaging';
+import Swal from 'sweetalert2';
 
 // Import pages
 import Dashboard from './pages/Dashboard';
@@ -44,6 +47,35 @@ function App() {
   useEffect(() => {
     initAuth();
   }, [initAuth]);
+
+  useEffect(() => {
+    if (messaging) {
+      const unsubscribe = onMessage(messaging, (payload) => {
+        console.log('Message received in foreground: ', payload);
+        const Toast = Swal.mixin({
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 4000,
+          timerProgressBar: true,
+        });
+
+        Toast.fire({
+          icon: 'info',
+          title: payload.notification?.title || 'New Notification',
+          text: payload.notification?.body || 'You have a new message.'
+        });
+
+        if (Notification.permission === 'granted') {
+          new Notification(payload.notification?.title || 'New Notification', {
+            body: payload.notification?.body,
+            icon: '/firebase-logo.png' // optional icon
+          });
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, []);
 
   if (loading) {
     return (
