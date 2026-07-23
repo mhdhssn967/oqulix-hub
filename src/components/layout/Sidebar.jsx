@@ -39,12 +39,12 @@ export function Sidebar() {
     { icon: LayoutDashboard, label: 'CRM', path: '/' },
     { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
     ...(isAdmin ? [{ icon: CreditCard, label: 'Finance', path: '/finance' }] : []),
+    { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Receipt, label: 'Reimbursements', path: '/reimbursements' },
     { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
     ...(isAdmin ? [{ icon: UserCog, label: 'Employees', path: '/employees' }] : []),
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
-    { icon: Users, label: 'Clients', path: '/clients' },
     { icon: FileText, label: 'Documents', path: '/documents' },
   ];
 
