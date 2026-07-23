@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
-import { collection, query, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { Receipt, Plus, Search, Check, X, Clock, FileText, Loader2, IndianRupee, Send, Calendar, User, ChevronDown, Copy } from 'lucide-react';
+import { collection, query, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp, orderBy, deleteDoc } from 'firebase/firestore';
+import { Receipt, Plus, Search, Check, X, Clock, FileText, Loader2, IndianRupee, Send, Calendar, User, ChevronDown, Copy, Trash2 } from 'lucide-react';
 
 export default function Reimbursements() {
   const { user, isAdmin, isManager, companyId, employeeData } = useAuthStore();
@@ -139,6 +139,17 @@ export default function Reimbursements() {
       ));
     } catch (err) {
       console.error("Error updating reimbursement status:", err);
+    }
+  };
+
+  const handleDeleteReimbursement = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this reimbursement request?")) return;
+    if (!companyId) return;
+    try {
+      await deleteDoc(doc(db, 'userData', companyId, 'reimbursements', id));
+      setReimbursements(prev => prev.filter(item => item.id !== id));
+    } catch (err) {
+      console.error("Error deleting reimbursement:", err);
     }
   };
 
@@ -423,27 +434,38 @@ export default function Reimbursements() {
                       </div>
                     </div>
                     
-                    {/* Actions for Admins/Managers on Pending items */}
-                    {(isAdmin || isManager) && item.status === 'Pending' && (
+                    {/* Actions for Pending items */}
+                    {item.status === 'Pending' && (
                       <div className="flex items-center gap-2">
+                        {(isAdmin || isManager) && (
+                          <>
+                            <button 
+                              onClick={() => {
+                                setCurrentReimbursementId(item.id);
+                                setAckText('');
+                                setIsSendModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 text-[12px] font-semibold flex items-center gap-1.5"
+                              title="Approve & Send Payment"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              Approve & Send
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateStatus(item.id, 'Rejected')}
+                              className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors border border-orange-200"
+                              title="Reject"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                         <button 
-                          onClick={() => {
-                            setCurrentReimbursementId(item.id);
-                            setAckText('');
-                            setIsSendModalOpen(true);
-                          }}
-                          className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200 text-[12px] font-semibold flex items-center gap-1.5"
-                          title="Approve & Send Payment"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                          Approve & Send
-                        </button>
-                        <button 
-                          onClick={() => handleUpdateStatus(item.id, 'Rejected')}
+                          onClick={() => handleDeleteReimbursement(item.id)}
                           className="p-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors border border-red-200"
-                          title="Reject"
+                          title="Delete Request"
                         >
-                          <X className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     )}
