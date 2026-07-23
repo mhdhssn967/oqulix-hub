@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
 import { collection, query, getDocs, getDoc, addDoc, updateDoc, doc, serverTimestamp, orderBy, deleteDoc } from 'firebase/firestore';
-import { Receipt, Plus, Search, Check, X, Clock, FileText, Loader2, IndianRupee, Send, Calendar, User, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { Receipt, Plus, Search, Check, X, Clock, FileText, Loader2, IndianRupee, Send, Calendar, User, ChevronDown, Copy, Trash2, BarChart2 } from 'lucide-react';
+import ReimbursementAnalysis from '../components/ReimbursementAnalysis';
 
 export default function Reimbursements() {
   const { user, isAdmin, isManager, companyId, employeeData } = useAuthStore();
   const [reimbursements, setReimbursements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('Pending');
   
@@ -235,13 +237,24 @@ export default function Reimbursements() {
             {isAdmin || isManager ? 'Review and manage employee reimbursement requests.' : 'Submit and track your expense reimbursements.'}
           </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-black text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-zinc-800 transition-all flex items-center gap-2 shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          File Reimbursement
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          {(isAdmin || isManager) && (
+            <button
+              onClick={() => setShowAnalysis(true)}
+              className="bg-white border border-zinc-200 text-zinc-700 px-4 py-2 rounded-xl text-sm font-semibold hover:bg-zinc-50 transition-all flex items-center gap-2 shadow-sm"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Analysis
+            </button>
+          )}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-black text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-zinc-800 transition-all flex items-center gap-2 shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            File Reimbursement
+          </button>
+        </div>
       </header>
 
       {/* Custom Tabs */}
@@ -284,7 +297,14 @@ export default function Reimbursements() {
           />
         </div>
 
-        <div className="flex-1 overflow-auto no-scrollbar">
+        <div className="flex-1 overflow-auto no-scrollbar pb-6">
+          {showAnalysis && (
+            <ReimbursementAnalysis 
+              reimbursements={reimbursements} 
+              onClose={() => setShowAnalysis(false)} 
+            />
+          )}
+
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
