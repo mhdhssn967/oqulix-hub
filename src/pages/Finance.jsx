@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo } from 'react';
+import { collection, getDocs, query, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import AddTransactionModal from '../components/AddTransactionModal';
 
 export default function Finance() {
   const [transactions, setTransactions] = useState([]);
@@ -9,33 +11,79 @@ export default function Finance() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [preferences, setPreferences] = useState(null);
+  const [transactionToEdit, setTransactionToEdit] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    type: 'all',
+    category: 'all',
+    service: 'all',
+    source: 'all'
+  });
+  const [expenseChartGroup, setExpenseChartGroup] = useState('category');
   const itemsPerPage = 100;
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    try {
+      const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
+      const q = query(
+        collection(db, `userData/${userId}/financialData`),
+      );
+      const querySnapshot = await getDocs(q);
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // sort by date descending initially
+      data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setTransactions(data);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, sortOrder]);
 
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchPreferences = async () => {
       try {
         const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
-        const q = query(
-          collection(db, `userData/${userId}/financialData`),
-        );
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // sort by date descending initially
-        data.sort((a, b) => new Date(b.date) - new Date(a.date));
-        setTransactions(data);
+        const docRef = doc(db, `userData/${userId}/preferences/prefs`);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setPreferences(docSnap.data().fields);
+        }
       } catch (error) {
-        console.error("Error fetching transactions:", error);
-      } finally {
-        setLoading(false);
+        console.error("Error fetching preferences:", error);
       }
     };
 
     fetchTransactions();
+    fetchPreferences();
   }, []);
+
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
+      try {
+        const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
+        await deleteDoc(doc(db, `userData/${userId}/financialData`, id));
+        fetchTransactions();
+      } catch (error) {
+        console.error("Error deleting transaction:", error);
+        alert("Error deleting transaction");
+      }
+    }
+  };
+
+  const handleEdit = (tx) => {
+    setTransactionToEdit(tx);
+    setIsAddModalOpen(true);
+  };
 
   const handleSort = () => {
     const newOrder = sortOrder === 'desc' ? 'asc' : 'desc';
@@ -50,11 +98,40 @@ export default function Finance() {
     setTransactions(sorted);
   };
 
-  const filteredTransactions = transactions.filter(t => 
-    (t.remarks && t.remarks.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (t.service && t.service.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      // Search term
+      const matchesSearch = (t.remarks && t.remarks.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.service && t.service.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      if (!matchesSearch) return false;
+
+      // Date Range
+      if (filters.dateFrom && t.date < filters.dateFrom) return false;
+      if (filters.dateTo && t.date > filters.dateTo) return false;
+
+      // Category
+      if (filters.category !== 'all' && t.category !== filters.category) return false;
+      
+      // Service
+      if (filters.service !== 'all' && t.service !== filters.service) return false;
+
+      // Source
+      if (filters.source !== 'all' && t.source !== filters.source) return false;
+
+      // Type
+      const isExpense = t.isExpense || (!t.isRevenue && t.typeOfTransaction !== "Income" && t.creditType !== "revenue");
+      const isRevenue = t.isRevenue && t.creditType === "revenue";
+      const isCredit = (t.isRevenue && t.creditType !== "revenue") || t.typeOfTransaction === "Income";
+
+      if (filters.type === 'expense' && !isExpense) return false;
+      if (filters.type === 'revenue' && !isRevenue) return false;
+      if (filters.type === 'credit' && !isCredit) return false;
+
+      return true;
+    });
+  }, [transactions, searchTerm, filters]);
 
   const totalExpense = filteredTransactions.reduce((acc, tx) => {
     return tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue") ? acc + Number(tx.amount || 0) : acc;
@@ -67,6 +144,22 @@ export default function Finance() {
   const totalCredit = filteredTransactions.reduce((acc, tx) => {
     return (tx.isRevenue && tx.creditType !== "revenue") || tx.typeOfTransaction === "Income" ? acc + Number(tx.amount || 0) : acc;
   }, 0);
+  
+  const totalDirectorLoan = filteredTransactions.reduce((acc, tx) => {
+    return (tx.service === "Director's Loan Deposit") ? acc + Number(tx.amount || 0) : acc;
+  }, 0);
+
+  const sourceBalances = useMemo(() => {
+    return filteredTransactions.reduce((acc, tx) => {
+      const source = tx.source || 'Unknown Source';
+      const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
+      if (isExpense) {
+        if (!acc[source]) acc[source] = 0;
+        acc[source] += Number(tx.amount || 0);
+      }
+      return acc;
+    }, {});
+  }, [filteredTransactions]);
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const paginatedTransactions = filteredTransactions.slice(
@@ -74,8 +167,61 @@ export default function Finance() {
     currentPage * itemsPerPage
   );
 
+  // Charts Data
+  const pieChartData = useMemo(() => {
+    const expensesGrouped = filteredTransactions.reduce((acc, tx) => {
+      const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
+      if (isExpense) {
+        const key = tx[expenseChartGroup] || 'N/A';
+        acc[key] = (acc[key] || 0) + Number(tx.amount || 0);
+      }
+      return acc;
+    }, {});
+    
+    return Object.entries(expensesGrouped)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a,b) => b.value - a.value)
+      .slice(0, 5); // top 5
+  }, [filteredTransactions, expenseChartGroup]);
+
+  const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
+
+  const barChartData = useMemo(() => {
+    const monthlyDataMap = filteredTransactions.reduce((acc, tx) => {
+      if (!tx.date) return acc;
+      const month = tx.date.substring(0, 7); // YYYY-MM
+      if (!acc[month]) acc[month] = { month, income: 0, expense: 0 };
+      
+      const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
+      const isRevenue = tx.isRevenue && tx.creditType === "revenue";
+      
+      if (isExpense) acc[month].expense += Number(tx.amount || 0);
+      if (isRevenue) acc[month].income += Number(tx.amount || 0);
+      
+      return acc;
+    }, {});
+    
+    return Object.values(monthlyDataMap).sort((a,b) => a.month.localeCompare(b.month));
+  }, [filteredTransactions]);
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      dateFrom: '',
+      dateTo: '',
+      type: 'all',
+      category: 'all',
+      service: 'all',
+      source: 'all'
+    });
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6rem)]">
+    <div className="flex flex-col pb-10">
       <header className="mb-6 flex-shrink-0">
         <div className="flex justify-between items-end mb-6">
           <div>
@@ -95,10 +241,75 @@ export default function Finance() {
                 className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-64"
               />
             </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors shadow-sm ${showFilters ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/90 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Transaction
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        {showFilters && (
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] mb-6 animate-in slide-in-from-top-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Advanced Filters</h3>
+              <button onClick={clearFilters} className="text-sm text-zinc-500 hover:text-zinc-900 flex items-center gap-1">
+                <X className="w-3.5 h-3.5" /> Clear All
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">From Date</label>
+                <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">To Date</label>
+                <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Type</label>
+                <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All Types</option>
+                  <option value="revenue">Revenue</option>
+                  <option value="expense">Expense</option>
+                  <option value="credit">Credit / Deposit</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Category</label>
+                <select name="category" value={filters.category} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All Categories</option>
+                  {preferences?.category?.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Service</label>
+                <select name="service" value={filters.service} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All Services</option>
+                  {preferences?.service?.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Source</label>
+                <select name="source" value={filters.source} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All Sources</option>
+                  {preferences?.source?.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">Total Revenue</p>
@@ -119,6 +330,15 @@ export default function Finance() {
           </div>
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-zinc-500">Director's Loan Deposit</p>
+              <h3 className="text-2xl font-bold text-purple-600 mt-1">₹{totalDirectorLoan.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-zinc-500">Total Expenses</p>
               <h3 className="text-2xl font-bold text-red-600 mt-1">₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
             </div>
@@ -127,15 +347,89 @@ export default function Finance() {
             </div>
           </div>
         </div>
+        
+        {Object.keys(sourceBalances).length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            {Object.entries(sourceBalances).map(([source, balance]) => {
+              return (
+                <div key={source} className="px-3 py-1.5 rounded-lg border text-sm font-medium flex items-center gap-2 bg-red-50 border-red-200 text-red-700">
+                  <span className="opacity-75">{source}:</span>
+                  <span>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+            <h3 className="text-sm font-medium text-zinc-900 mb-4">Income vs Expense (Monthly)</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} tickFormatter={(val) => `₹${val.toLocaleString('en-IN')}`} />
+                  <RechartsTooltip cursor={{ fill: '#f4f4f5' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expense" name="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-zinc-900">Top Expenses</h3>
+              <select 
+                value={expenseChartGroup}
+                onChange={(e) => setExpenseChartGroup(e.target.value)}
+                className="px-2 py-1 bg-zinc-50 border border-zinc-200 rounded-lg text-xs font-medium text-zinc-700 focus:outline-none focus:ring-1 focus:ring-black/10"
+              >
+                <option value="category">by Category</option>
+                <option value="source">by Source</option>
+                <option value="type">by Type</option>
+                <option value="service">by Service</option>
+              </select>
+            </div>
+            <div className="h-64">
+              {pieChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label={({ value }) => `₹${value.toLocaleString('en-IN')}`}
+                      labelLine={true}
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value) => `₹${value.toLocaleString('en-IN')}`} />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-full text-zinc-400 text-sm">No expense data available</div>
+              )}
+            </div>
+          </div>
+        </div>
       </header>
 
-      <div className="flex-1 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
         {loading ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="py-20 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto">
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[1200px]">
               <thead className="sticky top-0 bg-zinc-50 border-b border-zinc-200/80 z-10">
                 <tr>
@@ -155,6 +449,7 @@ export default function Finance() {
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Service</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider text-right">Amount</th>
+                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -205,12 +500,30 @@ export default function Finance() {
                       <td className={`py-4 px-6 whitespace-nowrap text-sm font-medium text-right ${txTypeStyle.color}`}>
                         {txTypeStyle.sign}{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
+                      <td className="py-4 px-6 whitespace-nowrap text-sm font-medium text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEdit(tx)}
+                            className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tx.id)}
+                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
                 {filteredTransactions.length === 0 && (
                   <tr>
-                    <td colSpan="8" className="py-12 text-center">
+                    <td colSpan="9" className="py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-zinc-400">
                         <FileText className="w-12 h-12 mb-3 text-zinc-200" />
                         <p>No transactions found.</p>
@@ -250,6 +563,19 @@ export default function Finance() {
           </div>
         )}
       </div>
+
+      <AddTransactionModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setTransactionToEdit(null);
+        }}
+        preferences={preferences}
+        transactionToEdit={transactionToEdit}
+        onSuccess={() => {
+          fetchTransactions();
+        }}
+      />
     </div>
   );
 }

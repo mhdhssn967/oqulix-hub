@@ -1,0 +1,1423 @@
+[
+  {
+    "id": "Bq7YkLmP2vNc8HxRaQ4J",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-01",
+    "amount": "700",
+    "createdAt": {
+      "seconds": 1780272000,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Px8Wr2LmQa7HvNcK5YtD",
+    "creditType": "revenue",
+    "service": "Happy Moves",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "The Hundred Rehabs Payment",
+    "date": "2026-06-01",
+    "amount": "147500",
+    "createdAt": {
+      "seconds": 1780272060,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Lm4QvN8HaP2XrYkJ7TwC",
+    "source": "Oqulix HDFC",
+    "category": "Other",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Quotient Repayment",
+    "date": "2026-06-01",
+    "amount": "10000",
+    "createdAt": {
+      "seconds": 1780272120,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7QmL2PcXa9RtNk5WyD",
+    "source": "Oqulix HDFC",
+    "category": "Other",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Quotient Repayment",
+    "date": "2026-06-01",
+    "amount": "32500",
+    "createdAt": {
+      "seconds": 1780272180,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nk2XvQ7LmHa5PyRc8WtJ",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-02",
+    "amount": "250",
+    "createdAt": {
+      "seconds": 1780358400,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra8HvQmL2PkX7NyWt4Dc",
+    "source": "Oqulix HDFC",
+    "category": "Salary",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Salary Sakeer",
+    "date": "2026-06-02",
+    "amount": "15000",
+    "createdAt": {
+      "seconds": 1780358460,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Tw5LmQ8HvPa2XrNc7YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Incentive",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Basic Incentive",
+    "date": "2026-06-02",
+    "amount": "5000",
+    "createdAt": {
+      "seconds": 1780358520,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qc7WrLm2HvNa8PkXt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Salary",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Salary Navaneeth",
+    "date": "2026-06-02",
+    "amount": "15000",
+    "createdAt": {
+      "seconds": 1780358580,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xq9LmP2HvNc7RaTk5WyD",
+    "source": "Oqulix HDFC",
+    "category": "Incentive",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Basic Incentive",
+    "date": "2026-06-02",
+    "amount": "6000",
+    "createdAt": {
+      "seconds": 1780358640,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra7WtQmL2PkX8HvNc5YJ",
+    "source": "Oqulix HDFC",
+    "category": "Salary",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Salary Suhail",
+    "date": "2026-06-02",
+    "amount": "15000",
+    "createdAt": {
+      "seconds": 1780358700,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv2NcQ7LmPa8XtWr5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Salary",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Salary Hussain",
+    "date": "2026-06-02",
+    "amount": "25000",
+    "createdAt": {
+      "seconds": 1780358760,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk8RaLmQ2HvX7NcWt5YJ",
+    "source": "Oqulix HDFC",
+    "category": "Salary",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Salary Vishnuprakash",
+    "date": "2026-06-02",
+    "amount": "15000",
+    "createdAt": {
+      "seconds": 1780358820,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm5HvQ2PkXa7RtNc8WyD",
+    "source": "Oqulix HDFC",
+    "category": "Bonus",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Bonus",
+    "date": "2026-06-02",
+    "amount": "8000",
+    "createdAt": {
+      "seconds": 1780358880,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wt7NcQmL2HvPa8Xr5YkJ",
+    "creditType": "revenue",
+    "service": "Happy Moves",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "VR Advance",
+    "date": "2026-06-03",
+    "amount": "50000",
+    "createdAt": {
+      "seconds": 1780444800,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Qa8HvLm2PkX7RtNc5WyJ",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Amazon Purchase",
+    "date": "2026-06-03",
+    "amount": "3356",
+    "createdAt": {
+      "seconds": 1780444860,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc5WtQmL8HvPa2Xr7YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Electricity",
+    "date": "2026-06-04",
+    "amount": "1015",
+    "createdAt": {
+      "seconds": 1780531200,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7RaQmL2PkX5NcWt8YJ",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Wifi Recharge",
+    "date": "2026-06-04",
+    "amount": "589",
+    "createdAt": {
+      "seconds": 1780531260,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nq8HvLmP2XrTa7Wk5YcJ",
+    "source": "Oqulix HDFC",
+    "category": "AI/Software Subscriptions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "Firebase Cost",
+    "date": "2026-06-04",
+    "amount": "1677.17",
+    "createdAt": {
+      "seconds": 1780531320,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wp4NcQmL8HvRa2Xk7YtD",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Office Utensils",
+    "date": "2026-06-04",
+    "amount": "1200",
+    "createdAt": {
+      "seconds": 1780531380,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7PkLmQ2XrNc5Wa8YtJ",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Video Shoot",
+    "date": "2026-06-04",
+    "amount": "1655",
+    "createdAt": {
+      "seconds": 1780531440,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qa5WtLmP8HvNc2Xr7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Video Editor TA",
+    "date": "2026-06-04",
+    "amount": "1760",
+    "createdAt": {
+      "seconds": 1780531500,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Rt8HvQmL2PkXa7Nc5WyJ",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Water",
+    "date": "2026-06-04",
+    "amount": "120",
+    "createdAt": {
+      "seconds": 1780531560,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm2NcHvQ7PkXa8Wr5YtD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-05",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1780617600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk7WtQmL5HvRa2Xc8NyJ",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Logo Design",
+    "date": "2026-06-06",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1780704000,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xa8HvLmQ2PkNc5Wr7YtD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-06",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1780704060,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv5RaQmL8PkX2NcWt7YJ",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-06",
+    "amount": "350",
+    "createdAt": {
+      "seconds": 1780704120,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc8WtLmQ2HvPa7Xr5YkD",
+    "creditType": "credit",
+    "service": "General",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Amazon Refund",
+    "date": "2026-06-08",
+    "amount": "1999",
+    "createdAt": {
+      "seconds": 1780876800,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Qm7HvPkL2XaNc8Wr5YtJ",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Tab Purchase",
+    "date": "2026-06-09",
+    "amount": "14017",
+    "createdAt": {
+      "seconds": 1780963200,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  }
+,
+  {
+    "id": "Qm7YkL2PxHvNc8RaWt5J",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Office Utilities",
+    "date": "2026-06-09",
+    "amount": "3650",
+    "createdAt": {
+      "seconds": 1780963260,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv8RaLmQ2PkX5NcWt7YD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Video Shoot",
+    "date": "2026-06-09",
+    "amount": "150",
+    "createdAt": {
+      "seconds": 1780963320,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk5WtQmL8HvNc2Xa7YrJ",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Airtel Recharge",
+    "date": "2026-06-09",
+    "amount": "299",
+    "createdAt": {
+      "seconds": 1780963380,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xa2HvLmQ7PkNc8Wr5YtD",
+    "source": "Oqulix HDFC",
+    "category": "Consultation & Outsourcing",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "DPR Creation",
+    "date": "2026-06-09",
+    "amount": "10000",
+    "createdAt": {
+      "seconds": 1780963440,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc7WtQmL2HvPa8Xr5YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Software purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "GoDaddy",
+    "date": "2026-06-09",
+    "amount": "706.82",
+    "createdAt": {
+      "seconds": 1780963500,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra8HvPkL5XmNc2Wt7YqD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Sign Board Office",
+    "date": "2026-06-10",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1781049600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm2NcHvQ8PkXa7Wr5YtJ",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-10",
+    "amount": "300",
+    "createdAt": {
+      "seconds": 1781049660,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wt5QmL2HvPkX8NcRa7YJ",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-12",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1781222400,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7RaQmL2PkX5NcWt8YD",
+    "source": "Oqulix HDFC",
+    "category": "Consumables",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Mask Purchase",
+    "date": "2026-06-12",
+    "amount": "1702",
+    "createdAt": {
+      "seconds": 1781222460,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk8WtLmQ5HvNc2Xa7YrD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA DA PKD Vishnu",
+    "date": "2026-06-12",
+    "amount": "1605",
+    "createdAt": {
+      "seconds": 1781222520,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  }
+,
+  {
+    "id": "Qv8LmNp2XaHr7WtK5YcD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-12",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1781222580,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm7QxHvP2NcRa8Wt5YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Hussain PKD",
+    "date": "2026-06-12",
+    "amount": "860",
+    "createdAt": {
+      "seconds": 1781222640,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk5WtLmQ8HvNc2Xa7YrD",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Water",
+    "date": "2026-06-12",
+    "amount": "60",
+    "createdAt": {
+      "seconds": 1781222700,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xa2HvLmQ7PkNc8Wr5YtJ",
+    "creditType": "credit",
+    "service": "Director's Loan Deposit",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Vishnu Prakash",
+    "date": "2026-06-12",
+    "amount": "50000",
+    "createdAt": {
+      "seconds": 1781222760,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Nc8WtQmL2HvPa7Xr5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "SIM Recharge",
+    "date": "2026-06-15",
+    "amount": "1236",
+    "createdAt": {
+      "seconds": 1781481600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra5HvPkL8XmNc2Wt7YqJ",
+    "source": "Oqulix HDFC",
+    "category": "AI/Software Subscriptions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "AI Subscription",
+    "date": "2026-06-15",
+    "amount": "1950",
+    "createdAt": {
+      "seconds": 1781481660,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7LmQ2PkXaNc5Wr8YtD",
+    "source": "Oqulix HDFC",
+    "category": "Food & refreshments",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Team Meeting",
+    "date": "2026-06-15",
+    "amount": "1900",
+    "createdAt": {
+      "seconds": 1781481720,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wt5QmL2HvPkX8NcRa7YJ",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Sign Board",
+    "date": "2026-06-16",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1781568000,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk8HvLmQ5NcXa2Wr7YtD",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Distributor Meeting",
+    "date": "2026-06-16",
+    "amount": "1000",
+    "createdAt": {
+      "seconds": 1781568060,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  }
+,
+  {
+    "id": "Kp7XvN2LmQa8HtRc5WyJ",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Distributor Meeting",
+    "date": "2026-06-16",
+    "amount": "200",
+    "createdAt": {
+      "seconds": 1781568120,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra4QmX8HvLpNc7Wy2TkD",
+    "creditType": "credit",
+    "service": "Director's Loan Deposit",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Vishnu Prakash",
+    "date": "2026-06-16",
+    "amount": "30000",
+    "createdAt": {
+      "seconds": 1781568180,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Hv8LmQa2XtPc7WrNy5KD",
+    "source": "Oqulix HDFC",
+    "category": "GST",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "GST Liability",
+    "date": "2026-06-17",
+    "amount": "19294",
+    "createdAt": {
+      "seconds": 1781654400,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc5WtHvQ8LmXa2Pk7YrJ",
+    "source": "Oqulix HDFC",
+    "category": "GST",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "GST Filing Fee",
+    "date": "2026-06-17",
+    "amount": "2360",
+    "createdAt": {
+      "seconds": 1781654460,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qm2PkHv7XaNc8WrLt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Purchase",
+    "date": "2026-06-17",
+    "amount": "20000",
+    "createdAt": {
+      "seconds": 1781654520,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xt7RaLmQ5HvNc2Wp8YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Repairs & Maintenance",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Car Maintenance",
+    "date": "2026-06-17",
+    "amount": "20000",
+    "createdAt": {
+      "seconds": 1781654580,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm8QaHv2PkXc7NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Distributor Meeting",
+    "date": "2026-06-17",
+    "amount": "800",
+    "createdAt": {
+      "seconds": 1781654640,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wp5NcLmQ8HvRa2Xt7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Vishnu",
+    "date": "2026-06-17",
+    "amount": "650",
+    "createdAt": {
+      "seconds": 1781654700,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv2XtQa7LmNc8WrP5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-18",
+    "amount": "500",
+    "createdAt": {
+      "seconds": 1781740800,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra7LmHv5QxNc2WtP8YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Navaneeth",
+    "date": "2026-06-19",
+    "amount": "420",
+    "createdAt": {
+      "seconds": 1781827200,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc8HvQa2LmXt7WrP5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Sakeer",
+    "date": "2026-06-19",
+    "amount": "515",
+    "createdAt": {
+      "seconds": 1781827260,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xt5LmQa8HvNc2WrP7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-19",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1781827320,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qa7HvLm2PkXc8NrWt5YD",
+    "creditType": "revenue",
+    "service": "Happy Moves",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Innovati Med Solutions",
+    "date": "2026-06-19",
+    "amount": "100000",
+    "createdAt": {
+      "seconds": 1781827380,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Lm5NcHv8QaXt2WrP7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-19",
+    "amount": "500",
+    "createdAt": {
+      "seconds": 1781827440,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wt2QaLm7HvNc8XpR5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Waste Management",
+    "date": "2026-06-20",
+    "amount": "350",
+    "createdAt": {
+      "seconds": 1781913600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7PkQa2LmXc8NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Software purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "Software Purchase",
+    "date": "2026-06-21",
+    "amount": "9730",
+    "createdAt": {
+      "seconds": 1782000000,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra5LmHv8QxNc2WtP7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Amazon Purchase",
+    "date": "2026-06-21",
+    "amount": "22309.32",
+    "createdAt": {
+      "seconds": 1782000060,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc8QaHv2LmXt7WrP5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Navaneeth",
+    "date": "2026-06-21",
+    "amount": "600",
+    "createdAt": {
+      "seconds": 1782000120,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xt7LmQa5HvNc2WrP8YkD",
+    "creditType": "revenue",
+    "service": "Happy Moves",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Pending Payment for VR",
+    "date": "2026-06-21",
+    "amount": "166000",
+    "createdAt": {
+      "seconds": 1782000180,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Xk7QaLm2HvPc8NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Wayanad Meeting",
+    "date": "2026-06-22",
+    "amount": "3000",
+    "createdAt": {
+      "seconds": 1782086400,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra8HvQmL2PkX5NcWt7YJ",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Wayanad Meeting",
+    "date": "2026-06-23",
+    "amount": "1063",
+    "createdAt": {
+      "seconds": 1782172800,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm5NcHv8QaXt2WrP7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Events",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Wayanad Meeting",
+    "date": "2026-06-23",
+    "amount": "1300",
+    "createdAt": {
+      "seconds": 1782172860,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv2XtQa7LmNc8WrP5YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Vishnu",
+    "date": "2026-06-23",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1782172920,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc8QaHv2LmXt7WrP5YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Promotions",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "Meta Ads",
+    "date": "2026-06-23",
+    "amount": "2000",
+    "createdAt": {
+      "seconds": 1782172980,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wt7LmQa5HvNc2WrP8YkD",
+    "source": "Oqulix HDFC",
+    "category": "Consultation & Outsourcing",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Video Outsourcing",
+    "date": "2026-06-25",
+    "amount": "900",
+    "createdAt": {
+      "seconds": 1782345600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qa5HvLm2PkXc8NrWt7YD",
+    "source": "Oqulix HDFC",
+    "category": "Food & refreshments",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Refreshments",
+    "date": "2026-06-26",
+    "amount": "411",
+    "createdAt": {
+      "seconds": 1782432000,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Pk8WtLmQ5HvNc2Xa7YrJ",
+    "source": "Oqulix HDFC",
+    "category": "Food & refreshments",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Refreshments",
+    "date": "2026-06-26",
+    "amount": "1001",
+    "createdAt": {
+      "seconds": 1782432060,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Xt7RaLmQ5HvNc2Wp8YkD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Navaneeth",
+    "date": "2026-06-26",
+    "amount": "220",
+    "createdAt": {
+      "seconds": 1782432120,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm8QaHv2PkXc7NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Travel Expense",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Business Development",
+    "remarks": "TA Vishnu",
+    "date": "2026-06-27",
+    "amount": "500",
+    "createdAt": {
+      "seconds": 1782518400,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv7PkQa2LmXc8NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "IoT Project",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "IoT Purchase",
+    "date": "2026-06-29",
+    "amount": "1500",
+    "createdAt": {
+      "seconds": 1782691200,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Ra5LmHv8QxNc2WtP7YkD",
+    "creditType": "credit",
+    "service": "General",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Amazon Refund",
+    "date": "2026-06-29",
+    "amount": "99",
+    "createdAt": {
+      "seconds": 1782691260,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Nc8HvQa2LmXt7WrP5YkD",
+    "creditType": "credit",
+    "service": "General",
+    "isRevenue": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "remarks": "Amazon Refund",
+    "date": "2026-06-29",
+    "amount": "20511.32",
+    "createdAt": {
+      "seconds": 1782691320,
+      "nanoseconds": 0
+    }
+  },
+  {
+    "id": "Xt5LmQa8HvNc2WrP7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "IoT Project",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "IoT Purchase",
+    "date": "2026-06-29",
+    "amount": "1000",
+    "createdAt": {
+      "seconds": 1782691380,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Qa7HvLm2PkXc8NrWt5YD",
+    "source": "Oqulix HDFC",
+    "category": "Purchase",
+    "service": "Happy Moves",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Client Item Purchase",
+    "date": "2026-06-30",
+    "amount": "20610",
+    "createdAt": {
+      "seconds": 1782777600,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Lm5NcHv8QaXt2WrP7YkJ",
+    "source": "Oqulix HDFC",
+    "category": "Fixed Assets",
+    "service": "Happy Moves",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Tech",
+    "remarks": "Meta Quest Purchase",
+    "date": "2026-06-30",
+    "amount": "10000",
+    "createdAt": {
+      "seconds": 1782777660,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Hv2XtQa7LmNc8WrP5YtD",
+    "source": "Oqulix HDFC",
+    "category": "Utility",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Office Expense",
+    "remarks": "Utility Purchase",
+    "date": "2026-06-30",
+    "amount": "1534",
+    "createdAt": {
+      "seconds": 1782777720,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Nc7WtHvQ8LmXa2Pk5YrJ",
+    "source": "Oqulix HDFC",
+    "category": "Other",
+    "service": "Happy Moves",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Medical Expense",
+    "date": "2026-06-30",
+    "amount": "22450",
+    "createdAt": {
+      "seconds": 1782777780,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  },
+  {
+    "id": "Wp5NcLmQ8HvRa2Xt7YkD",
+    "source": "Oqulix HDFC",
+    "category": "Consultation & Outsourcing",
+    "service": "General",
+    "isExpense": true,
+    "userID": "Ovq274qYz5f065l6zbzMRafVFfl1",
+    "type": "Operations & Administration",
+    "remarks": "Nithin Raj",
+    "date": "2026-06-30",
+    "amount": "10000",
+    "createdAt": {
+      "seconds": 1782777840,
+      "nanoseconds": 0
+    },
+    "typeOfTransaction": "Expense"
+  }
+]

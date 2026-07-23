@@ -1,0 +1,661 @@
+[
+  {
+    "serial": 1,
+    "clientName": "Liano Medical Systems",
+    "service": "Happy Moves",
+    "totalAmount": 236000,
+    "paidAmount": 100000,
+    "pendingAmount": 136000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Advance",
+        "amount": 20000,
+        "date": "2026-01-11T03:22:23.722Z"
+      },
+      {
+        "note": "Second payment",
+        "date": {
+          "seconds": 1770442441,
+          "nanoseconds": 102000000
+        },
+        "amount": 20000
+      },
+      {
+        "note": "Third Payment",
+        "amount": 60000,
+        "date": {
+          "seconds": 1780467831,
+          "nanoseconds": 255000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 2,
+    "clientName": "Cure Rehab",
+    "service": "Happy Moves",
+    "totalAmount": 250000,
+    "paidAmount": 1000,
+    "pendingAmount": 249000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": {
+          "seconds": 1764588956,
+          "nanoseconds": 644000000
+        },
+        "amount": 1000,
+        "note": "Token Advance"
+      }
+    ]
+  },
+  {
+    "serial": 3,
+    "clientName": "Nimbus Rehab",
+    "service": "Happy Moves",
+    "totalAmount": 236000,
+    "paidAmount": 100000,
+    "pendingAmount": 136000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Advance payment",
+        "date": "2026-06-22T00:53:55.845Z",
+        "amount": 10000
+      },
+      {
+        "amount": 90000,
+        "date": {
+          "seconds": 1783012654,
+          "nanoseconds": 744000000
+        },
+        "note": "Advance"
+      }
+    ]
+  },
+  {
+    "serial": 4,
+    "clientName": "Seha Garden International",
+    "service": "Happy Moves",
+    "totalAmount": 300000,
+    "paidAmount": 300000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Full payment",
+        "date": {
+          "seconds": 1758817335,
+          "nanoseconds": 87000000
+        },
+        "amount": 300000
+      }
+    ]
+  },
+  {
+    "serial": 5,
+    "clientName": "VIVAMOTION PhysioTherapy &  Rehabilitation Centre",
+    "service": "Happy Moves",
+    "totalAmount": 100000,
+    "paidAmount": 100000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "amount": 10000,
+        "date": {
+          "seconds": 1758818124,
+          "nanoseconds": 745000000
+        },
+        "note": "June"
+      },
+      {
+        "date": {
+          "seconds": 1758818135,
+          "nanoseconds": 224000000
+        },
+        "amount": 10000,
+        "note": "July"
+      },
+      {
+        "note": "August",
+        "amount": 10000,
+        "date": {
+          "seconds": 1758818146,
+          "nanoseconds": 192000000
+        }
+      },
+      {
+        "date": {
+          "seconds": 1758818157,
+          "nanoseconds": 388000000
+        },
+        "amount": 10000,
+        "note": "September"
+      },
+      {
+        "note": "October",
+        "amount": 10000,
+        "date": {
+          "seconds": 1761897236,
+          "nanoseconds": 479000000
+        }
+      },
+      {
+        "note": "November",
+        "date": {
+          "seconds": 1762246513,
+          "nanoseconds": 134000000
+        },
+        "amount": 10000
+      },
+      {
+        "amount": 10000,
+        "date": {
+          "seconds": 1764575708,
+          "nanoseconds": 905000000
+        },
+        "note": "December"
+      },
+      {
+        "date": {
+          "seconds": 1770192557,
+          "nanoseconds": 547000000
+        },
+        "amount": 10000,
+        "note": "January"
+      },
+      {
+        "note": "February",
+        "date": {
+          "seconds": 1770623167,
+          "nanoseconds": 251000000
+        },
+        "amount": 10000
+      },
+      {
+        "amount": 10000,
+        "date": {
+          "seconds": 1770623739,
+          "nanoseconds": 800000000
+        },
+        "note": "May"
+      }
+    ]
+  },
+  {
+    "serial": 6,
+    "clientName": "Life Care Physiotherapy Clinic",
+    "service": "Happy Moves",
+    "totalAmount": 210000,
+    "paidAmount": 20000,
+    "pendingAmount": 190000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "amount": 10000,
+        "date": "2026-01-11T07:14:29.695Z",
+        "note": "Advance"
+      },
+      {
+        "note": "Second Payment",
+        "amount": 10000,
+        "date": {
+          "seconds": 1769060896,
+          "nanoseconds": 208000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 7,
+    "clientName": " Tabaz Physiotherapy and  Rehabilitation Centre",
+    "service": "Happy Moves",
+    "totalAmount": 120000,
+    "paidAmount": 120000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": {
+          "seconds": 1758818193,
+          "nanoseconds": 661000000
+        },
+        "amount": 80000,
+        "note": "First Payment"
+      },
+      {
+        "amount": 40000,
+        "date": {
+          "seconds": 1761897160,
+          "nanoseconds": 805000000
+        },
+        "note": "Final Payment"
+      }
+    ]
+  },
+  {
+    "serial": 8,
+    "clientName": "llaj Ayur Heritage Hospital",
+    "service": "Happy Moves",
+    "totalAmount": 210500,
+    "paidAmount": 210500,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Full payment",
+        "date": {
+          "seconds": 1758817809,
+          "nanoseconds": 440000000
+        },
+        "amount": 210500
+      }
+    ]
+  },
+  {
+    "serial": 9,
+    "clientName": "Mouzy ",
+    "service": "Mouzy Game",
+    "totalAmount": 550000,
+    "paidAmount": 230000,
+    "pendingAmount": 320000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "FIrst Payment",
+        "date": "2026-06-15T10:01:45.835Z",
+        "amount": 150000
+      },
+      {
+        "amount": 50000,
+        "date": "2026-06-15T10:02:00.917Z",
+        "note": "June Payment"
+      },
+      {
+        "date": {
+          "seconds": 1782089793,
+          "nanoseconds": 489000000
+        },
+        "amount": 30000,
+        "note": "June balance"
+      }
+    ]
+  },
+  {
+    "serial": 10,
+    "clientName": "Cheemeni Eng College",
+    "service": "Events",
+    "totalAmount": 25000,
+    "paidAmount": 0,
+    "pendingAmount": 25000,
+    "remarks": "",
+    "receivedPayments": []
+  },
+  {
+    "serial": 11,
+    "clientName": "PSI",
+    "service": "Service Projects",
+    "totalAmount": 344410,
+    "paidAmount": 344410,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "",
+        "amount": 344410,
+        "date": {
+          "seconds": 1764590114,
+          "nanoseconds": 339000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 12,
+    "clientName": "Cure plus",
+    "service": "Happy Moves",
+    "totalAmount": 236000,
+    "paidAmount": 236000,
+    "pendingAmount": 0,
+    "remarks": "Maharashtra distributor ",
+    "receivedPayments": [
+      {
+        "note": "First Payment",
+        "amount": 20000,
+        "date": "2026-06-15T07:44:19.251Z"
+      },
+      {
+        "date": "2026-06-15T07:44:26.364Z",
+        "amount": 50000,
+        "note": "Second payment"
+      },
+      {
+        "note": "Full Payment ",
+        "amount": 166000,
+        "date": {
+          "seconds": 1782089519,
+          "nanoseconds": 934000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 13,
+    "clientName": "Aster MIMS",
+    "service": "Happy Moves",
+    "totalAmount": 430700,
+    "paidAmount": 430700,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Fully paid",
+        "amount": 430700,
+        "date": {
+          "seconds": 1758817277,
+          "nanoseconds": 336000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 14,
+    "clientName": "Isha Surgical",
+    "service": "Happy Moves",
+    "totalAmount": 354000,
+    "paidAmount": 354000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "amount": 354000,
+        "date": "2026-01-22T10:31:17.828Z",
+        "note": "Full payment"
+      }
+    ]
+  },
+  {
+    "serial": 15,
+    "clientName": "Elaa Ayurveda & Rehab",
+    "service": "Happy Moves",
+    "totalAmount": 271500,
+    "paidAmount": 271500,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "amount": 40000,
+        "date": {
+          "seconds": 1758628677,
+          "nanoseconds": 225000000
+        },
+        "note": "Advance"
+      },
+      {
+        "note": "First Payment",
+        "amount": 30000,
+        "date": {
+          "seconds": 1758628692,
+          "nanoseconds": 885000000
+        }
+      },
+      {
+        "note": "Second payment",
+        "amount": 20000,
+        "date": {
+          "seconds": 1758628709,
+          "nanoseconds": 436000000
+        }
+      },
+      {
+        "note": "Third payment",
+        "amount": 20000,
+        "date": {
+          "seconds": 1759493175,
+          "nanoseconds": 925000000
+        }
+      },
+      {
+        "note": "Fourth payment",
+        "amount": 20000,
+        "date": {
+          "seconds": 1761118432,
+          "nanoseconds": 430000000
+        }
+      },
+      {
+        "amount": 20000,
+        "date": {
+          "seconds": 1762152010,
+          "nanoseconds": 899000000
+        },
+        "note": "Fifth Payment"
+      },
+      {
+        "note": "Sixth Payment",
+        "amount": 20000,
+        "date": {
+          "seconds": 1764569845,
+          "nanoseconds": 430000000
+        }
+      },
+      {
+        "note": "Seventh Payment",
+        "amount": 25000,
+        "date": {
+          "seconds": 1764575743,
+          "nanoseconds": 963000000
+        }
+      },
+      {
+        "note": "Eight Payment",
+        "date": {
+          "seconds": 1765520683,
+          "nanoseconds": 226000000
+        },
+        "amount": 20000
+      },
+      {
+        "amount": 15000,
+        "date": {
+          "seconds": 1767082465,
+          "nanoseconds": 381000000
+        },
+        "note": "Ninth Payment"
+      },
+      {
+        "date": {
+          "seconds": 1768101594,
+          "nanoseconds": 126000000
+        },
+        "amount": 21500,
+        "note": "Tenth payment"
+      },
+      {
+        "note": "Last Payment - via check",
+        "date": {
+          "seconds": 1772440638,
+          "nanoseconds": 773000000
+        },
+        "amount": 20000
+      }
+    ]
+  },
+  {
+    "serial": 16,
+    "clientName": "Dr. P. Alikutty's Ayurveda & Modern Hospital",
+    "service": "Happy Moves",
+    "totalAmount": 260000,
+    "paidAmount": 260000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": "2025-11-21T08:20:54.030Z",
+        "amount": 60000,
+        "note": "Advance"
+      },
+      {
+        "date": {
+          "seconds": 1765520595,
+          "nanoseconds": 227000000
+        },
+        "amount": 100000,
+        "note": "Second Payment"
+      },
+      {
+        "note": "Final Payment",
+        "amount": 100000,
+        "date": {
+          "seconds": 1766738547,
+          "nanoseconds": 334000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 17,
+    "clientName": "Ayurshiha",
+    "service": "Happy Moves",
+    "totalAmount": 200000,
+    "paidAmount": 1000,
+    "pendingAmount": 199000,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Token Advance",
+        "amount": 1000,
+        "date": {
+          "seconds": 1764588287,
+          "nanoseconds": 594000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 18,
+    "clientName": "Perceived - Jose",
+    "service": "Perceived",
+    "totalAmount": 59000,
+    "paidAmount": 59000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Jose payment",
+        "date": "2026-02-09T08:06:21.072Z",
+        "amount": 59000
+      }
+    ]
+  },
+  {
+    "serial": 19,
+    "clientName": "Kent Healthcare LLC",
+    "service": "Happy Moves",
+    "totalAmount": 200000,
+    "paidAmount": 200000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "note": "Advance",
+        "date": {
+          "seconds": 1758625009,
+          "nanoseconds": 218000000
+        },
+        "amount": 100000
+      },
+      {
+        "note": "Balance Payment",
+        "amount": 100000,
+        "date": {
+          "seconds": 1758625031,
+          "nanoseconds": 912000000
+        }
+      }
+    ]
+  },
+  {
+    "serial": 20,
+    "clientName": "Ayurgreen Ayurveda Hospital",
+    "service": "Happy Moves",
+    "totalAmount": 59000,
+    "paidAmount": 59000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": {
+          "seconds": 1758817182,
+          "nanoseconds": 391000000
+        },
+        "amount": 59000,
+        "note": "Full payment"
+      }
+    ]
+  },
+  {
+    "serial": 21,
+    "clientName": "The 100 Rehab",
+    "service": "Happy Moves",
+    "totalAmount": 295000,
+    "paidAmount": 295000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": {
+          "seconds": 1764590144,
+          "nanoseconds": 865000000
+        },
+        "amount": 10000,
+        "note": "Token Advance"
+      },
+      {
+        "note": "First 50%",
+        "amount": 147500,
+        "date": {
+          "seconds": 1780280076,
+          "nanoseconds": 367000000
+        }
+      },
+      {
+        "date": {
+          "seconds": 1780301663,
+          "nanoseconds": 891000000
+        },
+        "amount": 147500,
+        "note": "Balance 50%"
+      },
+      {
+        "note": "Quotient Repayment",
+        "date": {
+          "seconds": 1780379450,
+          "nanoseconds": 447000000
+        },
+        "amount": -10000
+      }
+    ]
+  },
+  {
+    "serial": 22,
+    "clientName": "Milife Medicity",
+    "service": "Happy Moves",
+    "totalAmount": 90000,
+    "paidAmount": 90000,
+    "pendingAmount": 0,
+    "remarks": "",
+    "receivedPayments": [
+      {
+        "date": {
+          "seconds": 1758817858,
+          "nanoseconds": 642000000
+        },
+        "amount": 90000,
+        "note": "Full payment"
+      }
+    ]
+  }
+]
