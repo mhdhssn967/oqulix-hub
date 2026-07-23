@@ -65,13 +65,6 @@ function App() {
           title: payload.notification?.title || 'New Notification',
           text: payload.notification?.body || 'You have a new message.'
         });
-
-        if (Notification.permission === 'granted') {
-          new Notification(payload.notification?.title || 'New Notification', {
-            body: payload.notification?.body,
-            icon: '/firebase-logo.png' // optional icon
-          });
-        }
       });
       return () => unsubscribe();
     }

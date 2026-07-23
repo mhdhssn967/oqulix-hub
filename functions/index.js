@@ -57,11 +57,80 @@ exports.onReimbursementCreated = functions.firestore
         tokens: uniqueTokens,
       };
 
-      const response = await admin.messaging().sendMulticast(message);
+      const response = await admin.messaging().sendEachForMulticast(message);
       console.log(`${response.successCount} push notifications sent successfully.`);
       return null;
     } catch (error) {
       console.error("Error sending push notification:", error);
+      return null;
+    }
+  });
+
+exports.onReimbursementUpdated = functions.firestore
+  .document("userData/{companyId}/reimbursements/{reimbursementId}")
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    if (before.status === after.status) {
+      return null;
+    }
+
+    if (after.status !== "Sent" && after.status !== "Rejected") {
+      return null;
+    }
+
+    const employeeUid = after.employeeUid;
+    if (!employeeUid) return null;
+
+    const title = after.title || "Reimbursement";
+    const amount = after.amount || 0;
+    
+    let notificationTitle = "";
+    let notificationBody = "";
+
+    if (after.status === "Sent") {
+      notificationTitle = "Reimbursement Sent 💸";
+      notificationBody = `Your reimbursement for ${title} (₹${amount}) has been paid.`;
+    } else if (after.status === "Rejected") {
+      notificationTitle = "Reimbursement Rejected ❌";
+      notificationBody = `Your reimbursement for ${title} (₹${amount}) was rejected.`;
+    }
+
+    try {
+      const empDoc = await admin.firestore().collection("employees").doc(employeeUid).get();
+      if (!empDoc.exists) {
+        // Fallback: check if the user is an admin requesting reimbursement
+        const adminDoc = await admin.firestore().collection("admins").doc(employeeUid).get();
+        if (!adminDoc.exists || !adminDoc.data().fcmToken) return null;
+        
+        const message = {
+          notification: { title: notificationTitle, body: notificationBody },
+          token: adminDoc.data().fcmToken,
+        };
+        await admin.messaging().send(message);
+        return null;
+      }
+
+      const fcmToken = empDoc.data().fcmToken;
+      if (!fcmToken) {
+        console.log(`No FCM token for employee ${employeeUid}`);
+        return null;
+      }
+
+      const message = {
+        notification: {
+          title: notificationTitle,
+          body: notificationBody,
+        },
+        token: fcmToken,
+      };
+
+      await admin.messaging().send(message);
+      console.log(`Notification sent to employee ${employeeUid} for status ${after.status}`);
+      return null;
+    } catch (error) {
+      console.error("Error sending update notification to employee:", error);
       return null;
     }
   });
