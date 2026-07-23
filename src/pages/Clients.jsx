@@ -311,10 +311,10 @@ export default function Clients() {
       <header className="mb-6 flex-shrink-0">
         <h1 className="text-3xl font-semibold text-black tracking-tight mb-6">Clients Dashboard</h1>
         
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
           <button 
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
           >
             <Plus className="w-4 h-4" /> Add Client
           </button>
@@ -329,7 +329,7 @@ export default function Clients() {
             ))}
           </select>
 
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 w-full sm:w-auto sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
             <input
               type="text"
@@ -343,7 +343,7 @@ export default function Clients() {
       </header>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-zinc-500 mb-1">Total Clients</p>
@@ -477,8 +477,8 @@ export default function Clients() {
               </button>
             </div>
             
-            <form onSubmit={handleAddClientSubmit} className="p-6 overflow-y-auto space-y-6">
-              <div className="grid grid-cols-2 gap-6">
+            <form onSubmit={handleAddClientSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 mb-1">Client Name *</label>
                   <input type="text" required value={addForm.clientName} onChange={e => setAddForm({...addForm, clientName: e.target.value})} className="w-full px-4 py-2 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-black/5 outline-none text-sm" placeholder="e.g. Acme Corp" />
@@ -589,7 +589,7 @@ export default function Clients() {
               </div>
             </div>
             
-            <div className="p-8 overflow-y-auto bg-white flex-1 flex gap-8">
+            <div className="p-4 sm:p-8 overflow-y-auto bg-white flex-1 flex flex-col lg:flex-row gap-8">
               
               {/* Left Column: Financials & Payments */}
               <div className="flex-1 space-y-8">
@@ -597,7 +597,7 @@ export default function Clients() {
                   <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Wallet className="w-4 h-4 text-zinc-400" /> Financial Overview
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-white rounded-2xl p-5 border border-zinc-200 shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-16 h-16 bg-fuchsia-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
                       <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 relative z-10">Total Amount</p>
@@ -641,10 +641,10 @@ export default function Clients() {
                   {/* Add Payment Form */}
                   <div className="mb-6 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
                     <p className="text-xs font-semibold text-zinc-600 uppercase mb-3">Record New Payment</p>
-                    <div className="flex gap-3">
-                      <input type="number" placeholder="Amount (₹)" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} className="w-32 px-3 py-2 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-black/5" />
-                      <input type="text" placeholder="Note (e.g. Wire transfer)" value={paymentForm.note} onChange={e => setPaymentForm({...paymentForm, note: e.target.value})} className="flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-black/5" />
-                      <button onClick={handleAddPayment} disabled={isSubmitting || !paymentForm.amount} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input type="number" placeholder="Amount (₹)" value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} className="w-full sm:w-32 px-3 py-2 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-black/5" />
+                      <input type="text" placeholder="Note (e.g. Wire transfer)" value={paymentForm.note} onChange={e => setPaymentForm({...paymentForm, note: e.target.value})} className="w-full flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-black/5" />
+                      <button onClick={handleAddPayment} disabled={isSubmitting || !paymentForm.amount} className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50">
                         Add
                       </button>
                     </div>
@@ -680,7 +680,7 @@ export default function Clients() {
               </div>
 
               {/* Right Column: Info & Remarks */}
-              <div className="w-[340px] flex-shrink-0 space-y-6 border-l border-zinc-100 pl-8">
+              <div className="w-full lg:w-[340px] flex-shrink-0 space-y-6 lg:border-l lg:border-zinc-100 lg:pl-8">
                 <div>
                   <h3 className="text-sm font-semibold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Users className="w-4 h-4 text-zinc-400" /> Client Information

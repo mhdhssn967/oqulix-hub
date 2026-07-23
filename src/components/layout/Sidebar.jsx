@@ -1,13 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
+import { db } from '../../firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 export function Sidebar() {
   const isOpen = useUIStore((s) => s.isMobileMenuOpen);
   const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
-  const { isAdmin } = useAuthStore();
+  const { user, isAdmin, isManager, companyId } = useAuthStore();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!companyId) return;
+    
+    const reimbursementsRef = collection(db, 'userData', companyId, 'reimbursements');
+    let q;
+    
+    if (isAdmin || isManager) {
+      q = query(reimbursementsRef, where('status', '==', 'Pending'));
+    } else if (user?.uid) {
+      q = query(reimbursementsRef, where('status', '==', 'Pending'), where('employeeUid', '==', user.uid));
+    } else {
+      return;
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingCount(snapshot.size);
+    }, (error) => {
+      console.error("Error fetching pending count:", error);
+    });
+
+    return () => unsubscribe();
+  }, [companyId, isAdmin, isManager, user?.uid]);
 
   const navItems = [
     { icon: LayoutDashboard, label: 'CRM', path: '/' },
@@ -64,14 +90,27 @@ export function Sidebar() {
               {({ isActive }) => (
                 <>
                   <item.icon className={`w-[18px] h-[18px] ${isActive ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'} transition-colors`} />
-                  <span className="text-[14px] tracking-tight">{item.label}</span>
+                  <span className="text-[14px] tracking-tight flex-1">{item.label}</span>
+                  {item.label === 'Reimbursements' && pendingCount > 0 && (
+                    <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
+                      {pendingCount}
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
         
-        <div className="mt-8 border-t border-white/10 pt-4">
+        <div className="mt-8 border-t border-white/10 pt-4 flex flex-col gap-1.5">
+          <button
+            onClick={() => useAuthStore.getState().requestNotificationPermission()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group text-zinc-400 hover:bg-white/5 hover:text-zinc-200 w-full text-left"
+          >
+            <Bell className="w-[18px] h-[18px] text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+            <span className="text-[14px] tracking-tight">Enable Notifications</span>
+          </button>
+          
           <NavLink 
             to="/settings" 
             onClick={closeMobileMenu}

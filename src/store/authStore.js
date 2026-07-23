@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { auth, db } from '../firebase';
+import { auth, db, messaging, getToken } from '../firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -44,6 +44,32 @@ export const useAuthStore = create((set) => ({
 
   login: async (email, password) => {
     return signInWithEmailAndPassword(auth, email, password);
+  },
+
+  requestNotificationPermission: async () => {
+    const { user, isEmployee, isAdmin } = useAuthStore.getState();
+    if (!user || !messaging) return;
+    
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const currentToken = await getToken(messaging, { 
+          vapidKey: 'BIZEitkLgyAwD6CjmbUBUQE1WLa1ynhoiQHO6MUDSlnMNRqqpmLcVmAIdVfQMNn5pjyDbGzV4GdpVdqeknWGyoo' 
+        });
+        
+        if (currentToken) {
+          const collectionName = isAdmin ? 'admins' : (isEmployee ? 'employees' : null);
+          if (collectionName) {
+            await updateDoc(doc(db, collectionName, user.uid), {
+              fcmToken: currentToken
+            });
+            console.log("FCM Token saved successfully.");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error requesting notification permission:", error);
+    }
   },
 
   logout: async () => {

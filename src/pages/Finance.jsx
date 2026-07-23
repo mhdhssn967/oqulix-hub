@@ -223,13 +223,13 @@ export default function Finance() {
   return (
     <div className="flex flex-col pb-10">
       <header className="mb-6 flex-shrink-0">
-        <div className="flex justify-between items-end mb-6">
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end mb-6 gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-black tracking-tight">Finance</h1>
             <p className="text-[15px] text-zinc-500 mt-1.5">Manage your financial transactions here.</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <div className="relative flex-1 sm:flex-none">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-zinc-400" />
               </div>
@@ -238,23 +238,25 @@ export default function Finance() {
                 placeholder="Search transactions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-64"
+                className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-full sm:w-64"
               />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors shadow-sm ${showFilters ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-            </button>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/90 transition-colors shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Add Transaction
-            </button>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors shadow-sm ${showFilters ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+              </button>
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-sm font-medium hover:bg-black/90 transition-colors shadow-sm whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
           </div>
         </div>
 
@@ -309,7 +311,7 @@ export default function Finance() {
           </div>
         )}
 
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-zinc-500">Total Revenue</p>
@@ -361,7 +363,7 @@ export default function Finance() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <h3 className="text-sm font-medium text-zinc-900 mb-4">Income vs Expense (Monthly)</h3>
             <div className="h-64">
@@ -537,7 +539,7 @@ export default function Finance() {
         )}
         
         {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-200/80 bg-zinc-50 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row items-center gap-4 justify-between px-6 py-4 border-t border-zinc-200/80 bg-zinc-50 flex-shrink-0">
             <span className="text-sm text-zinc-500">
               Showing <span className="font-medium text-zinc-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-zinc-900">{Math.min(currentPage * itemsPerPage, filteredTransactions.length)}</span> of <span className="font-medium text-zinc-900">{filteredTransactions.length}</span> results
             </span>
