@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { collection, getDocs, query, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Label } from 'recharts';
 import AddTransactionModal from '../components/AddTransactionModal';
 
 export default function Finance() {
@@ -15,9 +15,11 @@ export default function Finance() {
   const [preferences, setPreferences] = useState(null);
   const [transactionToEdit, setTransactionToEdit] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
+    transactionType: 'all',
     type: 'all',
     category: 'all',
     service: 'all',
@@ -111,6 +113,12 @@ export default function Finance() {
       if (filters.dateFrom && t.date < filters.dateFrom) return false;
       if (filters.dateTo && t.date > filters.dateTo) return false;
 
+      // Month Selection
+      if (selectedMonth !== 'all') {
+        const tMonth = t.date ? t.date.substring(0, 7) : '';
+        if (tMonth !== selectedMonth) return false;
+      }
+
       // Category
       if (filters.category !== 'all' && t.category !== filters.category) return false;
       
@@ -120,18 +128,42 @@ export default function Finance() {
       // Source
       if (filters.source !== 'all' && t.source !== filters.source) return false;
 
-      // Type
+      // Transaction Type
       const isExpense = t.isExpense || (!t.isRevenue && t.typeOfTransaction !== "Income" && t.creditType !== "revenue");
       const isRevenue = t.isRevenue && t.creditType === "revenue";
       const isCredit = (t.isRevenue && t.creditType !== "revenue") || t.typeOfTransaction === "Income";
 
-      if (filters.type === 'expense' && !isExpense) return false;
-      if (filters.type === 'revenue' && !isRevenue) return false;
-      if (filters.type === 'credit' && !isCredit) return false;
+      if (filters.transactionType === 'expense' && !isExpense) return false;
+      if (filters.transactionType === 'revenue' && !isRevenue) return false;
+      if (filters.transactionType === 'credit' && !isCredit) return false;
+
+      // Type
+      if (filters.type !== 'all' && t.type !== filters.type) return false;
 
       return true;
     });
-  }, [transactions, searchTerm, filters]);
+  }, [transactions, searchTerm, filters, selectedMonth]);
+
+  const uniqueTypes = useMemo(() => {
+    return [...new Set(transactions.map(t => t.type).filter(Boolean))].sort();
+  }, [transactions]);
+
+  const uniqueMonths = useMemo(() => {
+    const months = new Set();
+    transactions.forEach(t => {
+      if (t.date) {
+        months.add(t.date.substring(0, 7));
+      }
+    });
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
+
+  const formatMonth = (yyyyMm) => {
+    if (!yyyyMm) return '';
+    const [year, month] = yyyyMm.split('-');
+    const date = new Date(year, parseInt(month) - 1);
+    return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  };
 
   const totalExpense = filteredTransactions.reduce((acc, tx) => {
     return tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue") ? acc + Number(tx.amount || 0) : acc;
@@ -186,22 +218,95 @@ export default function Finance() {
 
   const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'];
 
-  const barChartData = useMemo(() => {
-    const monthlyDataMap = filteredTransactions.reduce((acc, tx) => {
+  const chartData = useMemo(() => {
+    if (filteredTransactions.length === 0) return [];
+
+    let minDate = '9999-12-31';
+    let maxDate = '0000-01-01';
+    filteredTransactions.forEach(tx => {
+      if (tx.date) {
+        if (tx.date < minDate) minDate = tx.date;
+        if (tx.date > maxDate) maxDate = tx.date;
+      }
+    });
+
+    const diffTime = Math.abs(new Date(maxDate) - new Date(minDate));
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Determine if we should show daily or monthly
+    // We show daily if the selected month is applied, OR if the date range span is <= 62 days
+    const isDaily = selectedMonth !== 'all' || (minDate !== '9999-12-31' && diffDays <= 62);
+
+    const dataMap = filteredTransactions.reduce((acc, tx) => {
       if (!tx.date) return acc;
-      const month = tx.date.substring(0, 7); // YYYY-MM
-      if (!acc[month]) acc[month] = { month, income: 0, expense: 0 };
+      
+      const key = isDaily ? tx.date : tx.date.substring(0, 7); // YYYY-MM-DD or YYYY-MM
+      if (!acc[key]) acc[key] = { name: key, income: 0, expense: 0 };
       
       const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
       const isRevenue = tx.isRevenue && tx.creditType === "revenue";
       
-      if (isExpense) acc[month].expense += Number(tx.amount || 0);
-      if (isRevenue) acc[month].income += Number(tx.amount || 0);
+      if (isExpense) acc[key].expense += Number(tx.amount || 0);
+      if (isRevenue) acc[key].income += Number(tx.amount || 0);
       
       return acc;
     }, {});
     
-    return Object.values(monthlyDataMap).sort((a,b) => a.month.localeCompare(b.month));
+    return Object.values(dataMap).sort((a,b) => a.name.localeCompare(b.name)).map(item => {
+      // Format the display name for the chart axis
+      let displayName = item.name;
+      if (isDaily) {
+        // e.g. "Jul 15"
+        const date = new Date(item.name);
+        displayName = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else {
+        // e.g. "Jul 2026"
+        const [year, month] = item.name.split('-');
+        const date = new Date(year, parseInt(month) - 1);
+        displayName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      }
+      return { ...item, displayName };
+    });
+  }, [filteredTransactions, selectedMonth]);
+
+  const expenseBreakdown = useMemo(() => {
+    const categories = {};
+    const types = {};
+    const sources = {};
+    const services = {};
+    let total = 0;
+
+    filteredTransactions.forEach(tx => {
+      const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
+      if (isExpense) {
+        const amt = Number(tx.amount || 0);
+        total += amt;
+        
+        const cat = tx.category || 'N/A';
+        categories[cat] = (categories[cat] || 0) + amt;
+        
+        const typ = tx.type || 'N/A';
+        types[typ] = (types[typ] || 0) + amt;
+        
+        const src = tx.source || 'N/A';
+        sources[src] = (sources[src] || 0) + amt;
+        
+        const srv = tx.service || 'N/A';
+        services[srv] = (services[srv] || 0) + amt;
+      }
+    });
+
+    const formatData = (obj) => Object.entries(obj)
+      .map(([name, value]) => ({ name, value, percentage: total > 0 ? (value / total) * 100 : 0 }))
+      .sort((a, b) => b.value - a.value);
+
+    return {
+      category: formatData(categories),
+      type: formatData(types),
+      source: formatData(sources),
+      service: formatData(services),
+      total
+    };
   }, [filteredTransactions]);
 
   const handleFilterChange = (e) => {
@@ -213,6 +318,7 @@ export default function Finance() {
     setFilters({
       dateFrom: '',
       dateTo: '',
+      transactionType: 'all',
       type: 'all',
       category: 'all',
       service: 'all',
@@ -241,6 +347,18 @@ export default function Finance() {
                 className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-full sm:w-64"
               />
             </div>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-4 py-2 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors shadow-sm cursor-pointer"
+            >
+              <option value="all">All Months</option>
+              {uniqueMonths.map(month => (
+                <option key={month} value={month}>{formatMonth(month)}</option>
+              ))}
+            </select>
+
             <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setShowFilters(!showFilters)}
@@ -278,12 +396,20 @@ export default function Finance() {
                 <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Type</label>
-                <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
-                  <option value="all">All Types</option>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Transaction Type</label>
+                <select name="transactionType" value={filters.transactionType} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All</option>
                   <option value="revenue">Revenue</option>
                   <option value="expense">Expense</option>
                   <option value="credit">Credit / Deposit</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Type</label>
+                <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white">
+                  <option value="all">All Types</option>
+                  {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  {preferences?.type?.map(t => !uniqueTypes.includes(t) && <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
@@ -354,7 +480,7 @@ export default function Finance() {
           <div className="mb-6 flex flex-wrap items-center gap-3">
             {Object.entries(sourceBalances).map(([source, balance]) => {
               return (
-                <div key={source} className="px-3 py-1.5 rounded-lg border text-sm font-medium flex items-center gap-2 bg-red-50 border-red-200 text-red-700">
+                <div key={source} className="px-3 py-1.5 rounded-lg border border-black text-sm font-medium flex items-center gap-2 bg-black text-white shadow-sm">
                   <span className="opacity-75">{source}:</span>
                   <span>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
@@ -364,22 +490,6 @@ export default function Finance() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-            <h3 className="text-sm font-medium text-zinc-900 mb-4">Income vs Expense (Monthly)</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} tickFormatter={(val) => `₹${val.toLocaleString('en-IN')}`} />
-                  <RechartsTooltip cursor={{ fill: '#f4f4f5' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="income" name="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-zinc-900">Top Expenses</h3>
@@ -402,13 +512,26 @@ export default function Finance() {
                       data={pieChartData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={70}
+                      innerRadius={65}
+                      outerRadius={85}
                       paddingAngle={5}
                       dataKey="value"
                       label={({ value }) => `₹${value.toLocaleString('en-IN')}`}
                       labelLine={true}
                     >
+                      <Label
+                        content={({ viewBox }) => {
+                          const { cx, cy } = viewBox;
+                          return (
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central">
+                              <tspan x={cx} y={cy - 8} fontSize="11" fill="#71717a">Total</tspan>
+                              <tspan x={cx} y={cy + 8} fontSize="13" fontWeight="bold" fill="#27272a">
+                                ₹{expenseBreakdown.total >= 100000 ? (expenseBreakdown.total / 100000).toFixed(1) + 'L' : expenseBreakdown.total >= 1000 ? (expenseBreakdown.total / 1000).toFixed(1) + 'k' : expenseBreakdown.total}
+                              </tspan>
+                            </text>
+                          );
+                        }}
+                      />
                       {pieChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
@@ -422,7 +545,45 @@ export default function Finance() {
               )}
             </div>
           </div>
+          
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col">
+            <h3 className="text-sm font-medium text-zinc-900 mb-4 flex-shrink-0">Breakdown Detail</h3>
+            <div className="space-y-4 max-h-[256px] overflow-y-auto pr-2 custom-scrollbar flex-1">
+              {expenseBreakdown[expenseChartGroup]?.length > 0 ? expenseBreakdown[expenseChartGroup].map((item, i) => (
+                <div key={i}>
+                  <div className="flex justify-between text-xs font-medium mb-1.5">
+                    <span className="text-zinc-700 truncate mr-2" title={item.name}>{item.name}</span>
+                    <span className="text-zinc-900 font-semibold whitespace-nowrap">₹{item.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                  </div>
+                  <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden flex">
+                    <div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.max(item.percentage, 1)}%` }}></div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-xs text-zinc-400 italic flex items-center justify-center h-full">No data</div>
+              )}
+            </div>
+          </div>
         </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] mt-6">
+          <h3 className="text-sm font-medium text-zinc-900 mb-4">Growth Trend: Income vs Expense</h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                <XAxis dataKey="displayName" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#71717a' }} tickFormatter={(val) => `₹${val.toLocaleString('en-IN')}`} />
+                <RechartsTooltip cursor={{ stroke: '#e4e4e7', strokeWidth: 1, strokeDasharray: '4 4' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                <Line type="monotone" dataKey="income" name="Income" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" strokeWidth={2} dot={{ r: 4, fill: '#ef4444', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+
       </header>
 
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
@@ -448,6 +609,7 @@ export default function Finance() {
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Description</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Source</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Type</th>
+                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Transaction Type</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Service</th>
                   <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider text-right">Amount</th>
@@ -485,6 +647,9 @@ export default function Finance() {
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm text-zinc-600">
                         {tx.source || 'N/A'}
+                      </td>
+                      <td className="py-4 px-6 whitespace-nowrap text-sm text-zinc-600">
+                        {tx.type || 'N/A'}
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm text-zinc-600">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${txTypeStyle.bg} ${txTypeStyle.color} uppercase tracking-wider`}>
