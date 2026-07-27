@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, doc, setDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, secondaryAuth } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -8,6 +8,7 @@ import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircl
 export default function Employees() {
   const { user } = useAuthStore();
   const [employees, setEmployees] = useState([]);
+  const [rolesData, setRolesData] = useState({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState('');
@@ -22,30 +23,62 @@ export default function Employees() {
     phone: '',
     email: '',
     password: '',
-    assignedRegions: ''
+    assignedRegions: '',
+    permissions: []
   });
 
-  // Fetch existing employees
-  const fetchEmployees = async () => {
+  const availablePermissions = [
+    "CRM", "CRM Analysis", "Finance", "Clients", "Reimbursements", "Tasks", 
+    "Attendance", "Employees", "Performance", "Documents", "Settings"
+  ];
+
+  // Fetch existing employees and roles
+  const fetchData = async () => {
     if (!user) return;
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, `userData/${user.uid}/employees`));
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEmployees(data);
+      
+      const rolesSnap = await getDocs(collection(db, 'users'));
+      const roles = {};
+      rolesSnap.forEach(rDoc => {
+        roles[rDoc.id] = rDoc.data().permissions || [];
+      });
+      setRolesData(roles);
     } catch (err) {
-      console.error("Error fetching employees:", err);
+      console.error("Error fetching data:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEmployees();
+    fetchData();
   }, [user]);
 
   const handleInputChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleRoleChange = (e) => {
+    const newRole = e.target.value;
+    const roleId = newRole.trim().toLowerCase().replace(/\s+/g, '');
+    let permissions = formData.permissions;
+    if (rolesData[roleId]) {
+      permissions = rolesData[roleId];
+    }
+    setFormData(prev => ({ ...prev, position: newRole, permissions }));
+  };
+
+  const handlePermissionToggle = (perm) => {
+    setFormData(prev => {
+      const perms = prev.permissions.includes(perm)
+        ? prev.permissions.filter(p => p !== perm)
+        : [...prev.permissions, perm];
+      return { ...prev, permissions: perms };
+    });
   };
 
   const togglePasswordVisibility = (id) => {
@@ -72,6 +105,14 @@ export default function Employees() {
           name: formData.name
         }, { merge: true });
         
+        if (formData.position) {
+          const roleId = formData.position.trim().toLowerCase().replace(/\s+/g, '');
+          await setDoc(doc(db, 'users', roleId), {
+            userIds: arrayUnion(editingEmployeeId),
+            permissions: formData.permissions
+          }, { merge: true });
+        }
+        
       } else {
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, formData.email, formData.password);
         const employeeId = userCredential.user.uid;
@@ -95,13 +136,21 @@ export default function Employees() {
           userId: employeeId
         });
 
+        if (formData.position) {
+          const roleId = formData.position.trim().toLowerCase().replace(/\s+/g, '');
+          await setDoc(doc(db, 'users', roleId), {
+            userIds: arrayUnion(employeeId),
+            permissions: formData.permissions
+          }, { merge: true });
+        }
+
         await signOut(secondaryAuth);
       }
 
       setIsModalOpen(false);
       setEditingEmployeeId(null);
-      setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '' });
-      fetchEmployees();
+      setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [] });
+      fetchData();
     } catch (err) {
       console.error("Error adding employee:", err);
       setError(err.message || 'Failed to add employee');
@@ -120,7 +169,7 @@ export default function Employees() {
         <button
           onClick={() => {
             setEditingEmployeeId(null);
-            setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '' });
+            setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [] });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[14px] font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
@@ -255,12 +304,18 @@ export default function Employees() {
               </div>
               
               <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Position / Role</label>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Position / Title</label>
                 <input 
-                  type="text" required name="position" value={formData.position} onChange={handleInputChange}
+                  type="text" required name="position" value={formData.position} onChange={handleRoleChange}
+                  list="roles-list"
                   className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
                   placeholder="Sales Associate"
                 />
+                <datalist id="roles-list">
+                  {Object.keys(rolesData).map(roleId => (
+                    <option key={roleId} value={roleId} />
+                  ))}
+                </datalist>
               </div>
               
               <div>
@@ -277,8 +332,36 @@ export default function Employees() {
                 <input 
                   type="text" name="assignedRegions" value={formData.assignedRegions} onChange={handleInputChange}
                   className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
-                  placeholder="e.g. Ernakulam, Thrissur (Comma separated)"
+                  placeholder="North, South (optional)"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-2 mt-1">Assign Permissions</label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {availablePermissions.map(perm => {
+                    const currentRoleId = formData.position.trim().toLowerCase().replace(/\s+/g, '');
+                    const isExistingRole = !!rolesData[currentRoleId];
+                    
+                    return (
+                      <label key={perm} className={`flex items-center gap-2 text-[12.5px] text-zinc-700 hover:text-black bg-zinc-50 border border-zinc-200/60 p-2 rounded-lg transition-colors ${isExistingRole ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-100'}`}>
+                        <input 
+                          type="checkbox"
+                          checked={formData.permissions.includes(perm)}
+                          onChange={() => !isExistingRole && handlePermissionToggle(perm)}
+                          disabled={isExistingRole}
+                          className="rounded border-zinc-300 text-black focus:ring-black/20 w-3.5 h-3.5 disabled:cursor-not-allowed"
+                        />
+                        <span className="truncate">{perm}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-2 italic leading-tight">
+                  {!!rolesData[formData.position.trim().toLowerCase().replace(/\s+/g, '')] 
+                    ? "Permissions are locked because this is an existing title." 
+                    : "Select permissions for this new title."}
+                </p>
               </div>
               
               <div>

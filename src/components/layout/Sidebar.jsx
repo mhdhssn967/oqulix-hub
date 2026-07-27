@@ -9,7 +9,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 export function Sidebar() {
   const isOpen = useUIStore((s) => s.isMobileMenuOpen);
   const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
-  const { user, isAdmin, isManager, companyId } = useAuthStore();
+  const { user, isAdmin, isManager, companyId, permissions } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -35,18 +35,29 @@ export function Sidebar() {
     return () => unsubscribe();
   }, [companyId, isAdmin, isManager, user?.uid]);
 
-  const navItems = [
+  const allNavItems = [
     { icon: LayoutDashboard, label: 'CRM', path: '/' },
     { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
-    ...(isAdmin ? [{ icon: CreditCard, label: 'Finance', path: '/finance' }] : []),
+    { icon: CreditCard, label: 'Finance', path: '/finance' },
     { icon: Users, label: 'Clients', path: '/clients' },
     { icon: Receipt, label: 'Reimbursements', path: '/reimbursements' },
     { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
-    ...(isAdmin ? [{ icon: UserCog, label: 'Employees', path: '/employees' }] : []),
+    { icon: UserCog, label: 'Employees', path: '/employees' },
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
     { icon: FileText, label: 'Documents', path: '/documents' },
   ];
+
+  const hasPermission = (label) => {
+    if (permissions && permissions.length > 0) {
+      return permissions.includes(label);
+    }
+    // Fallback if no permissions are loaded yet or for backwards compatibility
+    if (isAdmin) return true;
+    return !['Finance', 'Employees'].includes(label);
+  };
+
+  const navItems = allNavItems.filter(item => hasPermission(item.label));
 
   return (
     <>
@@ -111,20 +122,22 @@ export function Sidebar() {
             <span className="text-[14px] tracking-tight">Enable Notifications</span>
           </button>
           
-          <NavLink 
-            to="/settings" 
-            onClick={closeMobileMenu}
-            className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
-              isActive ? 'bg-white/10 text-white font-medium' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-            }`}
-          >
-             {({ isActive }) => (
-               <>
-                 <Settings className={`w-[18px] h-[18px] ${isActive ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'} transition-colors`} />
-                 <span className="text-[14px] tracking-tight">Settings</span>
-               </>
-             )}
-          </NavLink>
+          {hasPermission('Settings') && (
+            <NavLink 
+              to="/settings" 
+              onClick={closeMobileMenu}
+              className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+                isActive ? 'bg-white/10 text-white font-medium' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+              }`}
+            >
+               {({ isActive }) => (
+                 <>
+                   <Settings className={`w-[18px] h-[18px] ${isActive ? 'text-white' : 'text-zinc-500 group-hover:text-zinc-300'} transition-colors`} />
+                   <span className="text-[14px] tracking-tight">Settings</span>
+                 </>
+               )}
+            </NavLink>
+          )}
         </div>
       </aside>
     </>
