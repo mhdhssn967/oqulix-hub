@@ -76,7 +76,9 @@ export default function Dashboard() {
   const [quickUpdateLead, setQuickUpdateLead] = useState(null);
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateRemarks, setUpdateRemarks] = useState('');
-  const { user, isAdmin, isManager, companyId, employeeData } = useAuthStore();
+  const { user, isAdmin, isManager, companyId, employeeData, isAdLeadManager } = useAuthStore();
+  const isDigitalMarketing = employeeData?.position?.trim().toLowerCase() === 'digital marketing';
+  const canManageAdLeads = isDigitalMarketing || isAdLeadManager;
   
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -88,6 +90,12 @@ export default function Dashboard() {
   const [leadTypeFilter, setLeadTypeFilter] = useState('');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
+
+  const getFilteredItemsForUser = (items, type = 'leads') => {
+    if (isAdmin || isManager || !user?.uid) return items;
+    if (type === 'adLeads' && canManageAdLeads) return items;
+    return items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid);
+  };
 
   // Add Lead Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,11 +169,11 @@ export default function Dashboard() {
     return Array.from(regions).sort();
   }, [allEmployees]);
   useEffect(() => {
-    if ((isModalOpen || isAdLeadModalOpen || isDistributorModalOpen) && (!isAdmin && !isManager) && employeeData) {
+    if ((isModalOpen || isAdLeadModalOpen || isDistributorModalOpen) && (!isAdmin && !isManager && !canManageAdLeads) && employeeData) {
       setFormData(prev => ({ ...prev, assignedToName: employeeData.name }));
       setAdLeadFormData(prev => ({ ...prev, assignedToName: employeeData.name, assignedToUid: user.uid }));
     }
-  }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, employeeData, user]);
+  }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, canManageAdLeads, employeeData, user]);
 
   const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   const handleAdLeadInputChange = (e) => {
@@ -174,7 +182,7 @@ export default function Dashboard() {
       const newData = { ...prev, [name]: value };
       
       // Auto-assign employee based on region match
-      if (name === 'region' && value.trim() && (isAdmin || isManager)) {
+      if (name === 'region' && value.trim() && (isAdmin || isManager || canManageAdLeads)) {
         const searchRegion = value.trim().toLowerCase();
         const matchedEmp = allEmployees.find(emp => {
           if (!emp.assignedRegions) return false;
@@ -289,7 +297,7 @@ export default function Dashboard() {
       const savedAssociate = leadPayload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedLeads = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : items;
+      const fetchedLeads = getFilteredItemsForUser(items, 'leads');
       setRegularLeads(fetchedLeads);
       
       setIsModalOpen(false);
@@ -335,8 +343,8 @@ export default function Dashboard() {
         priority: adLeadFormData.priority,
         remarks: adLeadFormData.remarks,
         followUpDate: adLeadFormData.followUpDate,
-        assignedToUid: (isAdmin || isManager) ? adLeadFormData.assignedToUid : user.uid,
-        assignedToName: (isAdmin || isManager) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
+        assignedToUid: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToUid : user.uid,
+        assignedToName: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
         message: adLeadFormData.message,
         updatedAt: new Date(),
         currentStatus: adLeadFormData.currentStatus || 'New Lead'
@@ -354,7 +362,7 @@ export default function Dashboard() {
           newLead: true,
           employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
           addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-          userId: (isAdmin || isManager) ? payload.assignedToUid : user.uid,
+          userId: (isAdmin || isManager || canManageAdLeads) ? payload.assignedToUid : user.uid,
           date: new Date().toISOString().slice(0, 10),
           createdAt: new Date(),
         };
@@ -366,7 +374,7 @@ export default function Dashboard() {
       const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedLeads = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid) : items;
+      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
       setAdLeads(fetchedLeads);
       
       setIsAdLeadModalOpen(false);
@@ -430,7 +438,7 @@ export default function Dashboard() {
       const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedDistributors = (!isAdmin && !isManager) && user?.uid ? items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : items;
+      const fetchedDistributors = getFilteredItemsForUser(items, 'distributors');
       setDistributors(fetchedDistributors);
 
       setIsDistributorModalOpen(false);
@@ -560,7 +568,7 @@ export default function Dashboard() {
         const newItems = items.filter(item => item.id !== lead.id);
         await updateDoc(docRef, { items: newItems });
         
-        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
+        const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
         
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
@@ -655,7 +663,7 @@ export default function Dashboard() {
       adItems = [newAdLead, ...adItems];
       await setDoc(adLeadsDocRef, { items: adItems }, { merge: true });
       
-      const adFetchedItems = (!isAdmin && !isManager) && user?.uid ? adItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : adItems;
+      const adFetchedItems = getFilteredItemsForUser(adItems, 'adLeads');
       setAdLeads(adFetchedItems);
       
       setSelectedLead(null);
@@ -735,7 +743,7 @@ export default function Dashboard() {
         
         await updateDoc(docRef, { items: newItems });
         
-        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
+        const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
         
         if (activeTab === 'regular') setRegularLeads(fetchedItems);
         if (activeTab === 'ads') setAdLeads(fetchedItems);
@@ -798,12 +806,9 @@ export default function Dashboard() {
         let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
         let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
 
-        if (!isAdmin && !isManager && user?.uid) {
-          const isAssigned = (item) => item.userId === user.uid || item.assignedToUid === user.uid;
-          fetchedLeads = fetchedLeads.filter(isAssigned);
-          fetchedDistributors = fetchedDistributors.filter(isAssigned);
-          fetchedAdLeads = fetchedAdLeads.filter(isAssigned);
-        }
+        fetchedLeads = getFilteredItemsForUser(fetchedLeads, 'leads');
+        fetchedAdLeads = getFilteredItemsForUser(fetchedAdLeads, 'adLeads');
+        fetchedDistributors = getFilteredItemsForUser(fetchedDistributors, 'distributors');
         
         setRegularLeads(fetchedLeads);
         setAdLeads(fetchedAdLeads);
@@ -2031,7 +2036,7 @@ export default function Dashboard() {
                       <input type="date" name="followUpDate" value={adLeadFormData.followUpDate} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
                     </div>
 
-                    {(isAdmin || isManager) && (
+                    {(isAdmin || isManager || canManageAdLeads) && (
                       <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Assign To*</label>
                         <select 

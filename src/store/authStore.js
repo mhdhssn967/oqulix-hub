@@ -35,8 +35,10 @@ export const useAuthStore = create((set) => ({
           });
 
           // Set standard flags based on role for backward compatibility
-          const isAdmin = userRole === 'admin';
-          const isManager = userRole === 'HR' || userRole === 'manager';
+          const lowerRole = userRole ? userRole.toLowerCase() : '';
+          const isAdmin = lowerRole === 'admin';
+          const isManager = lowerRole === 'hr' || lowerRole === 'manager';
+          const isAdLeadManager = user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1';
           const isEmployee = !!userRole && !isAdmin;
 
           if (userRole) {
@@ -45,6 +47,7 @@ export const useAuthStore = create((set) => ({
               isAdmin, 
               isEmployee, 
               isManager, 
+              isAdLeadManager,
               role: userRole,
               employeeData: empData, 
               companyId: empData ? empData.companyid : user.uid, 
@@ -53,14 +56,14 @@ export const useAuthStore = create((set) => ({
             });
           } else {
             // User not found in any role document
-            set({ user: null, isAdmin: false, isEmployee: false, isManager: false, role: null, companyId: null, permissions: [], loading: false });
+            set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, role: null, companyId: null, permissions: [], loading: false });
           }
         } catch (error) {
           console.error("Error checking auth status:", error);
-          set({ user, isAdmin: false, isEmployee: false, companyId: null, permissions: [], loading: false });
+          set({ user, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, companyId: null, permissions: [], loading: false });
         }
       } else {
-        set({ user: null, isAdmin: false, isEmployee: false, companyId: null, permissions: [], loading: false });
+        set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, companyId: null, permissions: [], loading: false });
       }
     });
   },
