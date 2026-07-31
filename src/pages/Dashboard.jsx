@@ -106,6 +106,7 @@ export default function Dashboard() {
   const [allEmployees, setAllEmployees] = useState([]);
   const [segmentClients, setSegmentClients] = useState([]);
   const [globalClients, setGlobalClients] = useState([]);
+  const [adCampaignsList, setAdCampaignsList] = useState([]);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     name: '',
@@ -144,7 +145,8 @@ export default function Dashboard() {
     followUpDate: '',
     assignedToUid: '',
     assignedToName: '',
-    message: ''
+    message: '',
+    campaign: ''
   });
 
   const [distributorFormData, setDistributorFormData] = useState({
@@ -346,6 +348,7 @@ export default function Dashboard() {
         assignedToUid: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToUid : user.uid,
         assignedToName: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
         message: adLeadFormData.message,
+        campaign: adLeadFormData.campaign || '',
         updatedAt: new Date(),
         currentStatus: adLeadFormData.currentStatus || 'New Lead'
       };
@@ -379,7 +382,7 @@ export default function Dashboard() {
       
       setIsAdLeadModalOpen(false);
       setEditingLeadId(null);
-      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
       
       Swal.fire({
         title: editingLeadId ? 'Updated!' : 'Added!',
@@ -777,15 +780,20 @@ export default function Dashboard() {
         const empsColRef = collection(db, 'userData', companyId, 'employees');
         const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
         const globalClientsDocRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
+        const campaignsRef = collection(db, 'userData', companyId, 'adCampaigns');
         
-        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap] = await Promise.all([
+        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap, campaignsSnap] = await Promise.all([
           getDoc(leadsDocRef),
           getDoc(adLeadsDocRef),
           getDoc(distributorsDocRef),
           getDocs(empsColRef),
           getDoc(segmentDocRef),
-          getDoc(globalClientsDocRef)
+          getDoc(globalClientsDocRef),
+          getDocs(campaignsRef)
         ]);
+        
+        const fetchedCampaigns = campaignsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAdCampaignsList(fetchedCampaigns);
         
         if (globalClientsSnap.exists()) {
           setGlobalClients(globalClientsSnap.data().clients || []);
@@ -1018,7 +1026,7 @@ export default function Dashboard() {
             onClick={() => {
               setEditingLeadId(null);
               if (activeTab === 'ads') {
-                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 setIsAdLeadModalOpen(true);
               } else if (activeTab === 'distributors') {
                 setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
@@ -1948,7 +1956,7 @@ export default function Dashboard() {
                 if (!isSubmitting) {
                   setIsAdLeadModalOpen(false);
                   setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 }
               }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
                 <X className="w-4 h-4" />
@@ -2015,6 +2023,16 @@ export default function Dashboard() {
                         <input type="text" required name="customLeadType" value={adLeadFormData.customLeadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Rehab Center" />
                       </div>
                     )}
+                    
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Ad Campaign</label>
+                      <select name="campaign" value={adLeadFormData.campaign || ''} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="">No Campaign</option>
+                        {adCampaignsList.filter(c => c.status === 'Active').map(camp => (
+                          <option key={camp.id} value={camp.name}>{camp.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Right Column */}
@@ -2079,7 +2097,7 @@ export default function Dashboard() {
                 <button type="button" onClick={() => {
                   setIsAdLeadModalOpen(false);
                   setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '' });
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
                   Discard
                 </button>

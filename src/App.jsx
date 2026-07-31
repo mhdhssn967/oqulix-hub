@@ -20,6 +20,7 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Employees from './pages/Employees';
 import Reimbursements from './pages/Reimbursements';
+import AdSettings from './pages/AdSettings';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -99,6 +100,7 @@ function App() {
           <Route path="documents" element={<Documents />} />
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="ad-settings" element={<AdSettings />} />
         </Route>
       </Routes>
     </BrowserRouter>

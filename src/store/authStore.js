@@ -30,7 +30,7 @@ export const useAuthStore = create((set) => ({
             const data = roleDoc.data();
             if (data.userIds && data.userIds.includes(user.uid)) {
               userRole = roleDoc.id;
-              permissions = data.permissions || [];
+              permissions = (empData && empData.permissions) ? empData.permissions : (data.permissions || []);
             }
           });
 

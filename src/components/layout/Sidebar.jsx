@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { db } from '../../firebase';
@@ -46,14 +46,15 @@ export function Sidebar() {
     { icon: UserCog, label: 'Employees', path: '/employees' },
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
     { icon: FileText, label: 'Documents', path: '/documents' },
+    { icon: Megaphone, label: 'Ad Settings', path: '/ad-settings' },
   ];
 
   const hasPermission = (label) => {
+    if (isAdmin) return true;
     if (permissions && permissions.length > 0) {
       return permissions.includes(label);
     }
     // Fallback if no permissions are loaded yet or for backwards compatibility
-    if (isAdmin) return true;
     return !['Finance', 'Employees'].includes(label);
   };
 
