@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, collection, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -100,6 +100,10 @@ export default function Dashboard() {
   // Add Lead Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdLeadModalOpen, setIsAdLeadModalOpen] = useState(false);
+  const [isBulkAdLeadModalOpen, setIsBulkAdLeadModalOpen] = useState(false);
+  const [bulkAdLeadText, setBulkAdLeadText] = useState('');
+  const [bulkAdLeadAssignedToUid, setBulkAdLeadAssignedToUid] = useState('');
+  const [bulkAdLeadAssignedToName, setBulkAdLeadAssignedToName] = useState('');
   const [isDistributorModalOpen, setIsDistributorModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
@@ -223,16 +227,44 @@ export default function Dashboard() {
 
   const getDuplicateWarning = (name) => {
     if (!name || name.trim() === '') return null;
-    const match = globalClients.find(c => c.clientName.toLowerCase() === name.trim().toLowerCase());
-    if (match) {
+    
+    const searchStr = name.trim().toLowerCase();
+    const currentSegmentClients = globalClients.filter(c => c.segment === activeSegment);
+    const exactMatch = currentSegmentClients.find(c => c.clientName.toLowerCase() === searchStr);
+    
+    if (exactMatch) {
       return (
         <div className="w-full mt-2 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-lg flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
           <span className="text-[12px] text-amber-800 font-medium">
-            This client already exists! (Added by: <span className="font-bold">{match.associateName}</span>).
+            This client already exists! (Added by: <span className="font-bold">{exactMatch.associateName}</span>).
           </span>
         </div>
       );
+    }
+
+    if (searchStr.length >= 3) {
+      const partialMatches = currentSegmentClients.filter(c => c.clientName.toLowerCase().includes(searchStr) && c.clientName.toLowerCase() !== searchStr).slice(0, 5);
+      
+      if (partialMatches.length > 0) {
+        return (
+          <div className="w-full mt-2 px-3 py-2 bg-blue-50 border border-blue-200/60 rounded-lg flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="text-[12px] text-blue-800 font-medium">
+                Similar existing clients found:
+              </span>
+            </div>
+            <div className="pl-6 flex flex-col gap-1">
+              {partialMatches.map((match, idx) => (
+                <div key={idx} className="text-[11px] text-blue-700">
+                  <span className="font-semibold">{match.clientName}</span> (Added by: {match.associateName})
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
     }
     return null;
   };
@@ -313,6 +345,85 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error("Error saving lead:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkSaveAdLeads = async (e) => {
+    e.preventDefault();
+    if (!companyId) return;
+    
+    if (!bulkAdLeadText.trim()) {
+      Swal.fire({ icon: "warning", title: "No Input", text: "Please paste some phone numbers." });
+      return;
+    }
+    if (!bulkAdLeadAssignedToUid) {
+      Swal.fire({ icon: "warning", title: "No Employee Selected", text: "Please assign these leads to an employee." });
+      return;
+    }
+
+    // Use regex to extract whole phone numbers even if they contain spaces inside (e.g. "+91 99515 10645")
+    const extractedTokens = bulkAdLeadText.match(/(?:\+\d{1,4}\s?)?(?:\d[\s-]*){7,15}\d/g) || [];
+    
+    // Clean each token (remove all spaces/dashes) and ensure length is valid
+    const cleanNumbers = extractedTokens
+      .map(token => token.replace(/[^\d+]/g, ''))
+      .filter(token => token.length >= 7);
+      
+    const uniqueNumbers = [...new Set(cleanNumbers)];
+
+    if (uniqueNumbers.length === 0) {
+      Swal.fire({ icon: "warning", title: "No Valid Numbers", text: "Could not extract any valid phone numbers." });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
+      const snap = await getDoc(docRef);
+      let items = snap.exists() ? (snap.data().items || []) : [];
+
+      const newLeads = uniqueNumbers.map(num => ({
+        id: doc(collection(db, 'temp')).id,
+        name: 'Unknown',
+        institutionName: '',
+        contactNumber: num,
+        contactNo: num,
+        region: '',
+        leadType: 'Other',
+        priority: 'Medium',
+        remarks: '',
+        followUpDate: '',
+        assignedToUid: bulkAdLeadAssignedToUid,
+        assignedToName: bulkAdLeadAssignedToName,
+        message: '',
+        campaign: '',
+        updatedAt: new Date(),
+        currentStatus: 'New Lead',
+        newLead: true,
+        employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+        addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+        userId: bulkAdLeadAssignedToUid,
+        date: new Date().toISOString().slice(0, 10),
+        createdAt: new Date(),
+      }));
+
+      items = [...newLeads, ...items];
+      await setDoc(docRef, { items }, { merge: true });
+
+      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
+      setAdLeads(fetchedLeads);
+
+      setIsBulkAdLeadModalOpen(false);
+      setBulkAdLeadText('');
+      setBulkAdLeadAssignedToUid('');
+      setBulkAdLeadAssignedToName('');
+      
+      Swal.fire({ icon: "success", title: "Success", text: `Successfully added ${newLeads.length} leads.` });
+    } catch (error) {
+      console.error("Error bulk adding leads:", error);
+      Swal.fire({ icon: "error", title: "Error", text: "Failed to add bulk leads. Please try again." });
     } finally {
       setIsSubmitting(false);
     }
@@ -1022,6 +1133,19 @@ export default function Dashboard() {
           <p className="text-[15px] text-zinc-500 mt-1.5">Manage your leads, ad campaigns, and distributors.</p>
         </div>
         <div className="flex items-center gap-3">
+          {activeTab === 'ads' && (isAdmin || isManager || canManageAdLeads) && (
+            <button 
+              onClick={() => {
+                setBulkAdLeadText('');
+                setBulkAdLeadAssignedToUid('');
+                setBulkAdLeadAssignedToName('');
+                setIsBulkAdLeadModalOpen(true);
+              }}
+              className="bg-white hover:bg-zinc-50 text-black px-4 py-2 rounded-lg font-medium text-[13px] transition-all border border-zinc-200 shadow-sm flex items-center gap-2"
+            >
+              Bulk Assign
+            </button>
+          )}
           <button 
             onClick={() => {
               setEditingLeadId(null);
@@ -1782,6 +1906,75 @@ export default function Dashboard() {
       )}
 
       {/* Add Lead Modal */}
+      {/* Global Client Names Datalist for autocomplete */}
+      <datalist id="global-client-names">
+        {globalClients.filter(c => c.segment === activeSegment).map((c, idx) => (
+          <option key={`client-${idx}`} value={c.clientName} />
+        ))}
+      </datalist>
+
+      {/* Bulk Ad Lead Modal */}
+      {isBulkAdLeadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <h2 className="text-[18px] font-semibold text-zinc-900">Bulk Assign Ad Leads</h2>
+              <button type="button" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleBulkSaveAdLeads} className="flex flex-col">
+              <div className="p-6">
+                <div className="flex flex-col gap-4">
+                  <div>
+                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Paste Phone Numbers</label>
+                    <textarea 
+                      required
+                      value={bulkAdLeadText} 
+                      onChange={(e) => setBulkAdLeadText(e.target.value)}
+                      rows="6"
+                      className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
+                      placeholder="Paste numbers separated by spaces, commas, or new lines..."
+                    ></textarea>
+                    <p className="text-[11px] text-zinc-500 mt-1">The system will automatically extract all valid phone numbers.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Assign To Employee</label>
+                    <select
+                      required
+                      value={bulkAdLeadAssignedToUid}
+                      onChange={(e) => {
+                        const selectedEmp = allEmployees.find(emp => emp.id === e.target.value);
+                        setBulkAdLeadAssignedToUid(e.target.value);
+                        setBulkAdLeadAssignedToName(selectedEmp ? (selectedEmp.name || selectedEmp.email) : '');
+                      }}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
+                    >
+                      <option value="" disabled>Select Employee</option>
+                      {allEmployees.map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-5 border-t border-zinc-100 bg-zinc-50/50 flex justify-end gap-3">
+                <button type="button" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-black hover:bg-zinc-800 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : 'Assign Leads'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
@@ -1810,7 +2003,7 @@ export default function Dashboard() {
                     <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <div className="flex items-center w-full">
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
-                        <input type="text" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
+                        <input type="text" list="global-client-names" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
                       </div>
                       {getDuplicateWarning(formData.clientName)}
                     </div>
@@ -1974,7 +2167,7 @@ export default function Dashboard() {
                     <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <div className="flex items-center w-full">
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
-                        <input type="text" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
+                        <input type="text" list="global-client-names" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
                       </div>
                       {getDuplicateWarning(adLeadFormData.name)}
                     </div>
