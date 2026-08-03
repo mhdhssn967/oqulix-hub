@@ -100,5 +100,32 @@ export const useAuthStore = create((set) => ({
 
   logout: async () => {
     await signOut(auth);
+  },
+
+  updateProfile: async (name, photoURL) => {
+    const { user, isAdmin, isEmployee, employeeData } = useAuthStore.getState();
+    if (!user) return false;
+    
+    const collectionName = isAdmin ? 'admins' : (isEmployee ? 'employees' : null);
+    if (!collectionName) return false;
+
+    try {
+      const updates = {};
+      if (name !== undefined) updates.name = name;
+      if (photoURL !== undefined) updates.photoURL = photoURL;
+      
+      await updateDoc(doc(db, collectionName, user.uid), updates);
+      
+      set({ 
+        employeeData: { 
+          ...employeeData, 
+          ...updates 
+        } 
+      });
+      return true;
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      throw error;
+    }
   }
 }));

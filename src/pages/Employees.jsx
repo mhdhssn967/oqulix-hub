@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Employees() {
-  const { user } = useAuthStore();
+  const { user, companyId } = useAuthStore();
   const [employees, setEmployees] = useState([]);
   const [rolesData, setRolesData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -34,10 +34,10 @@ export default function Employees() {
 
   // Fetch existing employees and roles
   const fetchData = async () => {
-    if (!user) return;
+    if (!companyId) return;
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, `userData/${user.uid}/employees`));
+      const snap = await getDocs(collection(db, `userData/${companyId}/employees`));
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEmployees(data);
       
@@ -56,7 +56,7 @@ export default function Employees() {
 
   useEffect(() => {
     fetchData();
-  }, [user]);
+  }, [companyId]);
 
   const handleInputChange = (e) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -65,7 +65,7 @@ export default function Employees() {
   const handleRoleChange = (e) => {
     const newRole = e.target.value;
     const roleId = newRole.trim().toLowerCase().replace(/\s+/g, '');
-    let permissions = formData.permissions;
+    let permissions = formData.permissions || [];
     if (rolesData[roleId]) {
       permissions = rolesData[roleId];
     }
@@ -87,7 +87,7 @@ export default function Employees() {
 
   const handleAddEmployee = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!companyId) return;
     setError('');
     setIsSubmitting(true);
 
@@ -97,12 +97,14 @@ export default function Employees() {
           name: formData.name,
           position: formData.position,
           phone: formData.phone,
-          assignedRegions: formData.assignedRegions
+          assignedRegions: formData.assignedRegions,
+          permissions: formData.permissions
         };
-        await setDoc(doc(db, `userData/${user.uid}/employees`, editingEmployeeId), updateData, { merge: true });
+        await setDoc(doc(db, `userData/${companyId}/employees`, editingEmployeeId), updateData, { merge: true });
         
         await setDoc(doc(db, 'employees', editingEmployeeId), {
-          name: formData.name
+          name: formData.name,
+          permissions: formData.permissions
         }, { merge: true });
         
         if (formData.position) {
@@ -124,16 +126,18 @@ export default function Employees() {
           email: formData.email,
           password: formData.password,
           assignedRegions: formData.assignedRegions,
+          permissions: formData.permissions,
           createdAt: serverTimestamp(),
           userId: employeeId
         };
-        await setDoc(doc(db, `userData/${user.uid}/employees`, employeeId), employeeData);
+        await setDoc(doc(db, `userData/${companyId}/employees`, employeeId), employeeData);
 
         await setDoc(doc(db, 'employees', employeeId), {
           name: formData.name,
           email: formData.email,
-          companyid: user.uid,
-          userId: employeeId
+          companyid: companyId,
+          userId: employeeId,
+          permissions: formData.permissions
         });
 
         if (formData.position) {
@@ -210,7 +214,8 @@ export default function Employees() {
                       phone: emp.phone || '',
                       email: emp.email || '',
                       password: emp.password || '',
-                      assignedRegions: emp.assignedRegions || ''
+                      assignedRegions: emp.assignedRegions || '',
+                      permissions: emp.permissions || []
                     });
                     setEditingEmployeeId(emp.id);
                     setIsModalOpen(true);

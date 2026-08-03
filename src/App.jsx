@@ -8,9 +8,11 @@ import Swal from 'sweetalert2';
 
 // Import pages
 import Dashboard from './pages/Dashboard';
+import CRM from './pages/CRM';
 import Finance from './pages/Finance';
 import Tasks from './pages/Tasks';
 import Attendance from './pages/Attendance';
+import ManageAttendance from './pages/ManageAttendance';
 import Performance from './pages/Performance';
 import Clients from './pages/Clients';
 import Analysis from './pages/Analysis';
@@ -40,6 +42,19 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/" replace />;
   }
   return children;
+};
+
+// Permission Route Wrapper
+const PermissionRoute = ({ children, permissionLabel }) => {
+  const { isAdmin, permissions } = useAuthStore();
+  
+  if (isAdmin) return children;
+  
+  if (permissions && permissions.includes(permissionLabel)) {
+    return children;
+  }
+  
+  return <Navigate to="/" replace />;
 };
 
 function App() {
@@ -89,10 +104,12 @@ function App() {
         
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
-          <Route path="finance" element={<AdminRoute><Finance /></AdminRoute>} />
+          <Route path="crm" element={<PermissionRoute permissionLabel="CRM"><CRM /></PermissionRoute>} />
+          <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="attendance" element={<Attendance />} />
-          <Route path="employees" element={<AdminRoute><Employees /></AdminRoute>} />
+          <Route path="manage-attendance" element={<ManageAttendance />} />
+          <Route path="employees" element={<PermissionRoute permissionLabel="Employees"><Employees /></PermissionRoute>} />
           <Route path="performance" element={<Performance />} />
           <Route path="clients" element={<Clients />} />
           <Route path="analysis" element={<Analysis />} />

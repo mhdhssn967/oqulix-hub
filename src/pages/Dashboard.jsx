@@ -1,2459 +1,602 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info } from 'lucide-react';
-import { doc, getDoc, getDocs, updateDoc, setDoc, collection, arrayUnion } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
+import { db } from '../firebase';
+import { collection, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
+import { Clock, CheckSquare, Calendar, CreditCard, ChevronRight, ChevronLeft, LayoutDashboard, User, ArrowUpRight, TrendingUp, Sparkles, CheckCircle, Laptop, Map, CalendarMinus, AlertCircle, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
-const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
-  
-  return (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-100 bg-white">
-      <div className="text-[13px] text-zinc-500">
-        Showing <span className="font-medium text-zinc-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-zinc-900">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-medium text-zinc-900">{totalItems}</span> results
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="text-[13px] font-medium text-zinc-700">
-          Page {currentPage} of {totalPages}
-        </div>
-        <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const LEAD_STATUS_OPTIONS = [
-  { value: 'New Lead', label: 'New Lead' },
-  { value: 'Called, no response', label: 'Called, No Response' },
-  { value: 'Contacted', label: 'Contacted' },
-  { value: 'Interested', label: 'Interested' },
-  { value: 'Follow up needed', label: 'Follow-Up Needed' },
-  { value: 'Quotation Sent', label: 'Quotation Sent' },
-  { value: 'Awaiting Decision', label: 'Awaiting Decision' },
-  { value: 'Token Recieved', label: 'Token Recieved' },
-  { value: 'Deal Closed', label: 'Converted (Deal Won)' },
-  { value: 'Deal Lost', label: 'Not Interested (Deal Lost)' }
-];
-
-const DISTRIBUTOR_STATUS_OPTIONS = [
-  { value: "Haven't yet contacted", label: "Haven't yet contacted" },
-  { value: "Called, no response", label: "Called, no response" },
-  { value: "Contacted and discussed via phone", label: "Contacted and discussed via phone" },
-  { value: "Online demo done", label: "Online demo done" },
-  { value: "Live demo done", label: "Live demo done" },
-  { value: "Hospital presentation done", label: "Hospital presentation done" },
-  { value: "Agreement Sent & awaiting response", label: "Agreement Sent & waiting" },
-  { value: "Agreement Signed", label: "Agreement Signed" },
-  { value: "Purchased Demo Piece", label: "Purchased Demo Piece" },
-  { value: "Doing Sales", label: "Doing Sales" },
-  { value: "Inactive", label: "Inactive" },
-  { value: "Terminated", label: "Terminated" }
-];
-
 export default function Dashboard() {
-  const [activeSegment, setActiveSegment] = useState('happymoves');
-  const [activeTab, setActiveTab] = useState('regular');
-  const [regularLeads, setRegularLeads] = useState([]);
-  const [adLeads, setAdLeads] = useState([]);
-  const [distributors, setDistributors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedLead, setSelectedLead] = useState(null);
-  const [quickUpdateLead, setQuickUpdateLead] = useState(null);
-  const [updateStatus, setUpdateStatus] = useState('');
-  const [updateRemarks, setUpdateRemarks] = useState('');
-  const { user, isAdmin, isManager, companyId, employeeData, isAdLeadManager } = useAuthStore();
-  const isDigitalMarketing = employeeData?.position?.trim().toLowerCase() === 'digital marketing';
-  const canManageAdLeads = isDigitalMarketing || isAdLeadManager;
+  const { user, isAdmin, employeeData, companyId, permissions } = useAuthStore();
+  const navigate = useNavigate();
   
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const [todayAttendance, setTodayAttendance] = useState(null);
+  const [monthAttendance, setMonthAttendance] = useState({});
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
+  const [customHolidays, setCustomHolidays] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState('');
-  const [monthFilter, setMonthFilter] = useState('');
-  const [leadTypeFilter, setLeadTypeFilter] = useState('');
-  const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
-  const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
-
-  const getFilteredItemsForUser = (items, type = 'leads') => {
-    if (isAdmin || isManager || !user?.uid) return items;
-    if (type === 'adLeads' && canManageAdLeads) return items;
-    return items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid);
-  };
-
-  // Add Lead Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAdLeadModalOpen, setIsAdLeadModalOpen] = useState(false);
-  const [isBulkAdLeadModalOpen, setIsBulkAdLeadModalOpen] = useState(false);
-  const [bulkAdLeadText, setBulkAdLeadText] = useState('');
-  const [bulkAdLeadAssignedToUid, setBulkAdLeadAssignedToUid] = useState('');
-  const [bulkAdLeadAssignedToName, setBulkAdLeadAssignedToName] = useState('');
-  const [isDistributorModalOpen, setIsDistributorModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingLeadId, setEditingLeadId] = useState(null);
-  const [allEmployees, setAllEmployees] = useState([]);
-  const [segmentClients, setSegmentClients] = useState([]);
-  const [globalClients, setGlobalClients] = useState([]);
-  const [adCampaignsList, setAdCampaignsList] = useState([]);
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    name: '',
-    clientName: '',
-    priority: '',
-    place: '',
-    country: '',
-    personOfContact: '',
-    pocDesignation: '',
-    contactNo: '',
-    personOfContact2: '',
-    contactNo2: '',
-    referralPerson: '',
-    email: '',
-    currentStatus: 'New Lead',
-    fPrice: '',
-    lPrice: '',
-    lastContacted: '',
-    nextFollowUp: '',
-    remarks: '',
-    leadType: 'Hospital',
-    customLeadType: '',
-    assignedToName: '',
-    message: ''
-  });
-
-  const [adLeadFormData, setAdLeadFormData] = useState({
-    name: '',
-    institutionName: '',
-    contactNumber: '',
-    region: '',
-    leadType: '',
-    customLeadType: '',
-    priority: 'Medium',
-    remarks: '',
-    followUpDate: '',
-    assignedToUid: '',
-    assignedToName: '',
-    message: '',
-    campaign: ''
-  });
-
-  const [distributorFormData, setDistributorFormData] = useState({
-    distributorName: '', state: '', region: '', exclusive: '',
-    teamSize: '', contactPersonName: '', contactNumber: '', email: '',
-    address: '', gstNumber: '', establishedYear: '',
-    currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '',
-    productLinesHandled: '', territoryDescription: '', remarks: '',
-  });
-
-  // Auto-fill assignedToName for employees when modal opens
-  const availableRegions = React.useMemo(() => {
-    const regions = new Set();
-    allEmployees.forEach(emp => {
-      if (emp.assignedRegions) {
-        emp.assignedRegions.split(',').forEach(r => {
-          const trimmed = r.trim();
-          if (trimmed) regions.add(trimmed);
-        });
-      }
-    });
-    return Array.from(regions).sort();
-  }, [allEmployees]);
-  useEffect(() => {
-    if ((isModalOpen || isAdLeadModalOpen || isDistributorModalOpen) && (!isAdmin && !isManager && !canManageAdLeads) && employeeData) {
-      setFormData(prev => ({ ...prev, assignedToName: employeeData.name }));
-      setAdLeadFormData(prev => ({ ...prev, assignedToName: employeeData.name, assignedToUid: user.uid }));
-    }
-  }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, canManageAdLeads, employeeData, user]);
-
-  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  const handleAdLeadInputChange = (e) => {
-    const { name, value } = e.target;
-    setAdLeadFormData(prev => {
-      const newData = { ...prev, [name]: value };
-      
-      // Auto-assign employee based on region match
-      if (name === 'region' && value.trim() && (isAdmin || isManager || canManageAdLeads)) {
-        const searchRegion = value.trim().toLowerCase();
-        const matchedEmp = allEmployees.find(emp => {
-          if (!emp.assignedRegions) return false;
-          const empRegions = emp.assignedRegions.split(',').map(r => r.trim().toLowerCase());
-          return empRegions.includes(searchRegion);
-        });
-        
-        if (matchedEmp) {
-           newData.assignedToUid = matchedEmp.uid;
-           newData.assignedToName = matchedEmp.name;
-        }
-      }
-      
-      return newData;
-    });
-  };
-  const handleDistributorInputChange = (e) => setDistributorFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-
-  const updateGlobalClientList = async (clientName, associateName) => {
-    if (!clientName || !companyId) return;
-    try {
-      const formattedString = `${clientName} (${associateName || 'Unknown Associate'})`;
-      const globalRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
-      await setDoc(globalRef, {
-        clients: arrayUnion({
-          clientName: clientName,
-          associateName: associateName || 'Unknown Associate',
-          segment: activeSegment,
-          formattedString
-        })
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error updating global client list:", error);
-    }
-  };
-
-  const getDuplicateWarning = (name) => {
-    if (!name || name.trim() === '') return null;
-    
-    const searchStr = name.trim().toLowerCase();
-    const currentSegmentClients = globalClients.filter(c => c.segment === activeSegment);
-    const exactMatch = currentSegmentClients.find(c => c.clientName.toLowerCase() === searchStr);
-    
-    if (exactMatch) {
-      return (
-        <div className="w-full mt-2 px-3 py-2 bg-amber-50 border border-amber-200/60 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span className="text-[12px] text-amber-800 font-medium">
-            This client already exists! (Added by: <span className="font-bold">{exactMatch.associateName}</span>).
-          </span>
-        </div>
-      );
-    }
-
-    if (searchStr.length >= 3) {
-      const partialMatches = currentSegmentClients.filter(c => c.clientName.toLowerCase().includes(searchStr) && c.clientName.toLowerCase() !== searchStr).slice(0, 5);
-      
-      if (partialMatches.length > 0) {
-        return (
-          <div className="w-full mt-2 px-3 py-2 bg-blue-50 border border-blue-200/60 rounded-lg flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <Info className="w-4 h-4 text-blue-600 shrink-0" />
-              <span className="text-[12px] text-blue-800 font-medium">
-                Similar existing clients found:
-              </span>
-            </div>
-            <div className="pl-6 flex flex-col gap-1">
-              {partialMatches.map((match, idx) => (
-                <div key={idx} className="text-[11px] text-blue-700">
-                  <span className="font-semibold">{match.clientName}</span> (Added by: {match.associateName})
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      }
-    }
-    return null;
-  };
-
-  const handleSaveLead = async (e) => {
-    e.preventDefault();
-    if (!companyId) return;
-    setIsSubmitting(true);
-    try {
-      const finalLeadType = formData.leadType === 'Other' ? formData.customLeadType : formData.leadType;
-      
-      const leadPayload = {
-        date: formData.date,
-        name: formData.clientName || formData.name,
-        clientName: formData.clientName || formData.name,
-        priority: formData.priority,
-        place: formData.place,
-        region: formData.place,
-        country: formData.country,
-        personOfContact: formData.personOfContact,
-        pocDesignation: formData.pocDesignation,
-        contactNo: formData.contactNo,
-        personOfContact2: formData.personOfContact2,
-        contactNo2: formData.contactNo2,
-        referralPerson: formData.referralPerson,
-        email: formData.email,
-        currentStatus: formData.currentStatus,
-        fPrice: formData.fPrice,
-        lPrice: formData.lPrice,
-        lastContacted: formData.lastContacted,
-        nextFollowUp: formData.nextFollowUp,
-        remarks: formData.remarks,
-        leadType: finalLeadType,
-        assignedToName: formData.assignedToName,
-        message: formData.message,
-        updatedAt: new Date()
-      };
-
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-      
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...leadPayload } : item);
-      } else {
-        const newLead = {
-          ...leadPayload,
-          id: doc(collection(db, 'temp')).id,
-          currentStatus: leadPayload.currentStatus || 'New Lead',
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          userId: user.uid,
-          assignedToUid: user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newLead, ...items];
-      }
-      
-      await setDoc(docRef, { items }, { merge: true });
-      
-      const savedClientName = leadPayload.clientName || leadPayload.name;
-      const savedAssociate = leadPayload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
-      await updateGlobalClientList(savedClientName, savedAssociate);
-
-      const fetchedLeads = getFilteredItemsForUser(items, 'leads');
-      setRegularLeads(fetchedLeads);
-      
-      setIsModalOpen(false);
-      setEditingLeadId(null);
-      setFormData({ 
-        date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', 
-        personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', 
-        referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', 
-        lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', 
-        assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' 
-      });
-    } catch (err) {
-      console.error("Error saving lead:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleBulkSaveAdLeads = async (e) => {
-    e.preventDefault();
-    if (!companyId) return;
-    
-    if (!bulkAdLeadText.trim()) {
-      Swal.fire({ icon: "warning", title: "No Input", text: "Please paste some phone numbers." });
-      return;
-    }
-    if (!bulkAdLeadAssignedToUid) {
-      Swal.fire({ icon: "warning", title: "No Employee Selected", text: "Please assign these leads to an employee." });
-      return;
-    }
-
-    // Use regex to extract whole phone numbers even if they contain spaces inside (e.g. "+91 99515 10645")
-    const extractedTokens = bulkAdLeadText.match(/(?:\+\d{1,4}\s?)?(?:\d[\s-]*){7,15}\d/g) || [];
-    
-    // Clean each token (remove all spaces/dashes) and ensure length is valid
-    const cleanNumbers = extractedTokens
-      .map(token => token.replace(/[^\d+]/g, ''))
-      .filter(token => token.length >= 7);
-      
-    const uniqueNumbers = [...new Set(cleanNumbers)];
-
-    if (uniqueNumbers.length === 0) {
-      Swal.fire({ icon: "warning", title: "No Valid Numbers", text: "Could not extract any valid phone numbers." });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-
-      const newLeads = uniqueNumbers.map(num => ({
-        id: doc(collection(db, 'temp')).id,
-        name: 'Unknown',
-        institutionName: '',
-        contactNumber: num,
-        contactNo: num,
-        region: '',
-        leadType: 'Other',
-        priority: 'Medium',
-        remarks: '',
-        followUpDate: '',
-        assignedToUid: bulkAdLeadAssignedToUid,
-        assignedToName: bulkAdLeadAssignedToName,
-        message: '',
-        campaign: '',
-        updatedAt: new Date(),
-        currentStatus: 'New Lead',
-        newLead: true,
-        employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-        addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-        userId: bulkAdLeadAssignedToUid,
-        date: new Date().toISOString().slice(0, 10),
-        createdAt: new Date(),
-      }));
-
-      items = [...newLeads, ...items];
-      await setDoc(docRef, { items }, { merge: true });
-
-      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
-      setAdLeads(fetchedLeads);
-
-      setIsBulkAdLeadModalOpen(false);
-      setBulkAdLeadText('');
-      setBulkAdLeadAssignedToUid('');
-      setBulkAdLeadAssignedToName('');
-      
-      Swal.fire({ icon: "success", title: "Success", text: `Successfully added ${newLeads.length} leads.` });
-    } catch (error) {
-      console.error("Error bulk adding leads:", error);
-      Swal.fire({ icon: "error", title: "Error", text: "Failed to add bulk leads. Please try again." });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSaveAdLead = async (e) => {
-    e.preventDefault();
-    if (!companyId) return;
-    
-    if (!adLeadFormData.name.trim() || !adLeadFormData.contactNumber.trim() || !adLeadFormData.leadType) {
-      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Name, Contact Number and Lead Type are required." });
-      return;
-    }
-    if (!adLeadFormData.assignedToUid && isAdmin) {
-      Swal.fire({ icon: "warning", title: "Please assign this lead to an employee." });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const finalLeadType = adLeadFormData.leadType === 'Other' ? adLeadFormData.customLeadType : adLeadFormData.leadType;
-      
-      const payload = {
-        name: adLeadFormData.name,
-        institutionName: adLeadFormData.institutionName,
-        contactNumber: adLeadFormData.contactNumber,
-        contactNo: adLeadFormData.contactNumber, // for consistency
-        region: adLeadFormData.region,
-        leadType: finalLeadType,
-        priority: adLeadFormData.priority,
-        remarks: adLeadFormData.remarks,
-        followUpDate: adLeadFormData.followUpDate,
-        assignedToUid: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToUid : user.uid,
-        assignedToName: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
-        message: adLeadFormData.message,
-        campaign: adLeadFormData.campaign || '',
-        updatedAt: new Date(),
-        currentStatus: adLeadFormData.currentStatus || 'New Lead'
-      };
-
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-      } else {
-        const newLead = {
-          ...payload,
-          id: doc(collection(db, 'temp')).id,
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-          addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-          userId: (isAdmin || isManager || canManageAdLeads) ? payload.assignedToUid : user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newLead, ...items];
-      }
-      await setDoc(docRef, { items }, { merge: true });
-
-      const savedClientName = payload.name || payload.institutionName;
-      const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')));
-      await updateGlobalClientList(savedClientName, savedAssociate);
-
-      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
-      setAdLeads(fetchedLeads);
-      
-      setIsAdLeadModalOpen(false);
-      setEditingLeadId(null);
-      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
-      
-      Swal.fire({
-        title: editingLeadId ? 'Updated!' : 'Added!',
-        text: editingLeadId ? 'Ad lead updated successfully.' : 'Ad lead added successfully.',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      console.error("Error saving ad lead:", err);
-      Swal.fire({ title: 'Error', text: 'Failed to save ad lead', icon: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSaveDistributor = async (e) => {
-    e.preventDefault();
-    if (!companyId) return;
-
-    if (!distributorFormData.distributorName || !distributorFormData.contactNumber || !distributorFormData.state) {
-      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Distributor Name, State and Contact Number are required." });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        ...distributorFormData,
-        name: distributorFormData.distributorName,
-        clientName: distributorFormData.distributorName,
-        updatedAt: new Date()
-      };
-
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-      } else {
-        const newDistributor = {
-          ...payload,
-          id: doc(collection(db, 'temp')).id,
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          userId: user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newDistributor, ...items];
-      }
-      await setDoc(docRef, { items }, { merge: true });
-
-      const savedClientName = payload.distributorName;
-      const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
-      await updateGlobalClientList(savedClientName, savedAssociate);
-
-      const fetchedDistributors = getFilteredItemsForUser(items, 'distributors');
-      setDistributors(fetchedDistributors);
-
-      setIsDistributorModalOpen(false);
-      setEditingLeadId(null);
-      setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
-      
-      Swal.fire({
-        title: editingLeadId ? 'Updated!' : 'Added!',
-        text: editingLeadId ? 'Distributor updated successfully.' : 'Distributor added successfully.',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      console.error("Error saving distributor:", err);
-      Swal.fire({ title: 'Error', text: 'Failed to save distributor', icon: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const openEditModal = (lead) => {
-    if (activeTab === 'ads') {
-      setAdLeadFormData({
-        name: lead.name || '',
-        institutionName: lead.institutionName || '',
-        contactNumber: lead.contactNumber || lead.contactNo || '',
-        region: lead.region || lead.place || '',
-        leadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? lead.leadType : 'Other',
-        customLeadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? '' : (lead.leadType || ''),
-        priority: lead.priority || 'Medium',
-        remarks: lead.remarks || '',
-        followUpDate: lead.followUpDate || lead.nextFollowUp || '',
-        assignedToUid: lead.assignedToUid || '',
-        assignedToName: lead.assignedToName || '',
-        message: lead.message || ''
-      });
-      setEditingLeadId(lead.id);
-      setSelectedLead(null);
-      setIsAdLeadModalOpen(true);
-    } else if (activeTab === 'distributors') {
-      setDistributorFormData({
-        distributorName: lead.distributorName || lead.name || lead.clientName || '',
-        state: lead.state || '',
-        region: lead.region || lead.place || '',
-        exclusive: lead.exclusive || '',
-        teamSize: lead.teamSize || '',
-        contactPersonName: lead.contactPersonName || lead.personOfContact || '',
-        contactNumber: lead.contactNumber || lead.contactNo || '',
-        email: lead.email || '',
-        address: lead.address || '',
-        gstNumber: lead.gstNumber || '',
-        establishedYear: lead.establishedYear || '',
-        currentStatus: lead.currentStatus || 'Contacted',
-        lastMeetingDate: lead.lastMeetingDate || '',
-        nextFollowUp: lead.nextFollowUp || lead.followUpDate || '',
-        productLinesHandled: lead.productLinesHandled || '',
-        territoryDescription: lead.territoryDescription || '',
-        remarks: lead.remarks || ''
-      });
-      setEditingLeadId(lead.id);
-      setSelectedLead(null);
-      setIsDistributorModalOpen(true);
-    } else {
-      setFormData({
-        date: lead.date || new Date().toISOString().split('T')[0],
-        name: lead.name || lead.clientName || '',
-      clientName: lead.clientName || lead.name || '',
-      priority: lead.priority || '',
-      place: lead.place || lead.region || '',
-      country: lead.country || '',
-      personOfContact: lead.personOfContact || '',
-      pocDesignation: lead.pocDesignation || '',
-      contactNo: lead.contactNo || '',
-      personOfContact2: lead.personOfContact2 || '',
-      contactNo2: lead.contactNo2 || '',
-      referralPerson: lead.referralPerson || '',
-      email: lead.email || '',
-      currentStatus: lead.currentStatus || 'New Lead',
-      fPrice: lead.fPrice || '',
-      lPrice: lead.lPrice || '',
-      lastContacted: lead.lastContacted || '',
-      nextFollowUp: lead.nextFollowUp || lead.followUpDate || '',
-      remarks: lead.remarks || '',
-      leadType: ['Clinic', 'Hospital', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? lead.leadType : 'Other',
-      customLeadType: ['Clinic', 'Hospital', 'Physiotherapist', 'Distributor'].includes(lead.leadType) ? '' : (lead.leadType || ''),
-      assignedToName: lead.assignedToName || '',
-      message: lead.message || ''
-    });
-    setEditingLeadId(lead.id);
-    setSelectedLead(null);
-    setIsModalOpen(true);
-    }
-  };
-
-  const handleDeleteLead = async (lead) => {
-    const result = await Swal.fire({
-      title: 'Are you sure?',
-      text: "You won't be able to revert this! This record will be permanently deleted.",
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#ef4444',
-      cancelButtonColor: '#3f3f46',
-      confirmButtonText: 'Yes, delete it!'
-    });
-
-    if (!result.isConfirmed) return;
-
-    Swal.fire({
-      title: 'Deleting...',
-      text: 'Please wait while the record is being deleted.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-    
-    let collectionName = 'leads';
-    if (activeTab === 'ads') collectionName = 'adLeads';
-    if (activeTab === 'distributors') collectionName = 'distributors';
-    
-    try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const items = snap.data().items || [];
-        const newItems = items.filter(item => item.id !== lead.id);
-        await updateDoc(docRef, { items: newItems });
-        
-        const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
-        
-        if (activeTab === 'regular') setRegularLeads(fetchedItems);
-        if (activeTab === 'ads') setAdLeads(fetchedItems);
-        if (activeTab === 'distributors') setDistributors(fetchedItems);
-        
-        setSelectedLead(null);
-        Swal.fire({
-          title: 'Deleted!',
-          text: 'The lead has been permanently deleted.',
-          icon: 'success',
-          timer: 1500,
-          showConfirmButton: false
-        });
-      }
-    } catch (err) {
-      console.error("Error deleting lead:", err);
-      Swal.fire({
-        title: 'Error!',
-        text: 'Failed to delete the lead.',
-        icon: 'error'
-      });
-    }
-  };
-
-  const handleConvertToAdLead = async (lead) => {
-    const result = await Swal.fire({
-      title: 'Convert to Ad Lead?',
-      text: "This will move the current record to Ad Leads.",
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#000000',
-      cancelButtonColor: '#3f3f46',
-      confirmButtonText: 'Yes, Convert'
-    });
-
-    if (!result.isConfirmed) return;
-
-    Swal.fire({
-      title: 'Converting...',
-      text: 'Please wait while the lead is being converted.',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading();
-      }
-    });
-    
-    try {
-      const sourceCollection = activeTab === 'regular' ? 'leads' : 'distributors';
-      
-      // 1. Delete from source collection
-      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', sourceCollection);
-      const sourceSnap = await getDoc(sourceDocRef);
-      if (sourceSnap.exists()) {
-        const items = sourceSnap.data().items || [];
-        const newItems = items.filter(item => item.id !== lead.id);
-        await updateDoc(sourceDocRef, { items: newItems });
-        
-        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
-        if (activeTab === 'regular') setRegularLeads(fetchedItems);
-        if (activeTab === 'distributors') setDistributors(fetchedItems);
-      }
-      
-      // 2. Add to adLeads collection
-      const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-      const adLeadsSnap = await getDoc(adLeadsDocRef);
-      let adItems = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
-      
-      const newAdLead = {
-        id: doc(collection(db, 'temp')).id,
-        name: activeTab === 'regular' ? (lead.personOfContact || lead.clientName || lead.name || '') : (lead.contactPersonName || lead.distributorName || ''),
-        institutionName: activeTab === 'regular' ? (lead.clientName || lead.name || '') : (lead.distributorName || ''),
-        contactNumber: lead.contactNo || lead.contactNumber || '',
-        contactNo: lead.contactNo || lead.contactNumber || '', 
-        region: lead.place || lead.region || lead.state || '',
-        leadType: lead.leadType || (activeTab === 'distributors' ? 'Distributor' : 'Other'),
-        priority: lead.priority || 'Medium',
-        remarks: lead.remarks || '',
-        followUpDate: lead.nextFollowUp || lead.followUpDate || lead.lastMeetingDate || '',
-        assignedToUid: lead.assignedToUid || lead.userId || user.uid,
-        assignedToName: lead.assignedToName || lead.employeeName || employeeData?.name || '',
-        message: lead.message || 'Converted from ' + (activeTab === 'regular' ? 'Regular Lead' : 'Distributor'),
-        updatedAt: new Date(),
-        currentStatus: lead.currentStatus || 'New Lead',
-        newLead: true,
-        employeeName: lead.employeeName || employeeData?.name || '',
-        addedByName: lead.addedByName || employeeData?.name || '',
-        userId: lead.userId || user.uid,
-        date: new Date().toISOString().slice(0, 10),
-        createdAt: new Date(),
-      };
-      
-      adItems = [newAdLead, ...adItems];
-      await setDoc(adLeadsDocRef, { items: adItems }, { merge: true });
-      
-      const adFetchedItems = getFilteredItemsForUser(adItems, 'adLeads');
-      setAdLeads(adFetchedItems);
-      
-      setSelectedLead(null);
-      setQuickUpdateLead(null);
-      Swal.fire({
-        title: 'Converted!',
-        text: 'The lead has been successfully moved to Ad Leads.',
-        icon: 'success',
-        timer: 1500,
-        showConfirmButton: false
-      });
-    } catch (err) {
-      console.error("Error converting lead:", err);
-      Swal.fire({
-        title: 'Error!',
-        text: 'Failed to convert the lead.',
-        icon: 'error'
-      });
-    }
-  };
-
-  const handleQuickUpdate = async (e) => {
-    e.preventDefault();
-    if (!companyId || !quickUpdateLead) return;
-    setIsSubmitting(true);
-    
-    let collectionName = 'leads';
-    if (activeTab === 'ads') collectionName = 'adLeads';
-    if (activeTab === 'distributors') collectionName = 'distributors';
-
-    try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const items = snap.data().items || [];
-        const newItems = items.map(item => {
-          if (item.id === quickUpdateLead.id) {
-            const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
-            const newRemarks = remarkAddition 
-              ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
-              : item.remarks;
-              
-            let currentHistory = item.statusHistory || [];
-            if (currentHistory.length === 0) {
-              let initialDate = new Date().toISOString();
-              const oldDateRaw = item.date || item.lastContacted || item.createdAt;
-              if (oldDateRaw) {
-                if (oldDateRaw.seconds) initialDate = new Date(oldDateRaw.seconds * 1000).toISOString();
-                else if (!isNaN(new Date(oldDateRaw))) initialDate = new Date(oldDateRaw).toISOString();
-              }
-              currentHistory.push({
-                date: initialDate,
-                status: item.currentStatus || 'New Lead',
-                remarks: item.remarks || ''
-              });
-            }
-
-            const historyEntry = {
-              date: new Date().toISOString(),
-              status: updateStatus,
-              remarks: updateRemarks.trim()
-            };
-            const statusHistory = [...currentHistory, historyEntry];
-
-            return {
-              ...item,
-              currentStatus: updateStatus,
-              remarks: newRemarks,
-              statusHistory,
-              lastContacted: new Date().toISOString().split('T')[0],
-              lastFollowedUp: new Date().toISOString().split('T')[0]
-            };
-          }
-          return item;
-        });
-        
-        await updateDoc(docRef, { items: newItems });
-        
-        const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
-        
-        if (activeTab === 'regular') setRegularLeads(fetchedItems);
-        if (activeTab === 'ads') setAdLeads(fetchedItems);
-        if (activeTab === 'distributors') setDistributors(fetchedItems);
-      }
-      setQuickUpdateLead(null);
-    } catch (err) {
-      console.error("Error updating status:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const userName = isAdmin ? 'Admin' : (employeeData?.name || 'User');
+  const todayDate = new Date().toISOString().split('T')[0];
+  const currentDateFormatted = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
-    setCurrentPage(1);
-    setSearchQuery('');
-    setStatusFilter('');
-    setEmployeeFilter('');
-    setMonthFilter('');
-    setLeadTypeFilter('');
-    setShowMissedFollowUpsOnly(false);
-  }, [activeTab]);
-
-  useEffect(() => {
-    const fetchCRMData = async () => {
-      if (!companyId) return;
+    const fetchDashboardData = async () => {
+      if (!companyId || !user) return;
+      setLoading(true);
       try {
-        const leadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
-        const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-        const distributorsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
-        const empsColRef = collection(db, 'userData', companyId, 'employees');
-        const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
-        const globalClientsDocRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
-        const campaignsRef = collection(db, 'userData', companyId, 'adCampaigns');
-        
-        const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap, campaignsSnap] = await Promise.all([
-          getDoc(leadsDocRef),
-          getDoc(adLeadsDocRef),
-          getDoc(distributorsDocRef),
-          getDocs(empsColRef),
-          getDoc(segmentDocRef),
-          getDoc(globalClientsDocRef),
-          getDocs(campaignsRef)
-        ]);
-        
-        const fetchedCampaigns = campaignsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setAdCampaignsList(fetchedCampaigns);
-        
-        if (globalClientsSnap.exists()) {
-          setGlobalClients(globalClientsSnap.data().clients || []);
-        } else {
-          setGlobalClients([]);
+        const attRef = collection(db, `userData/${companyId}/attendanceLogs`);
+        const attQ = query(attRef, where('employeeId', '==', user.uid), where('date', '==', todayDate));
+        const attSnap = await getDocs(attQ);
+        if (!attSnap.empty) {
+          setTodayAttendance(attSnap.docs[0].data());
         }
-        
-        if (segmentSnap.exists()) {
-          setSegmentClients(segmentSnap.data().clients || []);
+
+        const tasksRef = collection(db, 'userData', companyId, 'tasks');
+        let tasksQ;
+        if (isAdmin) {
+          tasksQ = query(tasksRef, where('status', '==', 'Pending'));
         } else {
-          setSegmentClients([]);
+          tasksQ = query(tasksRef, where('status', '==', 'Pending'), where('assignedToUid', '==', user.uid));
         }
-        
-        const empsList = empsSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
-        setAllEmployees(empsList);
+        const tasksSnap = await getDocs(tasksQ);
+        setPendingTasksCount(tasksSnap.size);
 
-        let fetchedLeads = leadsSnap.exists() ? (leadsSnap.data().items || []) : [];
-        let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
-        let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
+        // Fetch custom holidays
+        const holidaysRef = doc(db, 'userData', companyId, 'settings', 'holidays');
+        const holidaysSnap = await getDoc(holidaysRef);
+        if (holidaysSnap.exists() && holidaysSnap.data().dates) {
+          setCustomHolidays(holidaysSnap.data().dates);
+        }
 
-        fetchedLeads = getFilteredItemsForUser(fetchedLeads, 'leads');
-        fetchedAdLeads = getFilteredItemsForUser(fetchedAdLeads, 'adLeads');
-        fetchedDistributors = getFilteredItemsForUser(fetchedDistributors, 'distributors');
-        
-        setRegularLeads(fetchedLeads);
-        setAdLeads(fetchedAdLeads);
-        setDistributors(fetchedDistributors);
-        
       } catch (error) {
-        console.error("Error fetching CRM data:", error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
-    
-    fetchCRMData();
-  }, [companyId, isAdmin, user?.uid, activeSegment]);
 
-  const getIconForKey = (key) => {
-    const k = key.toLowerCase();
-    if (k.includes('name') || k.includes('client') || k.includes('institution')) return <Building2 className="w-4 h-4" />;
-    if (k.includes('contact') || k.includes('person')) return <User className="w-4 h-4" />;
-    if (k.includes('phone') || k.includes('number') || k.includes('contactno')) return <Phone className="w-4 h-4" />;
-    if (k.includes('email')) return <Mail className="w-4 h-4" />;
-    if (k.includes('place') || k.includes('country') || k.includes('region') || k.includes('address') || k.includes('state')) return <MapPin className="w-4 h-4" />;
-    if (k.includes('price') || k.includes('value')) return <DollarSign className="w-4 h-4" />;
-    if (k.includes('date') || k.includes('followup') || k.includes('time')) return <Calendar className="w-4 h-4" />;
-    if (k.includes('status')) return <CheckCircle className="w-4 h-4" />;
-    if (k.includes('priority')) return <AlertCircle className="w-4 h-4" />;
-    if (k.includes('designation') || k.includes('role')) return <Briefcase className="w-4 h-4" />;
-    if (k.includes('remarks') || k.includes('message')) return <MessageSquare className="w-4 h-4" />;
-    if (k.includes('type')) return <Tag className="w-4 h-4" />;
-    if (k.includes('id')) return <Hash className="w-4 h-4" />;
-    return <FileText className="w-4 h-4" />;
-  };
+    fetchDashboardData();
+  }, [companyId, user, isAdmin, todayDate]);
 
-  const getStatusColor = (status) => {
-    if (!status) return 'bg-zinc-50 text-zinc-600 ring-zinc-500/10 border-zinc-200';
-    const s = status.toLowerCase();
-    
-    // Regular Leads & Ad Leads
-    if (s === 'new lead') return 'bg-sky-50 text-sky-700 ring-sky-600/20 border-sky-200';
-    if (s === 'contacted') return 'bg-blue-50 text-blue-700 ring-blue-600/20 border-blue-200';
-    if (s === 'interested') return 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 border-indigo-200';
-    if (s === 'follow up needed' || s === 'follow-up needed') return 'bg-amber-50 text-amber-700 ring-amber-600/20 border-amber-200';
-    if (s === 'quotation sent') return 'bg-orange-50 text-orange-700 ring-orange-600/20 border-orange-200';
-    if (s === 'awaiting decision') return 'bg-yellow-50 text-yellow-700 ring-yellow-600/20 border-yellow-200';
-    if (s === 'token recieved' || s === 'token received') return 'bg-lime-50 text-lime-700 ring-lime-600/20 border-lime-200';
-    if (s === 'deal closed' || s === 'converted (deal won)' || s === 'converted') return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 border-emerald-200';
-    if (s === 'deal lost' || s === 'not interested (deal lost)') return 'bg-red-50 text-red-700 ring-red-600/20 border-red-200';
-
-    // Distributors
-    if (s === "haven't yet contacted") return 'bg-slate-50 text-slate-700 ring-slate-600/20 border-slate-200';
-    if (s === 'called, no response') return 'bg-rose-50 text-rose-700 ring-rose-600/20 border-rose-200';
-    if (s === 'contacted and discussed via phone') return 'bg-cyan-50 text-cyan-700 ring-cyan-600/20 border-cyan-200';
-    if (s === 'online demo done') return 'bg-violet-50 text-violet-700 ring-violet-600/20 border-violet-200';
-    if (s === 'live demo done') return 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-600/20 border-fuchsia-200';
-    if (s === 'hospital presentation done') return 'bg-purple-50 text-purple-700 ring-purple-600/20 border-purple-200';
-    if (s === 'agreement sent & waiting' || s === 'agreement sent & awaiting response') return 'bg-amber-100 text-amber-800 ring-amber-600/20 border-amber-300';
-    if (s === 'agreement signed') return 'bg-teal-50 text-teal-700 ring-teal-600/20 border-teal-200';
-    if (s === 'purchased demo piece') return 'bg-green-50 text-green-700 ring-green-600/20 border-green-200';
-    if (s === 'doing sales') return 'bg-emerald-100 text-emerald-800 ring-emerald-600/30 border-emerald-300';
-    if (s === 'inactive') return 'bg-stone-100 text-stone-600 ring-stone-500/20 border-stone-200';
-    if (s === 'terminated') return 'bg-red-100 text-red-800 ring-red-600/30 border-red-300';
-    
-    // Fallbacks
-    if (s.includes('lost') || s.includes('fail') || s.includes('cancel')) return 'bg-red-50 text-red-700 ring-red-600/20 border-red-200';
-    if (s.includes('won') || s.includes('success') || s.includes('converted')) return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 border-emerald-200';
-    if (s.includes('progress') || s.includes('contacted') || s.includes('discuss')) return 'bg-blue-50 text-blue-700 ring-blue-600/20 border-blue-200';
-    
-    return 'bg-zinc-50 text-zinc-700 ring-zinc-600/20 border-zinc-200';
-  };
-
-  const getPriorityColor = (priority) => {
-    if (priority === 'Urgent') return 'text-red-600 flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
-    return 'text-zinc-600 bg-zinc-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
-  };
-
-  const currentData = activeTab === 'regular' ? regularLeads : activeTab === 'ads' ? adLeads : distributors;
-
-  const uniqueStatuses = [...new Set(currentData.map(item => item.currentStatus || 'N/A'))].filter(Boolean).sort();
-  const uniqueEmployees = [...new Set(currentData.map(item => item.employeeName || item.assignedToName || item.addedByName || 'N/A'))].filter(Boolean).sort();
-  const uniqueMonths = [...new Set(currentData.map(item => {
-    if (!item.date && !item.createdAt) return 'N/A';
-    const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
-    if (isNaN(itemDate)) return 'N/A';
-    return itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-  }))].filter(m => m !== 'N/A').sort((a, b) => new Date(b) - new Date(a));
-
-  const uniqueLeadTypes = [...new Set(currentData.map(item => item.leadType || 'N/A'))].filter(Boolean).sort();
-
-  const isIrregularPhone = (phone) => {
-    if (!phone) return true;
-    const digitsOnly = phone.toString().replace(/\D/g, '');
-    if (digitsOnly.length < 7) return true;
-    if (/^(\d)\1+$/.test(digitsOnly)) return true;
-    if ('01234567890123456789'.includes(digitsOnly) || '98765432109876543210'.includes(digitsOnly)) return true;
+  const hasPerm = (label) => {
+    if (isAdmin) return true;
+    if (permissions && permissions.length > 0) return permissions.includes(label);
     return false;
   };
 
-  const isMissedFollowUp = (item) => {
-    const s = (item.currentStatus || '').toLowerCase();
-    const closedStatuses = ['closed', 'lost', 'won', 'signed', 'terminated', 'inactive', 'doing sales', 'purchased', 'converted'];
-    if (closedStatuses.some(st => s.includes(st))) return false;
+  // Calendar Logic
+  const [calendarDate, setCalendarDate] = useState(new Date());
 
-    const followUpStr = item.nextFollowUp || item.followUpDate;
-    if (!followUpStr) return false;
+  const generateCalendarDays = (year, month) => {
+    const firstDay = new Date(year, month, 1).getDay(); // 0 is Sunday
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
     
-    const followUpDate = new Date(followUpStr);
-    if (isNaN(followUpDate)) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    return followUpDate < today;
+    const days = [];
+    for (let i = 0; i < firstDay; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    return days;
   };
 
-  const isRecentLead = (item) => {
-    if (!item) return false;
-    let itemDate = null;
-    const rawDate = item.date || item.createdAt || item.addedDate;
-    if (rawDate) {
-      if (rawDate.seconds) {
-        itemDate = new Date(rawDate.seconds * 1000);
-      } else if (typeof rawDate === 'string' || typeof rawDate === 'number' || rawDate instanceof Date) {
-        itemDate = new Date(rawDate);
+  const isLeaveDay = (year, month, day) => {
+    if (!day) return { isLeave: false };
+    
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (customHolidays[dateStr]) {
+      return { isLeave: true, reason: customHolidays[dateStr], isCustom: true };
+    }
+
+    const date = new Date(year, month, day);
+    const dayOfWeek = date.getDay();
+    
+    if (dayOfWeek === 0) return { isLeave: true, reason: 'Off', isCustom: false }; // Sunday
+    
+    if (dayOfWeek === 6) { // Saturday
+      const weekNumber = Math.ceil(day / 7);
+      if (weekNumber === 2 || weekNumber === 4) return { isLeave: true, reason: 'Off', isCustom: false };
+    }
+    
+    return { isLeave: false };
+  };
+
+  const handleDayClick = async (day) => {
+    if (!day) return;
+    if (!isAdmin && !hasPerm('Employees')) return;
+
+    const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    
+    if (customHolidays[dateStr]) {
+      const res = await Swal.fire({
+        title: 'Remove Holiday?',
+        text: `Do you want to remove "${customHolidays[dateStr]}" from this date?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#000000',
+        confirmButtonText: 'Yes, remove it'
+      });
+      if (res.isConfirmed) {
+        const newHolidays = { ...customHolidays };
+        delete newHolidays[dateStr];
+        setCustomHolidays(newHolidays);
+        await setDoc(doc(db, 'userData', companyId, 'settings', 'holidays'), { dates: newHolidays }, { merge: true });
+      }
+    } else {
+      const { value: reason } = await Swal.fire({
+        title: 'Mark as Holiday',
+        input: 'text',
+        inputLabel: 'Holiday Name (e.g. National Holiday)',
+        inputPlaceholder: 'Enter reason',
+        showCancelButton: true,
+        confirmButtonColor: '#000000',
+        inputValidator: (value) => {
+          if (!value) return 'You need to write something!';
+        }
+      });
+
+      if (reason) {
+        const newHolidays = { ...customHolidays, [dateStr]: reason };
+        setCustomHolidays(newHolidays);
+        await setDoc(doc(db, 'userData', companyId, 'settings', 'holidays'), { dates: newHolidays }, { merge: true });
       }
     }
-    if (!itemDate || isNaN(itemDate.getTime())) return false;
-
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    threeDaysAgo.setHours(0, 0, 0, 0);
-
-    return itemDate >= threeDaysAgo && itemDate <= today;
   };
 
-  const getFilteredData = (data, ignoreStatus = false) => {
-    const lowerQuery = searchQuery.toLowerCase();
-    return data.filter(item => {
-      const status = item.currentStatus || 'N/A';
-      if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
-      
-      const employee = item.employeeName || item.assignedToName || item.addedByName || 'N/A';
-      if (employeeFilter !== '' && employee !== employeeFilter) return false;
-      
-      const phone = item.contactNo || item.contactNumber || '';
-      if (showIrregularPhonesOnly && !isIrregularPhone(phone)) return false;
-      
-      if (showMissedFollowUpsOnly && !isMissedFollowUp(item)) return false;
+  const calYear = calendarDate.getFullYear();
+  const calMonth = calendarDate.getMonth();
+  const calendarDays = generateCalendarDays(calYear, calMonth);
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-      const leadType = item.leadType || 'N/A';
-      if (leadTypeFilter !== '' && leadType !== leadTypeFilter) return false;
-
-      if (monthFilter !== '') {
-        const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
-        const monthStr = isNaN(itemDate) ? 'N/A' : itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-        if (monthStr !== monthFilter) return false;
-      }
-      
-      if (lowerQuery !== '') {
-        const searchString = Object.values(item).filter(v => typeof v !== 'object' && v !== null && v !== undefined).join(' ').toLowerCase();
-        if (!searchString.includes(lowerQuery)) return false;
-      }
-      
-      return true;
-    });
-  };
-
-  const dataFilteredByOtherThanStatus = getFilteredData(currentData, true);
-  
-  const statusCounts = {};
-  dataFilteredByOtherThanStatus.forEach(item => {
-    const status = item.currentStatus || 'N/A';
-    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  const [stats, setStats] = useState({
+    totalWorkingDays: 0,
+    workingDaysPassed: 0,
+    totalPresent: 0,
+    wfhCount: 0,
+    fieldCount: 0,
+    officeCount: 0,
+    leaveCount: 0,
+    absentCount: 0
   });
 
-  const filteredRegularLeads = getFilteredData(regularLeads);
-  const filteredAdLeads = getFilteredData(adLeads);
-  const filteredDistributors = getFilteredData(distributors);
+  useEffect(() => {
+    const today = new Date();
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+    let offDays = 0;
+    let offDaysPassed = 0;
+    
+    let daysPassed = 0;
+    if (calYear < today.getFullYear() || (calYear === today.getFullYear() && calMonth < today.getMonth())) {
+      daysPassed = daysInMonth;
+    } else if (calYear === today.getFullYear() && calMonth === today.getMonth()) {
+      daysPassed = today.getDate();
+    } else {
+      daysPassed = 0;
+    }
+
+    for (let i = 1; i <= daysInMonth; i++) {
+      if (isLeaveDay(calYear, calMonth, i).isLeave) {
+        offDays++;
+        if (i <= daysPassed) offDaysPassed++;
+      }
+    }
+
+    const totalWorkingDays = daysInMonth - offDays;
+    const workingDaysPassed = Math.max(0, daysPassed - offDaysPassed);
+
+    let totalPresent = 0;
+    let wfhCount = 0;
+    let fieldCount = 0;
+    let officeCount = 0;
+    let leaveCount = 0;
+
+    Object.values(monthAttendance).forEach(log => {
+      if (log.status === 'On Leave') {
+        leaveCount++;
+      } else {
+        totalPresent++;
+        if (log.workType === 'WFH') wfhCount++;
+        else if (log.workType === 'Field') fieldCount++;
+        else officeCount++;
+      }
+    });
+
+    const absentCount = Math.max(0, workingDaysPassed - totalPresent - leaveCount);
+
+    setStats({
+      totalWorkingDays,
+      workingDaysPassed,
+      totalPresent,
+      wfhCount,
+      fieldCount,
+      officeCount,
+      leaveCount,
+      absentCount
+    });
+  }, [monthAttendance, calYear, calMonth, customHolidays]);
+
+  useEffect(() => {
+    const fetchMonthLogs = async () => {
+      if (!companyId || !user) return;
+      const monthStr = String(calMonth + 1).padStart(2, '0');
+      const prefix = `${calYear}-${monthStr}`;
+      
+      try {
+        const attRef = collection(db, `userData/${companyId}/attendanceLogs`);
+        const q = query(attRef, where('employeeId', '==', user.uid));
+        const snap = await getDocs(q);
+        
+        const logs = {};
+        snap.docs.forEach(doc => {
+          const data = doc.data();
+          if (data.date && data.date.startsWith(prefix)) {
+            logs[data.date] = data;
+          }
+        });
+        setMonthAttendance(logs);
+      } catch (err) {
+        console.error("Error fetching month attendance:", err);
+      }
+    };
+    fetchMonthLogs();
+  }, [calYear, calMonth, companyId, user]);
+
+  const quickLinks = [
+    { label: 'CRM Tracker', icon: LayoutDashboard, path: '/crm', perm: 'CRM', color: 'bg-blue-50 text-blue-600', border: 'border-blue-100', desc: 'Manage leads and deals' },
+    { label: 'My Tasks', icon: CheckSquare, path: '/tasks', perm: 'Tasks', color: 'bg-orange-50 text-orange-600', border: 'border-orange-100', desc: 'Track your assigned work' },
+    { label: 'Attendance', icon: Calendar, path: '/attendance', perm: 'Attendance', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100', desc: 'View monthly records' },
+    { label: 'Reimbursements', icon: CreditCard, path: '/reimbursements', perm: 'Reimbursements', color: 'bg-purple-50 text-purple-600', border: 'border-purple-100', desc: 'Submit and track expenses' },
+  ].filter(link => hasPerm(link.perm));
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="flex flex-col gap-8 font-sans w-full">
+      {/* Sleek, standard header */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-zinc-200/80 pb-6">
         <div>
-          <div className="flex items-center gap-1 mb-6 bg-zinc-100/80 p-1 rounded-xl border border-zinc-200/80 w-fit shadow-inner">
-            <button 
-              onClick={() => setActiveSegment('happymoves')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
-            >
-              <div className={`w-2 h-2 rounded-full ${activeSegment === 'happymoves' ? 'bg-emerald-500' : 'bg-transparent'}`} />
-              Happy Moves
-            </button>
-            <button 
-              onClick={() => setActiveSegment('gamefaktory')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-[13px] font-bold transition-all duration-300 ${activeSegment === 'gamefaktory' ? 'bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.06)]' : 'text-zinc-500 hover:text-zinc-800'}`}
-            >
-              <div className={`w-2 h-2 rounded-full ${activeSegment === 'gamefaktory' ? 'bg-blue-500' : 'bg-transparent'}`} />
-              Game Faktory
-            </button>
+          <div className="flex items-center gap-2 mb-1.5">
+            <Sparkles className="w-4 h-4 text-blue-500" />
+            <span className="text-[12px] font-bold text-zinc-500 uppercase tracking-wider">{currentDateFormatted}</span>
           </div>
-          <h1 className="text-3xl font-semibold text-black tracking-tight">CRM Pipeline</h1>
-          <p className="text-[15px] text-zinc-500 mt-1.5">Manage your leads, ad campaigns, and distributors.</p>
+          <h1 className="text-2xl md:text-3xl font-semibold text-zinc-900 tracking-tight">
+            Welcome back, {userName}
+          </h1>
+          <p className="text-[14px] text-zinc-500 mt-1 mb-4">
+            Here's a quick overview of your workspace today.
+          </p>
+
+          {/* Quick Stats Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
+              <Calendar className="w-3.5 h-3.5" /> Working Days: {stats.totalWorkingDays}
+            </div>
+            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
+              <CheckCircle className="w-3.5 h-3.5" /> Present: {stats.totalPresent} / {stats.workingDaysPassed}
+            </div>
+            <div className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-100 flex items-center gap-1.5 whitespace-nowrap">
+              <CalendarMinus className="w-3.5 h-3.5" /> Leaves: {stats.leaveCount}
+            </div>
+            {stats.wfhCount > 0 && (
+              <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
+                <Laptop className="w-3.5 h-3.5" /> WFH: {stats.wfhCount}
+              </div>
+            )}
+            {stats.fieldCount > 0 && (
+              <div className="px-3 py-1.5 bg-fuchsia-50 text-fuchsia-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-fuchsia-100 flex items-center gap-1.5 whitespace-nowrap">
+                <Map className="w-3.5 h-3.5" /> Field: {stats.fieldCount}
+              </div>
+            )}
+            {stats.absentCount > 0 && (
+              <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
+                <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          {activeTab === 'ads' && (isAdmin || isManager || canManageAdLeads) && (
-            <button 
-              onClick={() => {
-                setBulkAdLeadText('');
-                setBulkAdLeadAssignedToUid('');
-                setBulkAdLeadAssignedToName('');
-                setIsBulkAdLeadModalOpen(true);
-              }}
-              className="bg-white hover:bg-zinc-50 text-black px-4 py-2 rounded-lg font-medium text-[13px] transition-all border border-zinc-200 shadow-sm flex items-center gap-2"
-            >
-              Bulk Assign
-            </button>
-          )}
-          <button 
-            onClick={() => {
-              setEditingLeadId(null);
-              if (activeTab === 'ads') {
-                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
-                setIsAdLeadModalOpen(true);
-              } else if (activeTab === 'distributors') {
-                setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
-                setIsDistributorModalOpen(true);
-              } else {
-                setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
-                setIsModalOpen(true);
-              }
-            }}
-            className="bg-black hover:bg-zinc-900 text-white px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-[0_2px_10px_rgba(0,0,0,0.1)] flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            {activeTab === 'ads' ? 'Add Ad Lead' : activeTab === 'distributors' ? 'Add Distributor' : 'Add Regular Lead'}
-          </button>
+          {/* Optional: Add header action buttons here if needed in the future */}
         </div>
       </header>
 
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
-        </div>
-      ) : (
-        <>
-          {/* Custom Tabs */}
-          <div className="flex items-center gap-6 border-b border-zinc-200/80 mb-6 overflow-x-auto no-scrollbar whitespace-nowrap">
-        {[
-          { id: 'regular', label: 'Regular Leads', count: regularLeads.length },
-          { id: 'ads', label: 'Ad Leads', count: adLeads.length },
-          { id: 'distributors', label: 'Distributors', count: distributors.length },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`pb-3 text-[14px] font-medium transition-all relative ${
-              activeTab === tab.id ? 'text-black' : 'text-zinc-500 hover:text-zinc-700'
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              {tab.label}
-              <span className={`px-2 py-0.5 rounded-full text-[11px] ${
-                activeTab === tab.id ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-500'
-              }`}>
-                {tab.count}
-              </span>
-            </span>
-            {activeTab === tab.id && (
-              <span className="absolute bottom-0 left-0 w-full h-[2px] bg-black rounded-t-full"></span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Status Filter Pills */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        <button 
-          onClick={() => {
-            setStatusFilter('');
-            setCurrentPage(1);
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all border bg-zinc-50 border-zinc-200 text-zinc-700 ${statusFilter === '' ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
-        >
-          All
-          <span className="bg-black/10 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{dataFilteredByOtherThanStatus.length}</span>
-        </button>
-        {(activeTab === 'distributors' ? DISTRIBUTOR_STATUS_OPTIONS : LEAD_STATUS_OPTIONS).map(opt => (
-          <button 
-            key={opt.value}
-            onClick={() => {
-              setStatusFilter(statusFilter === opt.value ? '' : opt.value);
-              setCurrentPage(1);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-medium transition-all border ${getStatusColor(opt.value)} ${statusFilter === opt.value ? 'ring-2 ring-offset-1 ring-black/20 opacity-100' : 'opacity-70 hover:opacity-100'}`}
-          >
-            {opt.label}
-            <span className="bg-white/60 text-black/70 px-1.5 py-0.5 rounded-md text-[10px] ml-1 font-bold">{statusCounts[opt.value] || 0}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Main Content Area */}
-      <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex-1 flex flex-col">
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Search & Filters */}
-        <div className="p-4 border-b border-zinc-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <div className="relative w-full xl:w-[400px] shrink-0">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              placeholder={`Search ${activeTab} data...`} 
-              className="w-full pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all"
-            />
-          </div>
-          
-          <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <select 
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-              >
-                <option value="">All Statuses</option>
-                {(activeTab === 'distributors' ? DISTRIBUTOR_STATUS_OPTIONS : LEAD_STATUS_OPTIONS).map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            
-            {(isAdmin || isManager) && (
-              <div className="relative w-40 sm:w-48 shrink-0">
-                <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <select 
-                  value={employeeFilter}
-                  onChange={(e) => { setEmployeeFilter(e.target.value); setCurrentPage(1); }}
-                  className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+        {/* Left Column: Quick Stats & Actions */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* Official Company Calendar */}
+          <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-[16px] font-semibold text-zinc-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-zinc-400" />
+                Company Calendar
+              </h2>
+              <div className="flex items-center justify-between sm:justify-end gap-3 bg-zinc-50 border border-zinc-200/60 rounded-xl p-1">
+                <button 
+                  onClick={() => setCalendarDate(new Date(calYear, calMonth - 1, 1))} 
+                  className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
                 >
-                  <option value="">All Associates</option>
-                  {uniqueEmployees.map(emp => (
-                    <option key={emp} value={emp}>{emp}</option>
-                  ))}
-                </select>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-[13px] font-semibold text-zinc-900 min-w-[120px] text-center">
+                  {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </span>
+                <button 
+                  onClick={() => setCalendarDate(new Date(calYear, calMonth + 1, 1))} 
+                  className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            )}
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <select 
-                value={monthFilter}
-                onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-              >
-                <option value="">All Months</option>
-                {uniqueMonths.map(month => (
-                  <option key={month} value={month}>{month}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <Tag className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <select 
-                value={leadTypeFilter}
-                onChange={(e) => { setLeadTypeFilter(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-              >
-                <option value="">All Lead Types</option>
-                {uniqueLeadTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
             </div>
             
-            <button
-              onClick={() => { setShowIrregularPhonesOnly(!showIrregularPhonesOnly); setCurrentPage(1); }}
-              className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
-                showIrregularPhonesOnly 
-                  ? 'bg-amber-100 border-amber-200 text-amber-800' 
-                  : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
-              }`}
-              title="Show leads with short, repeating, or blank phone numbers"
-            >
-              <AlertCircle className="w-4 h-4" />
-              {showIrregularPhonesOnly ? 'Irregular Phones' : 'Irregular Phones'}
-            </button>
-            <button
-              onClick={() => { setShowMissedFollowUpsOnly(!showMissedFollowUpsOnly); setCurrentPage(1); }}
-              className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
-                showMissedFollowUpsOnly 
-                  ? 'bg-red-100 border-red-200 text-red-800' 
-                  : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
-              }`}
-              title="Show leads that missed their follow-up date"
-            >
-              <Calendar className="w-4 h-4" />
-              Missed Follow Ups
-            </button>
-          </div>
-        </div>
-
-        {/* Regular Leads View */}
-        {activeTab === 'regular' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Added Date</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Client</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Place</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Person of Contact</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact No</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Associate</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Next Follow Up</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => {
-                  const leadDate = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
-                  const dateString = isNaN(leadDate) ? 'N/A' : leadDate.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                  return (
-                  <tr 
-                    key={lead.id} 
-                    className={`transition-colors cursor-pointer group ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
-                    onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1">
+              {weekDays.map(day => (
+                <div key={day} className="text-center text-[10px] sm:text-[11px] font-bold text-zinc-600 uppercase tracking-wider py-1.5 sm:py-2 bg-zinc-100/80 rounded-lg">
+                  {day}
+                </div>
+              ))}
+              {calendarDays.map((day, idx) => {
+                const leaveData = isLeaveDay(calYear, calMonth, day);
+                const isLeave = leaveData.isLeave;
+                
+                const today = new Date();
+                const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+                const isPastDay = day && (calYear < today.getFullYear() || (calYear === today.getFullYear() && calMonth < today.getMonth()) || (calYear === today.getFullYear() && calMonth === today.getMonth() && day < today.getDate()));
+                
+                const canEdit = (isAdmin || hasPerm('Employees')) && day;
+                
+                const dateStr = day ? `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+                const myLog = dateStr ? monthAttendance[dateStr] : null;
+                
+                const isAbsent = isPastDay && !isLeave && !myLog;
+                
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => handleDayClick(day)}
+                    className={`aspect-square sm:aspect-auto sm:h-16 flex flex-col items-center justify-center sm:justify-start sm:p-2 rounded-xl border ${
+                      !day ? 'border-transparent bg-transparent' : 
+                      isAbsent ? 'border-red-200 bg-red-50' :
+                      isLeave ? 'border-slate-200 bg-slate-50' : 
+                      isToday ? 'border-blue-200 bg-blue-50 ring-1 ring-blue-100' :
+                      'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50'
+                    } ${canEdit ? 'cursor-pointer hover:opacity-80' : ''} transition-all relative overflow-hidden group`}
                   >
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
-                      {isRecentLead(lead) && (
-                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
-                          NEW
+                    {day && (
+                      <>
+                        <span className={`text-[13px] sm:text-[14px] font-bold ${
+                          isAbsent ? 'text-red-700' :
+                          isLeave ? 'text-slate-500' : 
+                          isToday ? 'text-blue-700' : 'text-zinc-700'
+                        }`}>
+                          {day}
                         </span>
-                      )}
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
-                    <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || lead.name || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.personOfContact || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">
-                      <div className="flex items-center gap-2">
-                        <span>{lead.contactNo || 'N/A'}</span>
-                        {lead.contactNo && (
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(lead.contactNo);
-                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                              }}
-                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
-                              title="Copy Number"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <a
-                              href={`https://wa.me/${(lead.contactNo || '').replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
-                              title="Chat on WhatsApp"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </a>
+                        
+                        {isLeave && (
+                          <div className="hidden sm:block mt-0.5 w-full text-center">
+                            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-200/60 px-1.5 py-0.5 rounded-md truncate max-w-full inline-block" title={leaveData.reason}>
+                              {leaveData.reason}
+                            </span>
                           </div>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.employeeName || 'N/A'}</td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
-                        {lead.currentStatus || 'N/A'}
-                      </span>
-                      {isMissedFollowUp(lead) && <div className="text-[10px] text-red-600 font-bold mt-1 uppercase tracking-wider">Missed Follow-up</div>}
-                    </td>
-                    <td className={`px-5 py-4 text-[13px] text-right ${isMissedFollowUp(lead) ? 'text-red-600 font-semibold' : 'text-zinc-600'}`}>{lead.nextFollowUp || 'N/A'}</td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <Pagination totalItems={filteredRegularLeads.length} currentPage={currentPage} setCurrentPage={setCurrentPage} itemsPerPage={itemsPerPage} />
-          </div>
-        )}
+                        
+                        {isAbsent && (
+                          <div className="hidden sm:block mt-0.5 w-full text-center">
+                            <span className="flex items-center justify-center gap-0.5 text-[9px] font-bold text-red-700 uppercase tracking-wider bg-red-100 px-1.5 py-0.5 rounded-md truncate max-w-full" title="Absent">
+                              <X className="w-2.5 h-2.5" strokeWidth={3} /> Absent
+                            </span>
+                          </div>
+                        )}
 
-        {/* Ad Leads View */}
-        {activeTab === 'ads' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Lead Info</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Institution & Region</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider max-w-xs">Message</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status & Agent</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
-                  <tr key={lead.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
-                      {isRecentLead(lead) && (
-                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
-                          NEW
-                        </span>
-                      )}
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-black text-[14px] flex items-center gap-2">
-                        <User className="w-4 h-4 text-zinc-400" />
-                        {lead.name}
-                      </div>
-                      <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> 
-                        <span>{lead.contactNumber}</span>
-                        {lead.contactNumber && (
-                          <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(lead.contactNumber);
-                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                              }}
-                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
-                              title="Copy Number"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <a
-                              href={`https://wa.me/${(lead.contactNumber || '').replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
-                              title="Chat on WhatsApp"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </a>
+                        {!isLeave && !isAbsent && myLog && (
+                          <div className="hidden sm:block mt-0.5 w-full text-center">
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md truncate max-w-full inline-block ${
+                              myLog.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                              myLog.status.startsWith('On ') ? 'bg-orange-100 text-orange-700' :
+                              'bg-emerald-100 text-emerald-700'
+                            }`} title={myLog.status}>
+                              {myLog.status === 'Clocked Out' ? 'Present' : myLog.status}
+                            </span>
                           </div>
                         )}
-                      </div>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span className={getPriorityColor(lead.priority)}>
-                          {lead.priority === 'Urgent' && <AlertCircle className="w-3 h-3" />}
-                          {lead.priority}
-                        </span>
-                        {isMissedFollowUp(lead) && <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider">Missed Follow-up</span>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="text-[13px] font-medium text-zinc-900">{lead.institutionName}</div>
-                      <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {lead.region}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 max-w-xs">
-                      <p className="text-[12px] text-zinc-600 line-clamp-2" title={lead.message}>
-                        "{lead.message}"
-                      </p>
-                      <p className="text-[11px] text-zinc-400 mt-1">Type: {lead.leadType}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
-                        {lead.currentStatus}
-                      </span>
-                      <div className="text-[12px] text-zinc-500 mt-1">
-                        Rep: <span className="font-medium text-zinc-700">{lead.assignedToName}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <button className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pagination totalItems={filteredAdLeads.length} currentPage={currentPage} setCurrentPage={setCurrentPage} itemsPerPage={itemsPerPage} />
-          </div>
-        )}
 
-        {/* Distributors View */}
-        {activeTab === 'distributors' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
-              <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Distributor</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact Person</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Performance</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
-                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
-                      {isRecentLead(dist) && (
-                        <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
-                          NEW
-                        </span>
-                      )}
-                      {(currentPage - 1) * itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-black text-[14px] flex items-center gap-2">
-                        <Target className="w-4 h-4 text-zinc-400" />
-                        {dist.distributorName || 'N/A'}
-                      </div>
-                      <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {dist.region || dist.state || 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="text-[13px] font-medium text-zinc-900">{dist.contactPersonName || 'N/A'}</div>
-                      <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> 
-                        <span>{dist.contactNumber || 'N/A'}</span>
-                        {dist.contactNumber && (
-                          <div className="flex items-center gap-0.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(dist.contactNumber);
-                                Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                              }}
-                              className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
-                              title="Copy Number"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                            </button>
-                            <a
-                              href={`https://wa.me/${(dist.contactNumber || '').replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
-                              title="Chat on WhatsApp"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                            </a>
+                        {/* Mobile indicators */}
+                        {isLeave && (
+                          <div className="sm:hidden absolute bottom-1.5 w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
+                        )}
+                        {isAbsent && (
+                          <div className="sm:hidden absolute bottom-1.5 flex items-center justify-center">
+                             <X className="w-3 h-3 text-red-600" strokeWidth={4} />
                           </div>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="text-[20px] font-light text-black">{dist.onboardedClients || 0}</div>
-                        <div className="text-[11px] text-zinc-500 leading-tight">Clients<br/>Onboarded</div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(dist.currentStatus)}`}>
-                        {dist.currentStatus || 'N/A'}
-                      </span>
-                      {isMissedFollowUp(dist) && <div className="text-[10px] text-red-600 font-bold mt-1 uppercase tracking-wider">Missed Follow-up</div>}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <button className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pagination totalItems={filteredDistributors.length} currentPage={currentPage} setCurrentPage={setCurrentPage} itemsPerPage={itemsPerPage} />
-          </div>
-        )}
-      </div>
-        </>
-      )}
-      {quickUpdateLead && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setQuickUpdateLead(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden">
-               <div className="relative z-10">
-                 <h2 className="text-xl font-bold text-white tracking-tight">Quick Update</h2>
-                 <p className="text-zinc-400 text-sm mt-1">{quickUpdateLead.clientName || quickUpdateLead.name || quickUpdateLead.distributorName || 'Lead'}</p>
+                        {!isLeave && !isAbsent && myLog && (
+                          <div className={`sm:hidden absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${
+                             myLog.status === 'On Leave' ? 'bg-amber-500' :
+                             myLog.status.startsWith('On ') ? 'bg-orange-500' :
+                             'bg-emerald-500'
+                          }`}></div>
+                        )}
+
+                        {canEdit && !isLeave && !isAbsent && (
+                          <div className="hidden sm:group-hover:flex absolute inset-0 bg-black/5 items-center justify-center">
+                            <span className="text-[10px] font-bold text-zinc-600">Mark Off</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-5 text-[12px] font-semibold text-zinc-500">
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+                   <div className="w-1 h-1 bg-slate-400 rounded-full sm:hidden"></div>
+                 </div>
+                 Leave / Off
                </div>
-               <button onClick={() => setQuickUpdateLead(null)} className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 z-20">
-                 <X className="w-5 h-5" />
-               </button>
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-red-100 border border-red-200 flex items-center justify-center">
+                   <X className="w-2.5 h-2.5 text-red-600 sm:hidden" strokeWidth={4} />
+                 </div>
+                 Absent
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                   <div className="w-1 h-1 bg-emerald-500 rounded-full sm:hidden"></div>
+                 </div>
+                 Present
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-blue-100 border border-blue-200"></div>
+                 Today
+               </div>
             </div>
-            
-            <form onSubmit={handleQuickUpdate} className="p-6 flex flex-col gap-4">
-              <div>
-                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Update Status</label>
-                <select 
-                  value={updateStatus} 
-                  onChange={(e) => setUpdateStatus(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
-                >
-                  {activeTab === 'distributors' ? (
-                    <>
-                      <option value="Haven't yet contacted">Haven't yet contacted</option>
-                      <option value="Called, no response">Called, no response</option>
-                      <option value="Contacted and discussed via phone">Contacted and discussed via phone</option>
-                      <option value="Online demo done">Online demo done</option>
-                      <option value="Live demo done">Live demo done</option>
-                      <option value="Hospital presentation done">Hospital presentation done</option>
-                      <option value="Agreement Sent & awaiting response">Agreement Sent & waiting</option>
-                      <option value="Agreement Signed">Agreement Signed</option>
-                      <option value="Purchased Demo Piece">Purchased Demo Piece</option>
-                      <option value="Doing Sales">Doing Sales</option>
-                      <option value="Inactive">Inactive</option>
-                      <option value="Terminated">Terminated</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="New Lead">New Lead</option>
-                      <option value="Called, no response">Called, No Response</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Interested">Interested</option>
-                      <option value="Follow up needed">Follow-Up Needed</option>
-                      <option value="Quotation Sent">Quotation Sent</option>
-                      <option value="Awaiting Decision">Awaiting Decision</option>
-                      <option value="Token Recieved">Token Recieved</option>
-                      <option value="Deal Closed">Converted (Deal Won)</option>
-                      <option value="Deal Lost">Not Interested (Deal Lost)</option>
-                    </>
-                  )}
-                </select>
-              </div>
+          </div>
 
-              <div>
-                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Add Remarks (Optional)</label>
-                <textarea 
-                  value={updateRemarks} 
-                  onChange={(e) => setUpdateRemarks(e.target.value)}
-                  rows="3"
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
-                  placeholder="Note down what was discussed..."
-                ></textarea>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    const phone = quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '';
-                    if (phone) {
-                      navigator.clipboard.writeText(phone);
-                      Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                    } else {
-                      Swal.fire({ title: 'No Phone', text: 'This lead does not have a phone number.', icon: 'warning', timer: 1500, showConfirmButton: false });
-                    }
-                  }} 
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Phone className="w-3.5 h-3.5" /> Copy Number
-                </button>
-                <a 
-                  href={`https://wa.me/${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9]/g, '')}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-                </a>
-              </div>
-
-              <div className="flex flex-col gap-2 mt-2">
-                <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : 'Update Status'}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setSelectedLead(quickUpdateLead);
-                    setQuickUpdateLead(null);
-                  }} 
-                  className="w-full py-3 rounded-xl text-[14px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors"
-                >
-                  View Full Profile
-                </button>
-                {(activeTab === 'regular' || activeTab === 'distributors') && (
-                  <button 
-                    type="button"
-                    onClick={() => handleConvertToAdLead(quickUpdateLead)} 
-                    className="w-full py-3 rounded-xl text-[14px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200"
+          {quickLinks.length > 0 && (
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+              <h3 className="text-[15px] font-semibold text-zinc-900 mb-5 flex items-center gap-2">
+                <LayoutDashboard className="w-4 h-4 text-zinc-400" />
+                Quick Access
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {quickLinks.map((link, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => navigate(link.path)}
+                    className="group p-4 rounded-xl border border-zinc-200 hover:border-black/20 hover:shadow-sm bg-white cursor-pointer transition-all flex items-start gap-4"
                   >
-                    Convert to Ad Lead
-                  </button>
-                )}
-              </div>
-
-              {quickUpdateLead.statusHistory && quickUpdateLead.statusHistory.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-zinc-100">
-                  <h3 className="text-[11px] font-bold text-zinc-500 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-zinc-400" />
-                    Recent History
-                  </h3>
-                  <div className="space-y-4 max-h-[160px] overflow-y-auto pr-1 no-scrollbar">
-                    {[...quickUpdateLead.statusHistory].reverse().map((history, idx, arr) => {
-                      const colorClass = getStatusColor(history.status);
-                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
-                      const dotColor = textClass.replace('text-', 'bg-');
-                      
-                      return (
-                        <div key={idx} className="flex gap-2 items-stretch relative">
-                          <div className="w-[3.5rem] shrink-0 text-right pt-0.5">
-                            <div className="text-[10px] font-bold text-zinc-700">
-                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric' })}
-                            </div>
-                            <div className="text-[9px] font-medium text-zinc-400 mt-0.5">
-                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-
-                          <div className="relative flex flex-col items-center shrink-0 w-3 pt-1">
-                            {idx !== arr.length - 1 && (
-                              <div className="absolute top-3 bottom-[-16px] w-[1px] bg-zinc-200"></div>
-                            )}
-                            <div className={`w-2.5 h-2.5 rounded-full z-10 border border-black ${dotColor} ring-2 ring-white`}></div>
-                          </div>
-
-                          <div className={`flex-1 rounded-lg p-2.5 border ${colorClass}`}>
-                            <div className="font-bold text-[11px] mb-0.5">{history.status}</div>
-                            {history.remarks && (
-                              <p className="text-[10px] leading-relaxed opacity-90 mt-1 whitespace-pre-wrap">{history.remarks}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <div className={`p-3 rounded-xl ${link.color} ${link.border} bg-opacity-50 shrink-0 transition-transform group-hover:scale-105`}>
+                      <link.icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[14px] font-semibold text-zinc-900 truncate">{link.label}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-black transition-colors" />
+                      </div>
+                      <p className="text-[12px] text-zinc-500 mt-0.5 truncate">{link.desc}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </form>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pending Tasks Banner */}
+          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center shrink-0">
+                <CheckSquare className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-semibold text-orange-900">Pending Tasks</h3>
+                <p className="text-[13px] text-orange-700 mt-0.5">
+                  You currently have <strong className="font-bold">{pendingTasksCount}</strong> tasks awaiting action.
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => navigate('/tasks')}
+              className="px-5 py-2.5 bg-white border border-orange-200 text-orange-700 text-[13px] font-semibold rounded-xl hover:bg-orange-100 transition-colors shrink-0 shadow-sm"
+            >
+              View Tasks
+            </button>
           </div>
         </div>
-      )}
 
-      {selectedLead && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 sm:p-8 flex items-start justify-between relative overflow-hidden">
-              <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 opacity-10 pointer-events-none">
-                <Target className="w-64 h-64 text-white" />
-              </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-white/20 text-white text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-md">
-                    Lead Profile
-                  </span>
-                  {selectedLead.currentStatus && (
-                    <span className="bg-emerald-500/20 text-emerald-300 text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-md border border-emerald-500/30">
-                      {selectedLead.currentStatus}
-                    </span>
+        {/* Right Column: Attendance Widget */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden h-full">
+            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-zinc-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                Today's Log
+              </h2>
+              <button onClick={() => navigate('/attendance')} className="text-[12px] font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group">
+                History
+                <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+            
+            <div className="p-6 flex-1 flex flex-col justify-center">
+              {todayAttendance ? (
+                <div className="flex flex-col items-center text-center">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+                    todayAttendance.status === 'On Leave' ? 'bg-rose-100 text-rose-600' : 
+                    (todayAttendance.status.startsWith('On ') ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600')
+                  }`}>
+                    {todayAttendance.status === 'On Leave' ? <Calendar className="w-7 h-7" /> : <Clock className="w-7 h-7" />}
+                  </div>
+                  
+                  <h3 className="text-2xl font-bold text-zinc-900 mb-1">
+                    {todayAttendance.status}
+                  </h3>
+                  
+                  <div className="text-[13px] text-zinc-500 mb-6">
+                    {todayAttendance.workType && todayAttendance.status !== 'On Leave' && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 text-zinc-700 rounded-md font-medium mr-2">
+                        {todayAttendance.workType}
+                      </span>
+                    )}
+                    {todayAttendance.clockedInAt && todayAttendance.status !== 'On Leave' && (
+                      <span>
+                        Started at <strong className="text-zinc-700">
+                          {todayAttendance.clockedInAt.toDate ? todayAttendance.clockedInAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(todayAttendance.clockedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </strong>
+                      </span>
+                    )}
+                    {todayAttendance.status === 'On Leave' && (
+                      <span>{todayAttendance.leaveReason}</span>
+                    )}
+                  </div>
+                  
+                  {todayAttendance.status !== 'On Leave' && todayAttendance.status !== 'Clocked Out' && (
+                    <div className="w-full mt-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between">
+                      <div className="flex flex-col items-start">
+                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Current Time</span>
+                        <span className="text-[15px] font-semibold text-zinc-900 mt-0.5">
+                          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="h-8 w-px bg-zinc-200"></div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Status</span>
+                        <span className="text-[13px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          Active
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                  {selectedLead.clientName || selectedLead.name || selectedLead.distributorName || 'Unknown Lead'}
-                </h2>
-                {(selectedLead.place || selectedLead.region) && (
-                  <p className="text-zinc-400 mt-2 flex items-center gap-1.5 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    {selectedLead.place || selectedLead.region} {selectedLead.country ? `, ${selectedLead.country}` : ''}
+              ) : (
+                <div className="text-center py-6">
+                  <div className="w-14 h-14 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-100">
+                    <Clock className="w-6 h-6 text-zinc-300" />
+                  </div>
+                  <h3 className="text-[15px] font-semibold text-zinc-900 mb-1">Not Clocked In</h3>
+                  <p className="text-[13px] text-zinc-500 max-w-[200px] mx-auto">
+                    Your attendance hasn't been logged yet for today.
                   </p>
-                )}
-              </div>
-              <div className="flex items-center gap-3 relative z-10">
-                {(activeTab === 'regular' || activeTab === 'ads' || activeTab === 'distributors') && (
-                  <button 
-                    onClick={() => openEditModal(selectedLead)}
-                    className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
-                  >
-                    Edit Profile
-                  </button>
-                )}
-                <button 
-                  onClick={() => handleDeleteLead(selectedLead)}
-                  className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
-                >
-                  Delete
-                </button>
-                <button 
-                  onClick={() => setSelectedLead(null)}
-                  className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl p-2 ml-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 sm:p-10 overflow-y-auto flex-1 bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                {Object.entries(selectedLead)
-                  .filter(([k,v]) => {
-                    const ignoredKeys = ['clientName', 'name', 'distributorName', 'companyId', 'associate', 'id', 'addedBy', 'addedByName', 'assignedToUid', 'userId'];
-                    return typeof v !== 'object' && !ignoredKeys.includes(k);
-                  })
-                  .sort(([a], [b]) => a.localeCompare(b))
-                  .map(([key, value]) => {
-                    const formattedKey = key === 'employeeName' ? 'Associate' : key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                    return (
-                      <div key={key} className="flex items-start gap-4 pb-4 border-b border-zinc-100 group">
-                        <div className="mt-0.5 text-zinc-400 group-hover:text-black transition-colors">
-                          {getIconForKey(key)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500 mb-0.5">
-                            {formattedKey}
-                          </div>
-                          <div className="text-[14px] text-zinc-900 font-medium whitespace-pre-wrap">
-                            {value || <span className="text-zinc-300 italic">Not provided</span>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-              
-              {selectedLead.statusHistory && selectedLead.statusHistory.length > 0 && (
-                <div className="mt-8 border-t border-zinc-100 pt-6">
-                  <h3 className="text-[12px] font-bold text-zinc-800 mb-4 uppercase tracking-wider flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-zinc-400" />
-                    Update History
-                  </h3>
-                  <div className="space-y-6">
-                    {selectedLead.statusHistory.map((history, idx) => {
-                      const colorClass = getStatusColor(history.status);
-                      const bgClass = colorClass.split(' ')[0] || 'bg-zinc-50';
-                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
-                      const dotColor = textClass.replace('text-', 'bg-');
-                      
-                      return (
-                        <div key={idx} className="flex gap-4 items-stretch relative">
-                          
-                          {/* Date on the Left */}
-                          <div className="w-24 shrink-0 text-right pt-1">
-                            <div className="text-[12px] font-bold text-zinc-700">
-                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </div>
-                            <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mt-0.5">
-                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-
-                          {/* Timeline Dot & Line */}
-                          <div className="relative flex flex-col items-center shrink-0 w-6 pt-1.5">
-                            {idx !== selectedLead.statusHistory.length - 1 && (
-                              <div className="absolute top-5 bottom-[-24px] w-0.5 bg-zinc-200"></div>
-                            )}
-                            <div className={`w-3.5 h-3.5 rounded-full z-10 border-2 border-black ${dotColor} ring-[3px] ring-white`}></div>
-                          </div>
-
-                          {/* Status & Remarks Box */}
-                          <div className={`flex-1 rounded-xl p-4 border ${colorClass}`}>
-                            <div className="font-bold text-[14px] mb-1">{history.status}</div>
-                            {history.remarks && (
-                              <p className="text-[13px] leading-relaxed opacity-90 mt-2 whitespace-pre-wrap">{history.remarks}</p>
-                            )}
-                          </div>
-                          
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
               )}
             </div>
           </div>
         </div>
-      )}
-
-      {/* Add Lead Modal */}
-      {/* Global Client Names Datalist for autocomplete */}
-      <datalist id="global-client-names">
-        {globalClients.filter(c => c.segment === activeSegment).map((c, idx) => (
-          <option key={`client-${idx}`} value={c.clientName} />
-        ))}
-      </datalist>
-
-      {/* Bulk Ad Lead Modal */}
-      {isBulkAdLeadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
-              <h2 className="text-[18px] font-semibold text-zinc-900">Bulk Assign Ad Leads</h2>
-              <button type="button" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleBulkSaveAdLeads} className="flex flex-col">
-              <div className="p-6">
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Paste Phone Numbers</label>
-                    <textarea 
-                      required
-                      value={bulkAdLeadText} 
-                      onChange={(e) => setBulkAdLeadText(e.target.value)}
-                      rows="6"
-                      className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
-                      placeholder="Paste numbers separated by spaces, commas, or new lines..."
-                    ></textarea>
-                    <p className="text-[11px] text-zinc-500 mt-1">The system will automatically extract all valid phone numbers.</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Assign To Employee</label>
-                    <select
-                      required
-                      value={bulkAdLeadAssignedToUid}
-                      onChange={(e) => {
-                        const selectedEmp = allEmployees.find(emp => emp.id === e.target.value);
-                        setBulkAdLeadAssignedToUid(e.target.value);
-                        setBulkAdLeadAssignedToName(selectedEmp ? (selectedEmp.name || selectedEmp.email) : '');
-                      }}
-                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
-                    >
-                      <option value="" disabled>Select Employee</option>
-                      {allEmployees.map(emp => (
-                        <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-5 border-t border-zinc-100 bg-zinc-50/50 flex justify-end gap-3">
-                <button type="button" onClick={() => !isSubmitting && setIsBulkAdLeadModalOpen(false)} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900 transition-colors">
-                  Cancel
-                </button>
-                <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-white bg-black hover:bg-zinc-800 transition-colors shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : 'Assign Leads'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
-              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Lead Profile' : 'New Lead Profile'}</h2>
-              <button type="button" onClick={() => {
-                if (!isSubmitting) {
-                  setIsModalOpen(false);
-                  setEditingLeadId(null);
-                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
-                }
-              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSaveLead} className="flex flex-col max-h-[85vh]">
-              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
-                  
-                  {/* Left Column */}
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
-
-                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <div className="flex items-center w-full">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
-                        <input type="text" list="global-client-names" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
-                      </div>
-                      {getDuplicateWarning(formData.clientName)}
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Status</label>
-                      <select name="currentStatus" value={formData.currentStatus} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="New Lead">New Lead</option>
-                        <option value="Called, no response">Called, No Response</option>
-                        <option value="Contacted">Contacted</option>
-                        <option value="Interested">Interested</option>
-                        <option value="Follow up needed">Follow-Up Needed</option>
-                        <option value="Quotation Sent">Quotation Sent</option>
-                        <option value="Awaiting Decision">Awaiting Decision</option>
-                        <option value="Token Recieved">Token Recieved</option>
-                        <option value="Deal Closed">Converted (Deal Won)</option>
-                        <option value="Deal Lost">Not Interested (Deal Lost)</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Priority</label>
-                      <select name="priority" value={formData.priority} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="" disabled>Select Priority</option>
-                        <option value="Low">Low</option>
-                        <option value="Medium">Medium</option>
-                        <option value="High">High</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type</label>
-                      <select name="leadType" value={formData.leadType} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="" disabled>Select Type</option>
-                        {segmentClients.length > 0 ? segmentClients.map(client => (
-                          <option key={client} value={client}>{client}</option>
-                        )) : (
-                          <>
-                            <option value="Clinic">Clinic</option>
-                            <option value="Hospital">Hospital</option>
-                            <option value="Physiotherapist">Physiotherapist</option>
-                            <option value="Distributor">Distributor</option>
-                          </>
-                        )}
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    {formData.leadType === 'Other' && (
-                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Custom Type</label>
-                        <input type="text" required name="customLeadType" value={formData.customLeadType} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Specify type" />
-                      </div>
-                    )}
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Place</label>
-                      <input type="text" name="place" value={formData.place} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="City or State" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Country</label>
-                      <input type="text" name="country" value={formData.country} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Country" />
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Contact & Pipeline</h3>
-                    
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name</label>
-                      <input type="text" name="personOfContact" value={formData.personOfContact} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Primary Contact" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Role / Title</label>
-                      <input type="text" name="pocDesignation" value={formData.pocDesignation} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Director" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Phone Number*</label>
-                      <input type="text" required name="contactNo" value={formData.contactNo} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+1 (555) 000-0000" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email Address</label>
-                      <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="email@example.com" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Referral Source</label>
-                      <input type="text" name="referralPerson" value={formData.referralPerson} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Website, Partner" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Quoted Price</label>
-                      <input type="number" name="fPrice" value={formData.fPrice} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="0.00" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Agreed Price</label>
-                      <input type="number" name="lPrice" value={formData.lPrice} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="0.00" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Next Follow-Up</label>
-                      <input type="date" name="nextFollowUp" value={formData.nextFollowUp} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Notes & Remarks</h3>
-                  <textarea name="remarks" value={formData.remarks} onChange={handleInputChange} rows="3" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Add any additional context, meeting notes, or internal remarks here..."></textarea>
-                </div>
-              </div>
-
-              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
-                <button type="button" onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingLeadId(null);
-                  setFormData({ date: new Date().toISOString().split('T')[0], clientName: '', name: '', priority: '', place: '', country: '', personOfContact: '', pocDesignation: '', contactNo: '', personOfContact2: '', contactNo2: '', referralPerson: '', email: '', currentStatus: 'New Lead', fPrice: '', lPrice: '', lastContacted: '', nextFollowUp: '', remarks: '', leadType: 'Hospital', customLeadType: '', assignedToName: isAdmin ? '' : (employeeData?.name || ''), message: '' });
-                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
-                  Discard
-                </button>
-                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Create Lead')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {/* Add Ad Lead Modal */}
-      {isAdLeadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsAdLeadModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
-              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Ad Lead' : 'New Ad Lead'}</h2>
-              <button type="button" onClick={() => {
-                if (!isSubmitting) {
-                  setIsAdLeadModalOpen(false);
-                  setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
-                }
-              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSaveAdLead} className="flex flex-col max-h-[85vh]">
-              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
-                  
-                  {/* Left Column */}
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Core Details</h3>
-                    
-                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <div className="flex items-center w-full">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
-                        <input type="text" list="global-client-names" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
-                      </div>
-                      {getDuplicateWarning(adLeadFormData.name)}
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Institution</label>
-                      <input type="text" name="institutionName" value={adLeadFormData.institutionName} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. City Hospital" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
-                      <input type="text" required name="contactNumber" value={adLeadFormData.contactNumber} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+91 98765 43210" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
-                      <input type="text" list="ad-lead-regions" name="region" value={adLeadFormData.region} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Ernakulam" />
-                      <datalist id="ad-lead-regions">
-                        {availableRegions.map(r => <option key={r} value={r} />)}
-                      </datalist>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type*</label>
-                      <select required name="leadType" value={adLeadFormData.leadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="" disabled>Select Type</option>
-                        {segmentClients.length > 0 ? segmentClients.map(client => (
-                          <option key={client} value={client}>{client}</option>
-                        )) : (
-                          <>
-                            <option value="Hospital">Hospital</option>
-                            <option value="Distributor">Distributor</option>
-                            <option value="Physiotherapist">Physiotherapist</option>
-                            <option value="Clinic">Clinic</option>
-                            <option value="Pharmacy">Pharmacy</option>
-                            <option value="Nursing Home">Nursing Home</option>
-                          </>
-                        )}
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    {adLeadFormData.leadType === 'Other' && (
-                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Specify Type*</label>
-                        <input type="text" required name="customLeadType" value={adLeadFormData.customLeadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Rehab Center" />
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Ad Campaign</label>
-                      <select name="campaign" value={adLeadFormData.campaign || ''} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="">No Campaign</option>
-                        {adCampaignsList.filter(c => c.status === 'Active').map(camp => (
-                          <option key={camp.id} value={camp.name}>{camp.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Tracking & Assignment</h3>
-                    
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Priority</label>
-                      <select name="priority" value={adLeadFormData.priority} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="Urgent">⚡ Urgent</option>
-                        <option value="High">🔴 High</option>
-                        <option value="Medium">🟡 Medium</option>
-                        <option value="Low">🟢 Low</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Follow-Up Date</label>
-                      <input type="date" name="followUpDate" value={adLeadFormData.followUpDate} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none" />
-                    </div>
-
-                    {(isAdmin || isManager || canManageAdLeads) && (
-                      <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Assign To*</label>
-                        <select 
-                          required 
-                          name="assignedToUid" 
-                          value={adLeadFormData.assignedToUid} 
-                          onChange={(e) => {
-                            const emp = allEmployees.find(emp => emp.uid === e.target.value);
-                            setAdLeadFormData(prev => ({
-                              ...prev,
-                              assignedToUid: e.target.value,
-                              assignedToName: emp ? (emp.name || emp.empName) : ''
-                            }));
-                          }} 
-                          className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer"
-                        >
-                          <option value="" disabled>Select Employee</option>
-                          {allEmployees.map(emp => (
-                            <option key={emp.uid} value={emp.uid}>{emp.name || emp.empName}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-8 flex flex-col gap-6">
-                  <div>
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Context & Details</h3>
-                    <textarea name="message" value={adLeadFormData.message} onChange={handleAdLeadInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="What did the lead enquire about? Any context from the ad..."></textarea>
-                  </div>
-                  <div>
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Internal Remarks</h3>
-                    <textarea name="remarks" value={adLeadFormData.remarks} onChange={handleAdLeadInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Internal notes for the team..."></textarea>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
-                <button type="button" onClick={() => {
-                  setIsAdLeadModalOpen(false);
-                  setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
-                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
-                  Discard
-                </button>
-                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Create Ad Lead')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Add Distributor Modal */}
-      {isDistributorModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsDistributorModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
-              <h2 className="text-[18px] font-semibold text-zinc-900">{editingLeadId ? 'Edit Distributor' : 'New Distributor'}</h2>
-              <button type="button" onClick={() => {
-                if (!isSubmitting) {
-                  setIsDistributorModalOpen(false);
-                  setEditingLeadId(null);
-                  setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
-                }
-              }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleSaveDistributor} className="flex flex-col max-h-[85vh]">
-              <div className="p-6 sm:p-8 overflow-y-auto no-scrollbar flex-1 bg-white">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-2">
-                  
-                  {/* Left Column */}
-                  <div className="flex flex-col gap-1">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Distributor Profile</h3>
-                    
-                    <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <div className="flex items-center w-full">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Firm Name*</label>
-                        <input type="text" required name="distributorName" value={distributorFormData.distributorName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. MedSupply Co." />
-                      </div>
-                      {getDuplicateWarning(distributorFormData.distributorName)}
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">State*</label>
-                      <select required name="state" value={distributorFormData.state} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="" disabled>Select State</option>
-                        {["Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh","Puducherry"].map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
-                      <input type="text" name="region" value={distributorFormData.region} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. North, South" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Exclusive?</label>
-                      <select name="exclusive" value={distributorFormData.exclusive} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
-                        <option value="" disabled>Select</option>
-                        <option value="Yes">Yes – Exclusive</option>
-                        <option value="No">No – Non-exclusive</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Team Size</label>
-                      <input type="number" min="1" name="teamSize" value={distributorFormData.teamSize} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="No. of reps" />
-                    </div>
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="flex flex-col gap-1 mt-6 lg:mt-0">
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Contact & Legal</h3>
-                    
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
-                      <input type="text" required name="contactPersonName" value={distributorFormData.contactPersonName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="Primary Contact" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
-                      <input type="tel" required name="contactNumber" value={distributorFormData.contactNumber} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email</label>
-                      <input type="email" name="email" value={distributorFormData.email} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">GST Number</label>
-                      <input type="text" name="gstNumber" value={distributorFormData.gstNumber} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
-                    </div>
-
-                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Year Est.</label>
-                      <input type="number" name="establishedYear" value={distributorFormData.establishedYear} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. 2010" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex flex-col gap-6">
-                  <div>
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Business Coverage</h3>
-                    <textarea name="productLinesHandled" value={distributorFormData.productLinesHandled} onChange={handleDistributorInputChange} rows="2" className="w-full mb-3 bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Product Lines Handled (e.g. Surgical instruments)"></textarea>
-                    <textarea name="territoryDescription" value={distributorFormData.territoryDescription} onChange={handleDistributorInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Territory / Coverage Description (e.g. All districts in Kerala)"></textarea>
-                    <textarea name="address" value={distributorFormData.address} onChange={handleDistributorInputChange} rows="2" className="w-full mt-3 bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Full Postal Address"></textarea>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest mb-3 pb-2 border-b border-zinc-100">Status & Tracking</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-zinc-500">Current Status</label>
-                        <select name="currentStatus" value={distributorFormData.currentStatus} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors cursor-pointer">
-                          <option value="Haven't yet contacted">Haven't yet contacted</option>
-                          <option value="Called, no response">Called, no response</option>
-                          <option value="Contacted and discussed via phone">Contacted and discussed via phone</option>
-                          <option value="Online demo done">Online demo done</option>
-                          <option value="Live demo done">Live demo done</option>
-                          <option value="Hospital presentation done">Hospital presentation done</option>
-                          <option value="Agreement Sent & awaiting response">Agreement Sent & waiting</option>
-                          <option value="Agreement Signed">Agreement Signed</option>
-                          <option value="Purchased Demo Piece">Purchased Demo Piece</option>
-                          <option value="Doing Sales">Doing Sales</option>
-                          <option value="Inactive">Inactive</option>
-                          <option value="Terminated">Terminated</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-zinc-500">Last Meeting Date</label>
-                        <input type="date" name="lastMeetingDate" value={distributorFormData.lastMeetingDate} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-zinc-500">Next Follow-Up</label>
-                        <input type="date" name="nextFollowUp" value={distributorFormData.nextFollowUp} onChange={handleDistributorInputChange} className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-lg p-2.5 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" />
-                      </div>
-                    </div>
-                    <textarea name="remarks" value={distributorFormData.remarks} onChange={handleDistributorInputChange} rows="2" className="w-full bg-zinc-50/50 border border-zinc-200/60 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Internal remarks & notes..."></textarea>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50/50 flex items-center justify-end gap-3">
-                <button type="button" onClick={() => {
-                  setIsDistributorModalOpen(false);
-                  setEditingLeadId(null);
-                  setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
-                }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
-                  Discard
-                </button>
-                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Add Distributor')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
