@@ -130,13 +130,20 @@ export default function Tasks() {
         assignerName = myEmpDoc.name;
       }
 
+      let assigneeName = 'Unknown';
+      if (formData.assignedToUid === user.uid) {
+        assigneeName = assignerName;
+      } else if (assignedUser) {
+        assigneeName = assignedUser.name;
+      }
+
       const payload = {
         title: formData.title,
         description: formData.description,
         priority: formData.priority,
         dueDate: formData.dueDate,
         assignedToUid: formData.assignedToUid,
-        assignedToName: assignedUser ? assignedUser.name : 'Unknown',
+        assignedToName: assigneeName,
         assignedByUid: user.uid,
         assignedByName: assignerName,
         status: 'To Do',
@@ -403,7 +410,7 @@ export default function Tasks() {
                               )}
                             </>
                           )}
-                          {activeTab === 'assignedByMe' && (
+                          {(activeTab === 'assignedByMe' || task.assignedByUid === user.uid) && (
                             <button onClick={() => deleteTask(task.id)} title="Delete Task" className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -450,6 +457,7 @@ export default function Tasks() {
                 <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Assign To*</label>
                 <select required name="assignedToUid" value={formData.assignedToUid} onChange={handleInputChange} className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-2.5 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer">
                   <option value="" disabled>Select an employee</option>
+                  <option value={user?.uid}>Assign to Myself</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
                   ))}
