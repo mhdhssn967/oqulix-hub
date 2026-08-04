@@ -23,7 +23,7 @@ export default function ManageAttendance() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [customBreakPrompt, setCustomBreakPrompt] = useState({ isOpen: false, logId: null, reason: '' });
+  const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: '' });
   const [clockInTime, setClockInTime] = useState('');
 
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
@@ -160,17 +160,24 @@ export default function ManageAttendance() {
     }
   };
 
-  const handleAction = async (logId, actionType) => {
+  const handleAction = async (logId, actionType, customTimeStr = null) => {
     if (!companyId) return;
     try {
       const ref = doc(db, `userData/${companyId}/attendanceLogs`, logId);
       const log = attendanceLogs.find(l => l.id === logId);
       if (!log) return;
 
+      let actionTime = new Date();
+      if (customTimeStr) {
+        const [year, month, day] = selectedDate.split('-');
+        const [hours, minutes] = customTimeStr.split(':');
+        actionTime = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(hours, 10), parseInt(minutes, 10), 0);
+      }
+
       if (actionType === 'Resume') {
         const currentBreaks = log.breaks || [];
         if (currentBreaks.length > 0) {
-          currentBreaks[currentBreaks.length - 1].endTime = new Date();
+          currentBreaks[currentBreaks.length - 1].endTime = actionTime;
         }
         await setDoc(ref, {
           status: 'Present',
@@ -179,18 +186,18 @@ export default function ManageAttendance() {
       } else if (actionType === 'ClockOut') {
         const currentBreaks = log.breaks || [];
         if (currentBreaks.length > 0 && !currentBreaks[currentBreaks.length - 1].endTime) {
-          currentBreaks[currentBreaks.length - 1].endTime = new Date();
+          currentBreaks[currentBreaks.length - 1].endTime = actionTime;
         }
         await setDoc(ref, {
           status: 'Clocked Out',
-          clockedOutAt: new Date(),
+          clockedOutAt: actionTime,
           breaks: currentBreaks
         }, { merge: true });
       } else {
         // Any other actionType is treated as a break type (e.g. 'Tea', 'Lunch', or custom)
         const newBreak = {
           type: actionType,
-          startTime: new Date(),
+          startTime: actionTime,
           endTime: null
         };
         await setDoc(ref, {
@@ -407,13 +414,13 @@ export default function ManageAttendance() {
                         <div className="flex justify-end gap-2">
                           {log.status === 'Present' && (
                             <>
-                              <button onClick={() => handleAction(log.id, 'Tea')} className="p-1.5 text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors" title="Tea Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Tea', reason: 'Tea Break', time: '' })} className="p-1.5 text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors" title="Tea Break">
                                 <Coffee className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleAction(log.id, 'Lunch')} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Lunch Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Lunch', reason: 'Lunch Break', time: '' })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Lunch Break">
                                 <Utensils className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setCustomBreakPrompt({ isOpen: true, logId: log.id, reason: '' })} className="p-1.5 text-zinc-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Other Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Custom', reason: '', time: '' })} className="p-1.5 text-zinc-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Other Break">
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                               <button onClick={() => handleAction(log.id, 'ClockOut')} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Clock Out">
@@ -562,39 +569,51 @@ export default function ManageAttendance() {
         </div>
       )}
 
-      {/* Custom Break Modal */}
-      {customBreakPrompt.isOpen && (
+      {/* Break Confirmation Modal */}
+      {breakPrompt.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCustomBreakPrompt({ isOpen: false, logId: null, reason: '' })}></div>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBreakPrompt({ isOpen: false, logId: null, type: '', reason: '', time: '' })}></div>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col p-5">
-            <h3 className="text-[16px] font-semibold text-zinc-900 mb-2">Custom Break</h3>
-            <p className="text-[13px] text-zinc-500 mb-4">Please enter the reason for this break.</p>
-            <input 
-              type="text"
-              autoFocus
-              placeholder="e.g. Doctor Appointment"
-              value={customBreakPrompt.reason}
-              onChange={(e) => setCustomBreakPrompt(prev => ({ ...prev, reason: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && customBreakPrompt.reason.trim()) {
-                  handleAction(customBreakPrompt.logId, customBreakPrompt.reason.trim());
-                  setCustomBreakPrompt({ isOpen: false, logId: null, reason: '' });
-                }
-              }}
-              className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all mb-4"
-            />
+            <h3 className="text-[16px] font-semibold text-zinc-900 mb-2">{breakPrompt.type === 'Custom' ? 'Custom Break' : `${breakPrompt.reason}`}</h3>
+            <p className="text-[13px] text-zinc-500 mb-4">Please confirm {breakPrompt.type === 'Custom' ? 'and enter the reason for' : ''} this break.</p>
+            
+            {breakPrompt.type === 'Custom' && (
+              <div className="mb-4">
+                <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Reason</label>
+                <input 
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. Doctor Appointment"
+                  value={breakPrompt.reason}
+                  onChange={(e) => setBreakPrompt(prev => ({ ...prev, reason: e.target.value }))}
+                  className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                />
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Start Time (Leave empty for current time)</label>
+              <input 
+                type="time"
+                value={breakPrompt.time}
+                onChange={(e) => setBreakPrompt(prev => ({ ...prev, time: e.target.value }))}
+                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+              />
+            </div>
+
             <div className="flex justify-end gap-2">
               <button 
-                onClick={() => setCustomBreakPrompt({ isOpen: false, logId: null, reason: '' })}
+                onClick={() => setBreakPrompt({ isOpen: false, logId: null, type: '', reason: '', time: '' })}
                 className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button 
-                disabled={!customBreakPrompt.reason.trim()}
+                disabled={breakPrompt.type === 'Custom' && !breakPrompt.reason.trim()}
                 onClick={() => {
-                  handleAction(customBreakPrompt.logId, customBreakPrompt.reason.trim());
-                  setCustomBreakPrompt({ isOpen: false, logId: null, reason: '' });
+                  const breakType = breakPrompt.type === 'Custom' ? breakPrompt.reason.trim() : breakPrompt.type;
+                  handleAction(breakPrompt.logId, breakType, breakPrompt.time);
+                  setBreakPrompt({ isOpen: false, logId: null, type: '', reason: '', time: '' });
                 }}
                 className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

@@ -89,7 +89,7 @@ export function Sidebar() {
           </button>
         </div>
         
-        <nav className="space-y-1.5 flex-1 overflow-y-auto">
+        <nav className="space-y-1.5 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mb-4 px-3">Main Menu</div>
           {navItems.map((item, i) => (
             <NavLink 
