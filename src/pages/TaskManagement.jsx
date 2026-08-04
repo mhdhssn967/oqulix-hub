@@ -3,13 +3,14 @@ import { db } from '../firebase';
 import { collection, query, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
-import { Plus, X, Calendar, CheckCircle, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, X, Calendar, CheckCircle, Trash2, ArrowRight, LayoutGrid, List } from 'lucide-react';
 
 export default function TaskManagement() {
   const { user, companyId } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
   const [filterPerson, setFilterPerson] = useState('All');
+  const [viewMode, setViewMode] = useState('kanban'); // 'list' | 'kanban'
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -297,6 +298,24 @@ export default function TaskManagement() {
               ))}
             </select>
           </div>
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-zinc-100/80 p-1 rounded-xl ml-auto border border-zinc-200/80">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`p-1.5 rounded-lg flex items-center justify-center transition-all ${viewMode === 'kanban' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
+              title="Kanban View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg flex items-center justify-center transition-all ${viewMode === 'list' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -312,6 +331,7 @@ export default function TaskManagement() {
             <p className="text-sm text-zinc-500">There are no tasks matching your filters.</p>
           </div>
         ) : (
+          viewMode === 'list' ? (
           <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -413,6 +433,107 @@ export default function TaskManagement() {
               </table>
             </div>
           </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full items-start">
+              {['To Do', 'In Progress', 'Completed'].map(columnStatus => {
+                const columnTasks = currentList.filter(t => t.status === columnStatus);
+                return (
+                  <div key={columnStatus} className="bg-zinc-100/50 rounded-2xl p-4 min-h-[500px] border border-zinc-200/80 flex flex-col gap-4">
+                    <div className="flex items-center justify-between shrink-0 px-2">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${
+                          columnStatus === 'Completed' ? 'bg-emerald-500' :
+                          columnStatus === 'In Progress' ? 'bg-purple-500' :
+                          'bg-zinc-400'
+                        }`} />
+                        <h3 className="font-bold text-zinc-900 text-[15px]">{columnStatus}</h3>
+                      </div>
+                      <span className="bg-white text-zinc-600 text-xs font-semibold px-2.5 py-0.5 rounded-full shadow-sm border border-zinc-200">{columnTasks.length}</span>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      {columnTasks.map(task => (
+                        <div key={task.id} className="bg-white rounded-xl p-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] border border-zinc-200/60 hover:shadow-md transition-shadow group flex flex-col gap-3">
+                          <div className="flex justify-between items-start gap-2">
+                            <span className={`px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-md border whitespace-nowrap ${
+                              task.priority === 'High' ? 'bg-red-50 text-red-700 border-red-200/60' :
+                              task.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200/60' :
+                              'bg-blue-50 text-blue-700 border-blue-200/60'
+                            }`}>
+                              {task.priority}
+                            </span>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => deleteTask(task.id)} title="Delete Task" className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <h4 className="font-semibold text-zinc-900 text-sm leading-tight">{task.title}</h4>
+                            {task.description && (
+                              <p className="text-[12px] text-zinc-500 line-clamp-2 mt-1.5 leading-snug">{task.description}</p>
+                            )}
+                          </div>
+                          
+                          <div className="pt-2 border-t border-zinc-100 flex flex-col gap-2">
+                            <div className="flex justify-between items-end">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[11px] font-medium text-zinc-900">{task.assignedToName}</span>
+                                <span className="text-[10px] text-zinc-400 font-medium">By: {task.assignedByName}</span>
+                              </div>
+                              {task.dueDate && (
+                                <div className="flex items-center gap-1 text-zinc-500">
+                                  <Calendar className="w-3 h-3" />
+                                  <span className="text-[11px] font-medium">{new Date(task.dueDate).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {(task.completionNote || task.totalTimeSpentMs > 0) && (
+                              <div className="flex flex-col gap-1 mt-1 bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                                {task.completionNote && (
+                                  <div className="text-[11px] text-emerald-600 font-medium line-clamp-1">Note: {task.completionNote}</div>
+                                )}
+                                {task.totalTimeSpentMs > 0 && (
+                                  <div className="text-[10px] font-medium text-zinc-500">
+                                    Time spent: {Math.floor(task.totalTimeSpentMs / 3600000)}h {Math.floor((task.totalTimeSpentMs % 3600000) / 60000)}m
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {task.status !== 'Completed' && (
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              {task.status === 'To Do' && (
+                                <button onClick={() => updateStatus(task, 'In Progress')} className="col-span-1 px-2 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
+                                  Start Task
+                                </button>
+                              )}
+                              {task.status === 'In Progress' && (
+                                <button onClick={() => updateStatus(task, 'To Do')} className="col-span-1 px-2 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
+                                  Pause
+                                </button>
+                              )}
+                              <button onClick={() => setCompletingTask(task)} className={`px-2 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors rounded-lg text-[11px] font-semibold text-center flex items-center justify-center gap-1 ${task.status === 'In Progress' ? 'col-span-1' : 'col-span-2'}`}>
+                                <CheckCircle className="w-3 h-3" /> Complete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {columnTasks.length === 0 && (
+                        <div className="flex items-center justify-center py-10 border-2 border-dashed border-zinc-200/80 rounded-xl">
+                          <span className="text-xs font-medium text-zinc-400">No tasks</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
         )}
       </div>
 
