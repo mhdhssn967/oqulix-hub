@@ -1,0 +1,209 @@
+.page {
+  width: 794px;      /* A4 width in pixels */
+  height: 1123px;    /* A4 height in pixels */
+  margin: 0 auto;    /* Center the container horizontally */
+  box-sizing: border-box; /* Ensures padding/border don't affect size */
+  background-color: white;
+  color: black;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: url('../assets/bg.jpg');
+  background-size: cover;
+}
+
+/* To avoid interference with main app */
+.document-preview-container {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.mail-header {
+  height: 250px;
+  background-color: #000;
+  margin: 0px !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0px 50px;
+  color: white;
+}
+
+.mail-header img {
+  width: 200px;
+}
+
+.mail-header i {
+  margin-right: 20px;
+}
+
+.adress {
+  border-left: solid white 1px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  padding-left: 40px;
+  color: white;
+}
+
+.main-page {
+  font-family: "Tinos", serif;
+  color: rgb(12, 12, 12);
+  margin: 10px 20px 0px 20px;
+  max-height: 818px;
+  min-height: 818px;
+}
+
+.main-page-heading {
+  display: flex;
+  justify-content: space-between;
+  margin: auto 0px;
+}
+
+.main-page-heading h1 {
+  margin: 0px auto -16px 0px;
+  font-size: 35px;
+}
+
+.to-adress {
+  display: flex;
+  flex-direction: column;
+}
+
+.mail-content span {
+  font-weight: 600;
+}
+
+.seal-img {
+  width: 100px;
+}
+
+.regards {
+  display: flex;
+  gap: 100px;
+}
+
+.page-footer {
+  height: 55px;
+  background-color: black;
+  display: flex;
+  justify-content: right;
+  align-items: center;
+}
+
+.page-footer a {
+  color: white;
+  margin-right: 40px;
+}
+
+.quotation-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quotation-table th,
+.quotation-table td {
+  border: 1px solid black;
+  padding: 8px;
+  text-align: left;
+}
+
+.tip {
+  font-weight: 800;
+  text-align: center;
+  color: red;
+}
+
+.license-agreement ul {
+  list-style: disc;
+}
+
+.license-agreement {
+  margin-top: -40px;
+}
+
+.bank-details {
+  list-style: none !important;
+}
+
+.end-statement p {
+  text-align: center;
+}
+
+.end-statement-div {
+  display: flex;
+  flex-direction: column;
+  gap: 60px;
+  margin-bottom: 20px;
+}
+
+.total-table {
+  margin-top: 20px;
+  margin-left: auto;
+  border-collapse: collapse;
+}
+
+.total-table td {
+  padding: 8px;
+  border: 1px solid black;
+}
+
+.total-table tr :nth-child(1) {
+  width: 250px;
+}
+
+.total-table .discount {
+  color: red;
+}
+
+.discount-total {
+  font-weight: 700;
+  color: red;
+}
+
+.service-total {
+  margin-top: 50px;
+}
+
+.total-price {
+  font-weight: 800;
+  font-size: 20px;
+}
+
+.sign {
+  margin: 30px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Tighten margins for dynamically injected Quill HTML to prevent exceeding page height */
+.license-agreement-dynamic p,
+.mail-content-dynamic p,
+.payment-terms-dynamic p {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.license-agreement-dynamic ul,
+.license-agreement-dynamic ol {
+  padding-left: 20px;
+  margin-bottom: 8px;
+}
+
+.license-agreement-dynamic li {
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+/* Force wrapping just in case Quill injects pre-wrap */
+.license-agreement-dynamic *,
+.mail-content-dynamic *,
+.payment-terms-dynamic * {
+  white-space: pre-wrap !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}

@@ -18,6 +18,7 @@ import Performance from './pages/Performance';
 import Clients from './pages/Clients';
 import Analysis from './pages/Analysis';
 import Documents from './pages/Documents';
+import DocumentForm from './pages/DocumentForm';
 import OtherData from './pages/OtherData';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -117,6 +118,7 @@ function App() {
           <Route path="analysis" element={<Analysis />} />
           <Route path="reimbursements" element={<Reimbursements />} />
           <Route path="documents" element={<Documents />} />
+          <Route path="documents/create/:docId" element={<DocumentForm />} />
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />
           <Route path="ad-settings" element={<AdSettings />} />

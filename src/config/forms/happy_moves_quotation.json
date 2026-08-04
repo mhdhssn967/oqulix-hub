@@ -1,0 +1,50 @@
+{
+  "title": "Happy Moves Quotation",
+  "groups": [
+    {
+      "name": "General Details",
+      "fields": [
+        { "id": "client", "label": "Client", "type": "select", "source": "clients", "required": true },
+        { "id": "date", "label": "Date", "type": "date", "required": true },
+        { "id": "validUntil", "label": "Valid Until", "type": "date", "required": true }
+      ]
+    },
+    {
+      "name": "Recipient Information",
+      "fields": [
+        { "id": "recipient", "label": "Recipient", "type": "text", "required": true },
+        { "id": "institutionName", "label": "Institution Name", "type": "text", "required": false },
+        { "id": "addressLine1", "label": "Address Line 1", "type": "text", "required": false },
+        { "id": "addressLine2", "label": "Address Line 2", "type": "text", "required": false }
+      ]
+    },
+    {
+      "name": "Main Package",
+      "fields": [
+        { "id": "packageName", "label": "Package Name", "type": "text", "required": true, "defaultValue": "Happy Moves - Standard" },
+        { "id": "packageQuantity", "label": "Quantity", "type": "number", "required": true, "defaultValue": 1 },
+        { "id": "packagePrice", "label": "Price", "type": "number", "required": true, "defaultValue": 450000 }
+      ]
+    },
+    {
+      "name": "Complementary Products",
+      "fields": [
+        { 
+          "id": "complementaryItems", 
+          "label": "Complementary Items", 
+          "type": "itemsList", 
+          "required": false,
+          "hidePrice": true,
+          "defaultItems": [
+            { "name": "Meta Quest VR Headset", "quantity": 1, "price": 0 },
+            { "name": "Android Tablet", "quantity": 1, "price": 0 },
+            { "name": "Head Strap", "quantity": 1, "price": 0 },
+            { "name": "Hygiene Eye Mask + Cleaning Wipes", "quantity": 1, "price": 0 },
+            { "name": "Carrying Case", "quantity": 1, "price": 0 }
+          ]
+        },
+        { "id": "discount", "label": "Discount Amount (₹)", "type": "number", "required": false }
+      ]
+    }
+  ]
+}
