@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import CRM from './pages/CRM';
 import Finance from './pages/Finance';
 import Tasks from './pages/Tasks';
+import TaskManagement from './pages/TaskManagement';
 import Attendance from './pages/Attendance';
 import ManageAttendance from './pages/ManageAttendance';
 import Performance from './pages/Performance';
@@ -107,6 +108,7 @@ function App() {
           <Route path="crm" element={<PermissionRoute permissionLabel="CRM"><CRM /></PermissionRoute>} />
           <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="task-manager" element={<PermissionRoute permissionLabel="Task Manager"><TaskManagement /></PermissionRoute>} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="manage-attendance" element={<ManageAttendance />} />
           <Route path="employees" element={<PermissionRoute permissionLabel="Employees"><Employees /></PermissionRoute>} />

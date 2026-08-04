@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, or, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
 import { Plus, X, Calendar, CheckCircle, Trash2, ArrowRight } from 'lucide-react';
 
-export default function Tasks() {
-  const { user, companyId, employeeData } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('assignedToMe'); // 'assignedToMe' | 'assignedByMe'
+export default function TaskManagement() {
+  const { user, companyId } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
   const [filterPerson, setFilterPerson] = useState('All');
-  const [tasks, setTasks] = useState({ assignedToMe: [], assignedByMe: [] });
+  const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,20 +40,12 @@ export default function Tasks() {
       const empsList = empsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setEmployees(empsList);
 
-      // 2. Fetch Tasks (Assigned to user OR Assigned by user)
+      // 2. Fetch All Tasks
       const tasksRef = collection(db, 'userData', companyId, 'tasks');
-      // Some environments might not fully support or() in older SDK versions, 
-      // but assuming recent Firebase version (12.15.0), this is completely fine.
-      const q = query(tasksRef, or(
-        where('assignedToUid', '==', user.uid),
-        where('assignedByUid', '==', user.uid)
-      ));
+      const q = query(tasksRef);
       const tasksSnap = await getDocs(q);
       
-      const assignedToMe = [];
-      const assignedByMe = [];
-      
-      const currentUserName = employeeData?.name || user?.displayName || user?.email?.split('@')[0] || 'Admin';
+      const allTasks = [];
       
       tasksSnap.forEach(doc => {
         const data = { id: doc.id, ...doc.data() };
@@ -66,45 +57,20 @@ export default function Tasks() {
         
         if (assigner) {
           data.assignedByName = assigner.name || assigner.email;
-        } else if (data.assignedByUid === user.uid) {
-          data.assignedByName = currentUserName;
         } else {
           data.assignedByName = data.assignedByName || (data.assignedByEmail ? data.assignedByEmail.split('@')[0] : 'Someone');
         }
 
-        if (data.assignedToUid === user.uid) assignedToMe.push(data);
-        if (data.assignedByUid === user.uid && data.assignedToUid !== user.uid) assignedByMe.push(data);
+        allTasks.push(data);
       });
 
       // Sort by creation date descending
-      assignedToMe.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-      assignedByMe.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      allTasks.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
 
-      setTasks({ assignedToMe, assignedByMe });
+      setTasks(allTasks);
 
     } catch (error) {
       console.error("Error fetching tasks data:", error);
-      // Fallback if 'or' query fails (Firebase index/compat issues)
-      try {
-        const tasksRef = collection(db, 'userData', companyId, 'tasks');
-        const tasksSnap = await getDocs(tasksRef);
-        
-        const assignedToMe = [];
-        const assignedByMe = [];
-        
-        tasksSnap.forEach(doc => {
-          const data = { id: doc.id, ...doc.data() };
-          if (data.assignedToUid === user.uid) assignedToMe.push(data);
-          if (data.assignedByUid === user.uid && data.assignedToUid !== user.uid) assignedByMe.push(data);
-        });
-
-        assignedToMe.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-        assignedByMe.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-
-        setTasks({ assignedToMe, assignedByMe });
-      } catch (innerError) {
-        console.error("Fallback task fetch failed:", innerError);
-      }
     } finally {
       setLoading(false);
     }
@@ -125,7 +91,6 @@ export default function Tasks() {
     try {
       const assignedUser = employees.find(emp => emp.id === formData.assignedToUid);
       
-      // Determine currently logged in user's name
       let assignerName = user.displayName || user.email;
       const myEmpDoc = employees.find(emp => emp.uid === user.uid);
       if (myEmpDoc) {
@@ -239,19 +204,12 @@ export default function Tasks() {
     }
   };
 
-  const rawList = activeTab === 'assignedToMe' ? tasks.assignedToMe : tasks.assignedByMe;
-  
-  const uniquePeople = [...new Set(rawList.map(task => 
-    activeTab === 'assignedToMe' ? task.assignedByName : task.assignedToName
-  ))].filter(Boolean).sort();
+  const uniquePeople = [...new Set(tasks.map(task => task.assignedToName))].filter(Boolean).sort();
 
-  const currentList = rawList.filter(task => {
+  const currentList = tasks.filter(task => {
     if (filterStatus !== 'All' && task.status !== filterStatus) return false;
     if (filterPriority !== 'All' && task.priority !== filterPriority) return false;
-    if (filterPerson !== 'All') {
-      const personName = activeTab === 'assignedToMe' ? task.assignedByName : task.assignedToName;
-      if (personName !== filterPerson) return false;
-    }
+    if (filterPerson !== 'All' && task.assignedToName !== filterPerson) return false;
     return true;
   });
 
@@ -259,8 +217,8 @@ export default function Tasks() {
     <div className="flex flex-col pb-10 min-h-screen p-6 md:p-8">
       <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 flex-shrink-0">
         <div>
-          <h1 className="text-3xl font-semibold text-black tracking-tight">Tasks</h1>
-          <p className="text-[15px] text-zinc-500 mt-1.5">Manage tasks assigned to you and by you.</p>
+          <h1 className="text-3xl font-semibold text-black tracking-tight">Task Manager</h1>
+          <p className="text-[15px] text-zinc-500 mt-1.5">Manage tasks for all employees.</p>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
@@ -273,23 +231,6 @@ export default function Tasks() {
 
       {/* Tabs and Filters */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6 shrink-0">
-        <div className="flex border-b border-zinc-200/80 w-full xl:w-fit overflow-x-auto hide-scrollbar">
-          <button
-            onClick={() => { setActiveTab('assignedToMe'); setFilterPerson('All'); }}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'assignedToMe' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:border-zinc-300'}`}
-          >
-            Assigned to Me
-            <span className="ml-2 bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full text-xs">{tasks.assignedToMe.length}</span>
-          </button>
-          <button
-            onClick={() => { setActiveTab('assignedByMe'); setFilterPerson('All'); }}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'assignedByMe' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:border-zinc-300'}`}
-          >
-            Assigned by Me
-            <span className="ml-2 bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full text-xs">{tasks.assignedByMe.length}</span>
-          </button>
-        </div>
-
         <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 xl:gap-6 overflow-x-auto hide-scrollbar pb-2 xl:pb-0 w-full xl:w-auto">
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-semibold text-zinc-500 uppercase tracking-wider hidden sm:block">Status</span>
@@ -343,7 +284,7 @@ export default function Tasks() {
 
           <div className="flex items-center gap-2">
             <span className="text-[12px] font-semibold text-zinc-500 uppercase tracking-wider hidden sm:block whitespace-nowrap">
-              {activeTab === 'assignedToMe' ? 'By' : 'To'}
+              Employee
             </span>
             <select
               value={filterPerson}
@@ -368,7 +309,7 @@ export default function Tasks() {
           <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
             <CheckCircle className="w-12 h-12 text-zinc-300 mb-4" />
             <h3 className="text-base font-semibold text-zinc-900 mb-1">No Tasks Found</h3>
-            <p className="text-sm text-zinc-500">You don't have any tasks in this category.</p>
+            <p className="text-sm text-zinc-500">There are no tasks matching your filters.</p>
           </div>
         ) : (
           <div className="bg-white border border-zinc-200/80 rounded-2xl shadow-sm overflow-hidden">
@@ -380,9 +321,7 @@ export default function Tasks() {
                     <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Task</th>
                     <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
                     <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Priority</th>
-                    <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">
-                      {activeTab === 'assignedToMe' ? 'Assigned By' : 'Assigned To'}
-                    </th>
+                    <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Assigned To</th>
                     <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Due Date</th>
                     <th className="py-3 px-5 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
                   </tr>
@@ -427,8 +366,9 @@ export default function Tasks() {
                       </td>
                       <td className="py-4 px-5">
                         <span className="text-sm font-medium text-zinc-800">
-                          {activeTab === 'assignedToMe' ? (task.assignedByName || 'Someone') : task.assignedToName}
+                          {task.assignedToName}
                         </span>
+                        <div className="text-[11px] text-zinc-500">By: {task.assignedByName}</div>
                       </td>
                       <td className="py-4 px-5">
                         {task.dueDate ? (
@@ -442,7 +382,7 @@ export default function Tasks() {
                       </td>
                       <td className="py-4 px-5 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {activeTab === 'assignedToMe' && task.status !== 'Completed' && (
+                          {task.status !== 'Completed' && (
                             <>
                               {task.status === 'To Do' && (
                                 <button onClick={() => updateStatus(task, 'In Progress')} className="px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors rounded-lg text-xs font-semibold">
@@ -462,11 +402,9 @@ export default function Tasks() {
                               )}
                             </>
                           )}
-                          {(activeTab === 'assignedByMe' || task.assignedByUid === user.uid) && (
-                            <button onClick={() => deleteTask(task.id)} title="Delete Task" className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button onClick={() => deleteTask(task.id)} title="Delete Task" className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
