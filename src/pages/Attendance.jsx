@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
+import RequestModal from '../components/RequestModal';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus } from 'lucide-react';
+import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus } from 'lucide-react';
 
 export default function Attendance() {
   const { user, companyId } = useAuthStore();
@@ -12,6 +13,9 @@ export default function Attendance() {
   });
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('attendance');
+  const [myRequests, setMyRequests] = useState([]);
 
   const fetchAttendance = async () => {
     if (!companyId || !user) return;
@@ -36,8 +40,28 @@ export default function Attendance() {
     }
   };
 
+  const fetchRequests = async () => {
+    if (!companyId || !user) return;
+    try {
+      const q = query(
+        collection(db, `userData/${companyId}/hrNotifications`),
+        where('employeeId', '==', user.uid)
+      );
+      const snap = await getDocs(q);
+      const data = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(req => req.date.startsWith(selectedMonth));
+      
+      data.sort((a, b) => b.date.localeCompare(a.date));
+      setMyRequests(data);
+    } catch (error) {
+      console.error("Error fetching requests:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAttendance();
+    fetchRequests();
   }, [selectedMonth, companyId, user]);
 
   const calculateWorkingDuration = (log) => {
@@ -74,18 +98,40 @@ export default function Attendance() {
           <h1 className="text-3xl font-semibold text-black tracking-tight">My Attendance</h1>
           <p className="text-[15px] text-zinc-500 mt-1.5">View your monthly attendance history.</p>
         </div>
-        <div className="flex items-center gap-2 bg-white px-3 py-2 border border-zinc-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-black/5 focus-within:border-black transition-all">
-          <Calendar className="w-4 h-4 text-zinc-500" />
-          <input 
-            type="month" 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="text-[14px] font-medium text-zinc-800 bg-transparent outline-none cursor-pointer"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button onClick={() => setIsRequestModalOpen(true)} className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <Plus className="w-4 h-4" />
+            Submit Request
+          </button>
+          <div className="flex items-center gap-2 bg-white px-3 py-2 border border-zinc-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-black/5 focus-within:border-black transition-all">
+            <Calendar className="w-4 h-4 text-zinc-500" />
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="text-[14px] font-medium text-zinc-800 bg-transparent outline-none cursor-pointer"
+            />
+          </div>
         </div>
       </header>
 
-      <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+      <div className="flex gap-6 mb-2 border-b border-zinc-200">
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`pb-3 text-[14px] font-semibold border-b-2 transition-colors ${activeTab === 'attendance' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black hover:border-zinc-300'}`}
+        >
+          My Attendance
+        </button>
+        <button
+          onClick={() => setActiveTab('requests')}
+          className={`pb-3 text-[14px] font-semibold border-b-2 transition-colors ${activeTab === 'requests' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black hover:border-zinc-300'}`}
+        >
+          My Requests
+        </button>
+      </div>
+
+      {activeTab === 'attendance' ? (
+        <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
         {loading ? (
           <div className="p-8 flex justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
@@ -175,6 +221,68 @@ export default function Attendance() {
           </div>
         )}
       </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+          {myRequests.length === 0 ? (
+            <div className="p-12 text-center text-zinc-500 text-[14px]">
+              No requests found for {new Date(selectedMonth + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                    <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Type</th>
+                    <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Reason</th>
+                    <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {myRequests.map((req) => (
+                    <tr key={req.id} className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="px-5 py-4 text-[13px] text-zinc-800 whitespace-nowrap">
+                        {new Date(req.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium ${
+                          req.type === 'Leave' ? 'bg-rose-50 text-rose-700' :
+                          req.type === 'WFH' ? 'bg-indigo-50 text-indigo-700' :
+                          'bg-fuchsia-50 text-fuchsia-700'
+                        }`}>
+                          {req.type}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-600 max-w-sm truncate" title={req.reason}>
+                        {req.reason}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium border ${
+                          req.status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                          req.status === 'Rejected' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                          'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        }`}>
+                          {req.status}
+                        </span>
+                        {req.rejectReason && (
+                          <div className="text-[11px] text-rose-600 mt-1 max-w-[200px] truncate" title={req.rejectReason}>
+                            Reason: {req.rejectReason}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      
+      <RequestModal isOpen={isRequestModalOpen} onClose={() => {
+        setIsRequestModalOpen(false);
+        fetchRequests(); // refresh when modal closes
+      }} />
     </div>
   );
 }

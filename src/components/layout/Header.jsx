@@ -1,19 +1,58 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Menu, LogOut, X, Camera } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
-import { storage } from '../../firebase';
+import { storage, db } from '../../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 export function Header() {
   const toggleMobileMenu = useUIStore((s) => s.toggleMobileMenu);
-  const { user, logout, isAdmin, employeeData, updateProfile } = useAuthStore();
+  const { user, logout, isAdmin, isManager, companyId, employeeData, updateProfile } = useAuthStore();
+  const navigate = useNavigate();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
+
+  const [notifications, setNotifications] = useState([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  useEffect(() => {
+    if (!companyId || (!isAdmin && !isManager)) {
+      setNotifications([]);
+      return;
+    }
+    const q = query(
+      collection(db, `userData/${companyId}/hrNotifications`),
+      where('status', '==', 'Pending')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const notifs = [];
+      snapshot.forEach(doc => notifs.push({ id: doc.id, ...doc.data() }));
+      notifs.sort((a, b) => {
+         const tA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+         const tB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+         return tB - tA;
+      });
+      setNotifications(notifs);
+    });
+    return () => unsubscribe();
+  }, [companyId, isAdmin, isManager]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setIsNotifOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const getInitials = (name) => {
     if (!name) return 'OQ';
@@ -84,10 +123,52 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-5 ml-4">
-          <button className="relative p-2 text-zinc-400 hover:text-black transition-colors hidden sm:block">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-black rounded-full border-2 border-[#FBFBFB]"></span>
-          </button>
+          <div className="relative" ref={notifRef}>
+            <button 
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              className="relative p-2 text-zinc-400 hover:text-black transition-colors hidden sm:block"
+            >
+              <Bell className="w-5 h-5" />
+              {notifications.length > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-[#FBFBFB]">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+
+            {isNotifOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-zinc-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                <div className="p-3 border-b border-zinc-100 flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-zinc-900">Notifications</h3>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-zinc-500 text-sm">
+                      No new notifications
+                    </div>
+                  ) : (
+                    notifications.map(notif => (
+                      <div 
+                        key={notif.id}
+                        className="p-3 border-b border-zinc-50 hover:bg-zinc-50 cursor-pointer transition-colors"
+                        onClick={() => {
+                          setIsNotifOpen(false);
+                          navigate('/manage-attendance');
+                        }}
+                      >
+                        <p className="text-[13px] text-zinc-800">
+                          <span className="font-semibold">{notif.employeeName?.includes('@') ? (notif.employeeName === 'contact@oqulix.com' ? 'Admin' : notif.employeeName.split('@')[0]) : notif.employeeName}</span> has applied for <span className="font-medium text-black">{notif.type}</span> on {notif.date}.
+                        </p>
+                        <p className="text-[11px] text-zinc-400 mt-1 truncate">
+                          "{notif.reason}"
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="h-6 w-[1px] bg-zinc-200 hidden sm:block"></div>
           <div className="flex items-center gap-1 sm:gap-2">
              <button 

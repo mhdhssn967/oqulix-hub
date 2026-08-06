@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
-import { Clock, CheckSquare, Calendar, CreditCard, ChevronRight, ChevronLeft, LayoutDashboard, User, ArrowUpRight, TrendingUp, Sparkles, CheckCircle, Laptop, Map, CalendarMinus, AlertCircle, X } from 'lucide-react';
+import { Clock, CheckSquare, Calendar, CreditCard, ChevronRight, ChevronLeft, LayoutDashboard, User, ArrowUpRight, TrendingUp, Sparkles, CheckCircle, Laptop, Map, CalendarMinus, AlertCircle, X, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import RequestModal from '../components/RequestModal';
 
 export default function Dashboard() {
   const { user, isAdmin, employeeData, companyId, permissions } = useAuthStore();
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [customHolidays, setCustomHolidays] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   const userName = isAdmin ? 'Admin' : (employeeData?.name || 'User');
   const todayDate = new Date().toISOString().split('T')[0];
@@ -302,8 +304,11 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Optional: Add header action buttons here if needed in the future */}
+        <div className="flex items-center gap-3 shrink-0 self-start md:self-end">
+          <button onClick={() => setIsRequestModalOpen(true)} className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
+            <Plus className="w-4 h-4" />
+            Submit Request
+          </button>
         </div>
       </header>
 
@@ -597,6 +602,8 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      
+      <RequestModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} />
     </div>
   );
 }

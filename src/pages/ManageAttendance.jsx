@@ -3,6 +3,7 @@ import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } 
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 function TimePicker12Hour({ value, onChange }) {
   let initialHour = '';
@@ -121,6 +122,106 @@ export default function ManageAttendance() {
   const [leaveSearchQuery, setLeaveSearchQuery] = useState('');
   const [selectedLeaveEmployeeIds, setSelectedLeaveEmployeeIds] = useState([]);
   const [leaveReason, setLeaveReason] = useState('Sick Leave');
+
+  const [activeTab, setActiveTab] = useState('attendance');
+  const [hrRequests, setHrRequests] = useState([]);
+
+  const fetchRequests = async () => {
+    if (!companyId) return;
+    try {
+      const snap = await getDocs(collection(db, `userData/${companyId}/hrNotifications`));
+      const reqs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      reqs.sort((a, b) => {
+         const tA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+         const tB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+         return tB - tA;
+      });
+      setHrRequests(reqs);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAcceptRequest = async (req) => {
+    if (!companyId) return;
+    try {
+      const batch = writeBatch(db);
+      
+      const notifRef = doc(db, `userData/${companyId}/hrNotifications`, req.id);
+      batch.set(notifRef, { status: 'Accepted' }, { merge: true });
+
+      const docId = `${req.date}_${req.employeeId}`;
+      const attRef = doc(db, `userData/${companyId}/attendanceLogs`, docId);
+
+      if (req.type === 'Leave') {
+        batch.set(attRef, {
+          employeeId: req.employeeId,
+          employeeName: req.employeeName,
+          date: req.date,
+          status: 'On Leave',
+          leaveReason: req.reason
+        }, { merge: true });
+      } else {
+        const [year, month, day] = req.date.split('-');
+        const customDate = new Date();
+        customDate.setFullYear(parseInt(year, 10));
+        customDate.setMonth(parseInt(month, 10) - 1);
+        customDate.setDate(parseInt(day, 10));
+        customDate.setHours(9, 0, 0, 0); 
+
+        batch.set(attRef, {
+          employeeId: req.employeeId,
+          employeeName: req.employeeName,
+          date: req.date,
+          clockedInAt: customDate,
+          status: 'Present',
+          workType: req.type,
+          breaks: []
+        }, { merge: true });
+      }
+
+      await batch.commit();
+      Swal.fire({ title: 'Accepted', text: 'Request accepted and attendance updated.', icon: 'success', timer: 2000, showConfirmButton: false });
+      fetchRequests();
+      fetchData();
+    } catch (error) {
+      console.error("Error accepting request", error);
+      Swal.fire('Error', 'Failed to accept request', 'error');
+    }
+  };
+
+  const handleRejectRequest = async (req) => {
+    if (!companyId) return;
+    const { value: reason } = await Swal.fire({
+      title: 'Reject Request',
+      input: 'text',
+      inputLabel: 'Reason for Rejection',
+      inputPlaceholder: 'Enter reason...',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      inputValidator: (value) => {
+        if (!value) return 'You need to write something!';
+      }
+    });
+
+    if (reason) {
+      try {
+        const notifRef = doc(db, `userData/${companyId}/hrNotifications`, req.id);
+        await setDoc(notifRef, { status: 'Rejected', rejectReason: reason }, { merge: true });
+        Swal.fire({ title: 'Rejected', text: 'Request has been rejected.', icon: 'success', timer: 2000, showConfirmButton: false });
+        fetchRequests();
+      } catch (error) {
+        console.error("Error rejecting request", error);
+        Swal.fire('Error', 'Failed to reject request', 'error');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'requests') {
+      fetchRequests();
+    }
+  }, [activeTab, companyId]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -358,8 +459,23 @@ export default function ManageAttendance() {
         </div>
       </header>
 
-      {/* Clocked In List */}
-      <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+      <div className="flex gap-6 mb-2">
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`pb-3 text-[14px] font-semibold border-b-2 transition-colors ${activeTab === 'attendance' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black'}`}
+        >
+          Live Attendance
+        </button>
+        <button
+          onClick={() => setActiveTab('requests')}
+          className={`pb-3 text-[14px] font-semibold border-b-2 transition-colors ${activeTab === 'requests' ? 'border-black text-black' : 'border-transparent text-zinc-500 hover:text-black'}`}
+        >
+          Employee Requests
+        </button>
+      </div>
+
+      {activeTab === 'attendance' ? (
+        <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
         {loading ? (
           <div className="p-8 flex justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
@@ -560,6 +676,80 @@ export default function ManageAttendance() {
           </div>
         )}
       </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+          {hrRequests.length === 0 ? (
+            <div className="p-12 text-center text-zinc-500 text-[14px]">
+              No employee requests found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-zinc-50/50 border-b border-zinc-200/80">
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Employee</th>
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Type</th>
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Date</th>
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Reason</th>
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Status</th>
+                    <th className="px-5 py-3 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {hrRequests.map((req) => (
+                    <tr key={req.id} className="hover:bg-zinc-50/50 transition-colors">
+                      <td className="px-5 py-4">
+                        <span className="text-[14px] font-semibold text-zinc-900">{req.employeeName?.includes('@') ? (req.employeeName === 'contact@oqulix.com' ? 'Admin' : req.employeeName.split('@')[0]) : req.employeeName}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium ${
+                          req.type === 'Leave' ? 'bg-rose-50 text-rose-700' :
+                          req.type === 'WFH' ? 'bg-indigo-50 text-indigo-700' :
+                          'bg-fuchsia-50 text-fuchsia-700'
+                        }`}>
+                          {req.type}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-600 whitespace-nowrap">
+                        {new Date(req.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-4 text-[13px] text-zinc-600 max-w-xs truncate" title={req.reason}>
+                        {req.reason}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium ${
+                          req.status === 'Pending' ? 'bg-amber-50 text-amber-700' :
+                          req.status === 'Rejected' ? 'bg-rose-50 text-rose-700' :
+                          'bg-emerald-50 text-emerald-700'
+                        }`}>
+                          {req.status}
+                        </span>
+                        {req.rejectReason && (
+                          <div className="text-[10px] text-rose-600 mt-1 max-w-[120px] truncate" title={req.rejectReason}>
+                            Reason: {req.rejectReason}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {req.status === 'Pending' && (
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => handleAcceptRequest(req)} className="px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200">
+                              Accept
+                            </button>
+                            <button onClick={() => handleRejectRequest(req)} className="px-3 py-1.5 text-[12px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-md transition-colors border border-rose-200">
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Clock In Modal */}
       {isModalOpen && (
