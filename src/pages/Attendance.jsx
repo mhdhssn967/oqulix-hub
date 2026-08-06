@@ -42,6 +42,7 @@ export default function Attendance() {
 
   const calculateWorkingDuration = (log) => {
     if (log.status === 'On Leave') return '0h 0m';
+    if (log.workType === 'Field') return 'N/A';
     if (!log.clockedInAt) return '-';
 
     let totalMs = 0;
@@ -102,8 +103,7 @@ export default function Attendance() {
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Date</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Work Type</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Clock In</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Clock Out</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Time (In - Out)</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Working Hours</th>
                 </tr>
               </thead>
@@ -117,16 +117,25 @@ export default function Attendance() {
                   }
                   if (log.status === 'Clocked Out') statusColor = "bg-zinc-100 text-zinc-600 border-zinc-200";
 
-                  let clockInStr = '-';
-                  if (log.clockedInAt && log.status !== 'On Leave') {
-                    const d = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
-                    clockInStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                  }
-                  
-                  let clockOutStr = '-';
-                  if (log.clockedOutAt && log.status !== 'On Leave') {
-                    const d = log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt);
-                    clockOutStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  let timeStr = 'N/A';
+                  if (log.status !== 'On Leave') {
+                    let inStr = '-';
+                    if (log.clockedInAt) {
+                      const dIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+                      inStr = dIn.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    }
+                    
+                    if (log.workType === 'Field') {
+                      timeStr = inStr;
+                    } else {
+                      let outStr = 'Ongoing';
+                      if (log.clockedOutAt) {
+                        const dOut = log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt);
+                        outStr = dOut.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      }
+                      
+                      timeStr = `${inStr} - ${outStr}`;
+                    }
                   }
 
                   const [y, m, d] = log.date.split('-');
@@ -149,11 +158,8 @@ export default function Attendance() {
                           {log.status}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
-                        <span className="text-[13px] font-medium text-zinc-700">{clockInStr}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-[13px] font-medium text-zinc-700">{clockOutStr}</span>
+                      <td className="px-5 py-4 text-[13px] font-medium text-zinc-600">
+                        {timeStr}
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-[13px] font-semibold text-zinc-900">{calculateWorkingDuration(log)}</span>

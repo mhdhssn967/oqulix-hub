@@ -4,6 +4,97 @@ import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus } from 'lucide-react';
 
+function TimePicker12Hour({ value, onChange }) {
+  let initialHour = '';
+  let initialMinute = '';
+  let initialAmpm = 'AM';
+  
+  if (value) {
+    const [h, m] = value.split(':');
+    let hr = parseInt(h, 10);
+    initialMinute = m;
+    if (hr >= 12) {
+      initialAmpm = 'PM';
+      if (hr > 12) hr -= 12;
+    } else {
+      initialAmpm = 'AM';
+      if (hr === 0) hr = 12;
+    }
+    initialHour = hr.toString().padStart(2, '0');
+  }
+
+  const [hour, setHour] = useState(initialHour);
+  const [minute, setMinute] = useState(initialMinute);
+  const [ampm, setAmpm] = useState(initialAmpm);
+
+  useEffect(() => {
+    if (value === '') {
+      setHour('');
+      setMinute('');
+      setAmpm('AM');
+    }
+  }, [value]);
+
+  const handleChange = (h, m, ap) => {
+    if (!h || !m) {
+      onChange('');
+      return;
+    }
+    let hr = parseInt(h, 10);
+    if (ap === 'PM' && hr < 12) hr += 12;
+    if (ap === 'AM' && hr === 12) hr = 0;
+    
+    onChange(`${hr.toString().padStart(2, '0')}:${m.padStart(2, '0')}`);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <select 
+        value={hour} 
+        onChange={(e) => {
+          setHour(e.target.value);
+          handleChange(e.target.value, minute, ampm);
+        }}
+        className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all flex-1 cursor-pointer"
+      >
+        <option value="">HH</option>
+        {[...Array(12)].map((_, i) => (
+          <option key={i+1} value={(i+1).toString().padStart(2, '0')}>
+            {(i+1).toString().padStart(2, '0')}
+          </option>
+        ))}
+      </select>
+      <span className="text-zinc-400 font-bold">:</span>
+      <select 
+        value={minute} 
+        onChange={(e) => {
+          setMinute(e.target.value);
+          handleChange(hour, e.target.value, ampm);
+        }}
+        className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all flex-1 cursor-pointer"
+      >
+        <option value="">MM</option>
+        {[...Array(60)].map((_, i) => (
+          <option key={i} value={i.toString().padStart(2, '0')}>
+            {i.toString().padStart(2, '0')}
+          </option>
+        ))}
+      </select>
+      <select 
+        value={ampm} 
+        onChange={(e) => {
+          setAmpm(e.target.value);
+          handleChange(hour, minute, e.target.value);
+        }}
+        className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all w-20 cursor-pointer"
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
 export default function ManageAttendance() {
   const { user, companyId } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -286,7 +377,7 @@ export default function ManageAttendance() {
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Employee Name</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Type</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Clocked In At</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Time (In - Out)</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Breaks</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Working Hours</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
@@ -298,7 +389,19 @@ export default function ManageAttendance() {
                   let durationStr = '--';
                   if (log.clockedInAt) {
                     const clockedInDate = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
-                    timeStr = clockedInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const clockInStr = clockedInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    
+                    let clockOutStr = 'Ongoing';
+                    if (log.clockedOutAt) {
+                      const clockedOutDate = log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt);
+                      clockOutStr = clockedOutDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    }
+                    
+                    if (log.workType === 'Field') {
+                      timeStr = clockInStr;
+                    } else {
+                      timeStr = `${clockInStr} - ${clockOutStr}`;
+                    }
                     
                     const isToday = selectedDate === getTodayStr();
                     let endReferenceTime = currentTime;
@@ -347,6 +450,10 @@ export default function ManageAttendance() {
                       }
                     } else {
                       durationStr = 'Ongoing (No clock-out)';
+                    }
+                    
+                    if (log.workType === 'Field') {
+                      durationStr = 'N/A';
                     }
                   }
 
@@ -412,7 +519,7 @@ export default function ManageAttendance() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {log.status === 'Present' && (
+                          {log.status === 'Present' && log.workType !== 'Field' && (
                             <>
                               <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Tea', reason: 'Tea Break', time: '' })} className="p-1.5 text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors" title="Tea Break">
                                 <Coffee className="w-4 h-4" />
@@ -423,10 +530,13 @@ export default function ManageAttendance() {
                               <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Custom', reason: '', time: '' })} className="p-1.5 text-zinc-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Other Break">
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleAction(log.id, 'ClockOut')} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Clock Out">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'ClockOut', reason: 'Clock Out', time: '' })} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Clock Out">
                                 <LogOut className="w-4 h-4" />
                               </button>
                             </>
+                          )}
+                          {log.status === 'Present' && log.workType === 'Field' && (
+                            <span className="text-[12px] text-zinc-400 font-medium italic">On Field</span>
                           )}
                           {log.status.startsWith('On ') && (
                             <button onClick={() => handleAction(log.id, 'Resume')} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200">
@@ -466,11 +576,9 @@ export default function ManageAttendance() {
             <div className="p-4 shrink-0 border-b border-zinc-100 bg-zinc-50/50 flex flex-col gap-3">
               <div>
                 <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Clock In Time (Leave empty for current time)</label>
-                <input 
-                  type="time"
+                <TimePicker12Hour 
                   value={clockInTime}
-                  onChange={(e) => setClockInTime(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                  onChange={setClockInTime}
                 />
               </div>
               <div className="relative">
@@ -574,8 +682,12 @@ export default function ManageAttendance() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setBreakPrompt({ isOpen: false, logId: null, type: '', reason: '', time: '' })}></div>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col p-5">
-            <h3 className="text-[16px] font-semibold text-zinc-900 mb-2">{breakPrompt.type === 'Custom' ? 'Custom Break' : `${breakPrompt.reason}`}</h3>
-            <p className="text-[13px] text-zinc-500 mb-4">Please confirm {breakPrompt.type === 'Custom' ? 'and enter the reason for' : ''} this break.</p>
+            <h3 className="text-[16px] font-semibold text-zinc-900 mb-2">
+              {breakPrompt.type === 'Custom' ? 'Custom Break' : (breakPrompt.type === 'ClockOut' ? 'Clock Out' : `${breakPrompt.reason}`)}
+            </h3>
+            <p className="text-[13px] text-zinc-500 mb-4">
+              Please confirm {breakPrompt.type === 'Custom' ? 'and enter the reason for' : ''} this {breakPrompt.type === 'ClockOut' ? 'action' : 'break'}.
+            </p>
             
             {breakPrompt.type === 'Custom' && (
               <div className="mb-4">
@@ -593,11 +705,9 @@ export default function ManageAttendance() {
 
             <div className="mb-4">
               <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Start Time (Leave empty for current time)</label>
-              <input 
-                type="time"
+              <TimePicker12Hour 
                 value={breakPrompt.time}
-                onChange={(e) => setBreakPrompt(prev => ({ ...prev, time: e.target.value }))}
-                className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                onChange={(newTime) => setBreakPrompt(prev => ({ ...prev, time: newTime }))}
               />
             </div>
 
@@ -615,9 +725,9 @@ export default function ManageAttendance() {
                   handleAction(breakPrompt.logId, breakType, breakPrompt.time);
                   setBreakPrompt({ isOpen: false, logId: null, type: '', reason: '', time: '' });
                 }}
-                className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`py-2 px-4 text-[13px] font-semibold text-white ${breakPrompt.type === 'ClockOut' ? 'bg-red-600 hover:bg-red-700' : 'bg-black hover:bg-zinc-800'} rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Start Break
+                {breakPrompt.type === 'ClockOut' ? 'Confirm Clock Out' : 'Start Break'}
               </button>
             </div>
           </div>
