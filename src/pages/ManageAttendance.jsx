@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { Link } from 'react-router-dom';
 
 function TimePicker12Hour({ value, onChange }) {
   let initialHour = '';
@@ -439,6 +440,13 @@ export default function ManageAttendance() {
               className="pl-9 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-[13px] font-medium focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all shadow-sm cursor-pointer"
             />
           </div>
+          <Link
+            to="/attendance-analysis"
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-800 rounded-xl text-[14px] font-semibold hover:bg-zinc-200 transition-colors shadow-sm"
+          >
+            <BarChart2 className="w-4 h-4" />
+            Analysis
+          </Link>
           <button
             onClick={() => setIsLeaveModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 text-zinc-700 rounded-xl text-[14px] font-semibold hover:bg-zinc-50 transition-colors shadow-sm"

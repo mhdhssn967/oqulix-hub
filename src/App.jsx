@@ -14,6 +14,7 @@ import Tasks from './pages/Tasks';
 import TaskManagement from './pages/TaskManagement';
 import Attendance from './pages/Attendance';
 import ManageAttendance from './pages/ManageAttendance';
+import EmployeeAttendanceAnalysis from './pages/EmployeeAttendanceAnalysis';
 import Performance from './pages/Performance';
 import Clients from './pages/Clients';
 import Analysis from './pages/Analysis';
@@ -112,6 +113,7 @@ function App() {
           <Route path="task-manager" element={<PermissionRoute permissionLabel="Task Manager"><TaskManagement /></PermissionRoute>} />
           <Route path="attendance" element={<Attendance />} />
           <Route path="manage-attendance" element={<ManageAttendance />} />
+          <Route path="attendance-analysis" element={<PermissionRoute permissionLabel="Attendance"><EmployeeAttendanceAnalysis /></PermissionRoute>} />
           <Route path="employees" element={<PermissionRoute permissionLabel="Employees"><Employees /></PermissionRoute>} />
           <Route path="performance" element={<Performance />} />
           <Route path="clients" element={<Clients />} />
