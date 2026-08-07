@@ -54,7 +54,7 @@ export function Sidebar() {
 
   const hasPermission = (label) => {
     if (label === 'Dashboard') return true; // Always visible
-    if (isAdmin) return true;
+    if (isAdmin || isManager) return true;
     
     if (permissions && permissions.length > 0) {
       return permissions.includes(label);

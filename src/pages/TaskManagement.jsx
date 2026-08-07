@@ -623,12 +623,11 @@ export default function TaskManagement() {
               <div>
                 <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Completion Notes</label>
                 <textarea 
-                  required 
                   value={completionNote} 
                   onChange={(e) => setCompletionNote(e.target.value)} 
                   rows={4} 
                   className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-2.5 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-none" 
-                  placeholder="I have finished the report..." 
+                  placeholder="I have finished the report... (optional)" 
                 />
               </div>
 

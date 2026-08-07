@@ -49,9 +49,9 @@ const AdminRoute = ({ children }) => {
 
 // Permission Route Wrapper
 const PermissionRoute = ({ children, permissionLabel }) => {
-  const { isAdmin, permissions } = useAuthStore();
+  const { isAdmin, isManager, permissions } = useAuthStore();
   
-  if (isAdmin) return children;
+  if (isAdmin || isManager) return children;
   
   if (permissions && permissions.includes(permissionLabel)) {
     return children;
