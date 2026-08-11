@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2 } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
 
@@ -105,9 +105,14 @@ export default function ManageAttendance() {
   
   // Get today's date in YYYY-MM-DD
   const getTodayStr = () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().split('T')[0];
+    const today = new Date();
+    today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+    return today.toISOString().split('T')[0];
+  };
+
+  const getCurrentTimeStr = () => {
+    const now = new Date();
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   };
 
   const [selectedDate, setSelectedDate] = useState(getTodayStr());
@@ -116,7 +121,46 @@ export default function ManageAttendance() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: '' });
+  const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: getCurrentTimeStr() });
+  const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' });
+
+  const getTimeStrFromDate = (d) => {
+    if (!d) return '';
+    const dateObj = d.toDate ? d.toDate() : new Date(d);
+    return `${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const { log, clockInTime, clockOutTime, workType } = editLogPrompt;
+      let updateData = { workType };
+      
+      const [year, month, day] = log.date.split('-');
+      
+      if (clockInTime) {
+        const [h, m] = clockInTime.split(':');
+        updateData.clockedInAt = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(h, 10), parseInt(m, 10), 0);
+      }
+      
+      if (clockOutTime) {
+        const [h, m] = clockOutTime.split(':');
+        updateData.clockedOutAt = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(h, 10), parseInt(m, 10), 0);
+      }
+
+      await setDoc(doc(db, `userData/${companyId}/attendanceLogs`, log.id), updateData, { merge: true });
+      
+      Swal.fire({ title: 'Success', text: 'Attendance updated successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
+      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      Swal.fire({ title: 'Error', text: 'Failed to update attendance.', icon: 'error' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const [clockInTime, setClockInTime] = useState('');
 
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
@@ -456,7 +500,7 @@ export default function ManageAttendance() {
           </button>
           <button
             onClick={() => {
-              setClockInTime('');
+              setClockInTime(getCurrentTimeStr());
               setIsModalOpen(true);
             }}
             className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[14px] font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
@@ -643,18 +687,21 @@ export default function ManageAttendance() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex justify-end gap-2">
+                          <button onClick={() => setEditLogPrompt({ isOpen: true, log, clockInTime: getTimeStrFromDate(log.clockedInAt), clockOutTime: getTimeStrFromDate(log.clockedOutAt), workType: log.workType || 'Office' })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Log">
+                            <Pencil className="w-4 h-4" />
+                          </button>
                           {log.status === 'Present' && log.workType !== 'Field' && (
                             <>
-                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Tea', reason: 'Tea Break', time: '' })} className="p-1.5 text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors" title="Tea Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Tea', reason: 'Tea Break', time: getCurrentTimeStr() })} className="p-1.5 text-zinc-500 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors" title="Tea Break">
                                 <Coffee className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Lunch', reason: 'Lunch Break', time: '' })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Lunch Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Lunch', reason: 'Lunch Break', time: getCurrentTimeStr() })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Lunch Break">
                                 <Utensils className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Custom', reason: '', time: '' })} className="p-1.5 text-zinc-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Other Break">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'Custom', reason: '', time: getCurrentTimeStr() })} className="p-1.5 text-zinc-500 hover:text-purple-600 hover:bg-purple-50 rounded-md transition-colors" title="Other Break">
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'ClockOut', reason: 'Clock Out', time: '' })} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Clock Out">
+                              <button onClick={() => setBreakPrompt({ isOpen: true, logId: log.id, type: 'ClockOut', reason: 'Clock Out', time: getCurrentTimeStr() })} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Clock Out">
                                 <LogOut className="w-4 h-4" />
                               </button>
                             </>
@@ -1041,6 +1088,69 @@ export default function ManageAttendance() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Log Modal */}
+      {editLogPrompt.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+            <form onSubmit={handleEditSubmit}>
+              <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
+                <h2 className="text-[15px] font-semibold text-zinc-900">Edit Attendance</h2>
+                <button type="button" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })} className="text-zinc-400 hover:text-black transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="p-4 shrink-0 border-b border-zinc-100 bg-zinc-50/50 flex flex-col gap-4">
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Clock In Time</label>
+                  <TimePicker12Hour 
+                    value={editLogPrompt.clockInTime}
+                    onChange={(val) => setEditLogPrompt(p => ({ ...p, clockInTime: val }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Clock Out Time</label>
+                  <TimePicker12Hour 
+                    value={editLogPrompt.clockOutTime}
+                    onChange={(val) => setEditLogPrompt(p => ({ ...p, clockOutTime: val }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Work Type</label>
+                  <select
+                    value={editLogPrompt.workType}
+                    onChange={(e) => setEditLogPrompt(p => ({ ...p, workType: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Office">Office</option>
+                    <option value="WFH">WFH</option>
+                    <option value="Field">Field</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 p-4 bg-white">
+                <button 
+                  type="button"
+                  onClick={() => setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })}
+                  className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

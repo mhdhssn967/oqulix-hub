@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export default function AddTransactionModal({ isOpen, onClose, preferences, onSuccess, transactionToEdit }) {
   const [tab, setTab] = useState('debit'); // 'debit' | 'credit'
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     source: '',
@@ -90,11 +91,14 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
 
       if (transactionToEdit) {
         await updateDoc(doc(db, `userData/${userId}/financialData`, transactionToEdit.id), payload);
+        onSuccess();
+        onClose();
       } else {
         await addDoc(collection(db, `userData/${userId}/financialData`), payload);
+        onSuccess();
+        setIsSuccess(true);
+        setTimeout(() => setIsSuccess(false), 2000);
       }
-      onSuccess();
-      onClose();
     } catch (error) {
       console.error("Error saving transaction:", error);
       alert("Error saving transaction");
@@ -283,10 +287,12 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
           <button
             form="transaction-form"
             type="submit"
-            disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white bg-black rounded-xl hover:bg-black/90 focus:outline-none focus:ring-2 focus:ring-black/5 focus:ring-offset-2 transition-colors disabled:opacity-50"
+            disabled={loading || isSuccess}
+            className={`px-4 py-2 text-sm font-medium flex items-center justify-center min-w-[130px] text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${isSuccess ? 'bg-green-600 hover:bg-green-700 focus:ring-green-600/50 opacity-100' : 'bg-black hover:bg-black/90 focus:ring-black/5 disabled:opacity-50'}`}
           >
-            {loading ? (transactionToEdit ? 'Saving...' : 'Adding...') : (transactionToEdit ? 'Save Changes' : 'Add Transaction')}
+            {isSuccess ? (
+              <Check className="w-5 h-5 animate-tick" />
+            ) : loading ? 'Saving...' : (transactionToEdit ? 'Save Changes' : 'Add Transaction')}
           </button>
         </div>
       </div>
