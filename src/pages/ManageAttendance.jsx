@@ -486,7 +486,7 @@ export default function ManageAttendance() {
           </div>
           <Link
             to="/attendance-analysis"
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-800 rounded-xl text-[14px] font-semibold hover:bg-zinc-200 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[14px] font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
           >
             <BarChart2 className="w-4 h-4" />
             Analysis
