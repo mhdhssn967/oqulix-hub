@@ -398,6 +398,11 @@ export default function Tasks() {
                         {task.description && (
                           <div className="text-[13px] text-zinc-500 line-clamp-1 max-w-md">{task.description}</div>
                         )}
+                        {task.status === 'Completed' && task.completedAt && (
+                          <div className="text-[11px] font-bold text-emerald-600 mt-1">
+                            Completed: {new Date(task.completedAt.toMillis ? task.completedAt.toMillis() : (task.completedAt.seconds * 1000)).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
+                          </div>
+                        )}
                         {task.completionNote && (
                           <div className="text-[12px] text-emerald-600 font-medium line-clamp-1 max-w-md mt-1">Note: {task.completionNote}</div>
                         )}

@@ -878,42 +878,54 @@ export default function ManageAttendance() {
               )}
             </div>
 
-            <div className="p-4 shrink-0 border-t border-zinc-100 flex items-center justify-between bg-white">
-              <span className="text-[13px] font-medium text-zinc-600">
+            <div className="p-4 shrink-0 border-t border-zinc-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white gap-4">
+              <span className="text-[13px] font-medium text-zinc-600 hidden sm:inline-block">
                 {selectedEmployeeIds.length} selected
               </span>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto items-stretch sm:items-center">
+                <div className="flex items-center justify-between sm:hidden">
+                  <span className="text-[13px] font-medium text-zinc-600">
+                    {selectedEmployeeIds.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors mr-2"
+                  className="hidden sm:block py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
-                <div className="flex gap-2 border-l border-zinc-200 pl-4">
+                <div className="flex gap-2 sm:border-l sm:border-zinc-200 sm:pl-4 justify-between sm:justify-start">
                   <button
                     onClick={() => handleClockIn('WFH')}
                     disabled={isSubmitting || selectedEmployeeIds.length === 0}
-                    className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex-1 sm:flex-none py-2 px-2 sm:px-4 text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2"
                   >
-                    <Home className="w-4 h-4 text-zinc-500" />
-                    WFH
+                    <Home className="w-4 h-4 text-zinc-500 shrink-0" />
+                    <span>WFH</span>
                   </button>
                   <button
                     onClick={() => handleClockIn('Field')}
                     disabled={isSubmitting || selectedEmployeeIds.length === 0}
-                    className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex-1 sm:flex-none py-2 px-2 sm:px-4 text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2"
                   >
-                    <MapPin className="w-4 h-4 text-zinc-500" />
-                    Field
+                    <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
+                    <span>Field</span>
                   </button>
                   <button
                     onClick={() => handleClockIn('Office')}
                     disabled={isSubmitting || selectedEmployeeIds.length === 0}
-                    className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                    className="flex-1 sm:flex-none py-2 px-2 sm:px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm"
                   >
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
-                    Office
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Building2 className="w-4 h-4 shrink-0" />}
+                    <span>Office</span>
                   </button>
                 </div>
               </div>
@@ -1066,25 +1078,37 @@ export default function ManageAttendance() {
               )}
             </div>
 
-            <div className="p-4 shrink-0 border-t border-zinc-100 flex items-center justify-between bg-white">
-              <span className="text-[13px] font-medium text-zinc-600">
+            <div className="p-4 shrink-0 border-t border-zinc-100 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white gap-4">
+              <span className="text-[13px] font-medium text-zinc-600 hidden sm:inline-block">
                 {selectedLeaveEmployeeIds.length} selected
               </span>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 w-full sm:w-auto items-stretch sm:items-center">
+                <div className="flex items-center justify-between sm:hidden">
+                  <span className="text-[13px] font-medium text-zinc-600">
+                    {selectedLeaveEmployeeIds.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsLeaveModalOpen(false)}
+                    className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsLeaveModalOpen(false)}
-                  className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                  className="hidden sm:block py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleMarkLeave}
                   disabled={isSubmitting || selectedLeaveEmployeeIds.length === 0 || !leaveReason.trim()}
-                  className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarMinus className="w-4 h-4" />}
-                  Confirm Leave
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <CalendarMinus className="w-4 h-4 shrink-0" />}
+                  <span>Confirm Leave</span>
                 </button>
               </div>
             </div>

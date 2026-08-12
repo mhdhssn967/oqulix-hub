@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, getDocs, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
-import { Plus, X, Calendar, CheckCircle, Trash2, ArrowRight, LayoutGrid, List } from 'lucide-react';
+import { Plus, X, Calendar, CheckCircle, Trash2, ArrowRight, LayoutGrid, List, Search } from 'lucide-react';
 
 export default function TaskManagement() {
+  const navigate = useNavigate();
   const { user, companyId } = useAuthStore();
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
   const [filterPerson, setFilterPerson] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('kanban'); // 'list' | 'kanban'
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -211,6 +214,12 @@ export default function TaskManagement() {
     if (filterStatus !== 'All' && task.status !== filterStatus) return false;
     if (filterPriority !== 'All' && task.priority !== filterPriority) return false;
     if (filterPerson !== 'All' && task.assignedToName !== filterPerson) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchesTitle = task.title?.toLowerCase().includes(q);
+      const matchesDesc = task.description?.toLowerCase().includes(q);
+      if (!matchesTitle && !matchesDesc) return false;
+    }
     return true;
   });
 
@@ -297,6 +306,17 @@ export default function TaskManagement() {
                 <option key={person} value={person}>{person}</option>
               ))}
             </select>
+          </div>
+
+          <div className="flex items-center gap-2 w-full xl:w-auto relative ml-auto xl:mr-2">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3" />
+            <input 
+              type="text" 
+              placeholder="Search tasks..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full xl:w-64 bg-white border border-zinc-200 rounded-lg pl-9 pr-3 py-1.5 text-xs text-zinc-700 focus:outline-none focus:border-zinc-400 transition-colors shadow-sm"
+            />
           </div>
           
           {/* View Mode Toggle */}
@@ -436,7 +456,10 @@ export default function TaskManagement() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full items-start">
               {['To Do', 'In Progress', 'Completed'].map(columnStatus => {
-                const columnTasks = currentList.filter(t => t.status === columnStatus);
+                const allColumnTasks = currentList.filter(t => t.status === columnStatus);
+                const hasMoreCompleted = columnStatus === 'Completed' && allColumnTasks.length > 6;
+                const columnTasks = columnStatus === 'Completed' ? allColumnTasks.slice(0, 6) : allColumnTasks;
+                
                 return (
                   <div key={columnStatus} className="bg-zinc-100/50 rounded-2xl p-4 min-h-[500px] border border-zinc-200/80 flex flex-col gap-4">
                     <div className="flex items-center justify-between shrink-0 px-2">
@@ -448,7 +471,7 @@ export default function TaskManagement() {
                         }`} />
                         <h3 className="font-bold text-zinc-900 text-[15px]">{columnStatus}</h3>
                       </div>
-                      <span className="bg-white text-zinc-600 text-xs font-semibold px-2.5 py-0.5 rounded-full shadow-sm border border-zinc-200">{columnTasks.length}</span>
+                      <span className="bg-white text-zinc-600 text-xs font-semibold px-2.5 py-0.5 rounded-full shadow-sm border border-zinc-200">{allColumnTasks.length}</span>
                     </div>
 
                     <div className="flex flex-col gap-3">
@@ -490,8 +513,13 @@ export default function TaskManagement() {
                               )}
                             </div>
                             
-                            {(task.completionNote || task.totalTimeSpentMs > 0) && (
+                            {(task.completionNote || task.totalTimeSpentMs > 0 || (task.status === 'Completed' && task.completedAt)) && (
                               <div className="flex flex-col gap-1 mt-1 bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                                {task.status === 'Completed' && task.completedAt && (
+                                  <div className="text-[10px] font-bold text-emerald-600">
+                                    Completed: {new Date(task.completedAt.toMillis ? task.completedAt.toMillis() : (task.completedAt.seconds * 1000)).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}
+                                  </div>
+                                )}
                                 {task.completionNote && (
                                   <div className="text-[11px] text-emerald-600 font-medium line-clamp-1">Note: {task.completionNote}</div>
                                 )}
@@ -507,16 +535,16 @@ export default function TaskManagement() {
                           {task.status !== 'Completed' && (
                             <div className="grid grid-cols-2 gap-2 mt-1">
                               {task.status === 'To Do' && (
-                                <button onClick={() => updateStatus(task, 'In Progress')} className="col-span-1 px-2 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
+                                <button onClick={() => updateStatus(task, 'In Progress')} className="col-span-2 px-2 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
                                   Start Task
                                 </button>
                               )}
                               {task.status === 'In Progress' && (
-                                <button onClick={() => updateStatus(task, 'To Do')} className="col-span-1 px-2 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
+                                <button onClick={() => updateStatus(task, 'To Do')} className="col-span-2 px-2 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors rounded-lg text-[11px] font-semibold text-center">
                                   Pause
                                 </button>
                               )}
-                              <button onClick={() => setCompletingTask(task)} className={`px-2 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors rounded-lg text-[11px] font-semibold text-center flex items-center justify-center gap-1 ${task.status === 'In Progress' ? 'col-span-1' : 'col-span-2'}`}>
+                              <button onClick={() => setCompletingTask(task)} className="col-span-2 px-2 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors rounded-lg text-[11px] font-semibold text-center flex items-center justify-center gap-1">
                                 <CheckCircle className="w-3 h-3" /> Complete
                               </button>
                             </div>
@@ -527,6 +555,14 @@ export default function TaskManagement() {
                         <div className="flex items-center justify-center py-10 border-2 border-dashed border-zinc-200/80 rounded-xl">
                           <span className="text-xs font-medium text-zinc-400">No tasks</span>
                         </div>
+                      )}
+                      {hasMoreCompleted && (
+                        <button 
+                          onClick={() => navigate('/completed-tasks')}
+                          className="mt-2 w-full py-2.5 bg-white border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 text-zinc-600 font-semibold text-[13px] rounded-xl transition-colors shadow-sm"
+                        >
+                          Show More Completed Tasks
+                        </button>
                       )}
                     </div>
                   </div>

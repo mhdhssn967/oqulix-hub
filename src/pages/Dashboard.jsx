@@ -277,32 +277,34 @@ export default function Dashboard() {
           </p>
 
           {/* Quick Stats Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
-              <Calendar className="w-3.5 h-3.5" /> Working Days: {stats.totalWorkingDays}
-            </div>
-            <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
-              <CheckCircle className="w-3.5 h-3.5" /> Present: {stats.totalPresent} / {stats.workingDaysPassed}
-            </div>
-            <div className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-100 flex items-center gap-1.5 whitespace-nowrap">
-              <CalendarMinus className="w-3.5 h-3.5" /> Leaves: {stats.leaveCount}
-            </div>
-            {stats.wfhCount > 0 && (
-              <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
-                <Laptop className="w-3.5 h-3.5" /> WFH: {stats.wfhCount}
+          {!isAdmin && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
+                <Calendar className="w-3.5 h-3.5" /> Working Days: {stats.totalWorkingDays}
               </div>
-            )}
-            {stats.fieldCount > 0 && (
-              <div className="px-3 py-1.5 bg-fuchsia-50 text-fuchsia-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-fuchsia-100 flex items-center gap-1.5 whitespace-nowrap">
-                <Map className="w-3.5 h-3.5" /> Field: {stats.fieldCount}
+              <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
+                <CheckCircle className="w-3.5 h-3.5" /> Present: {stats.totalPresent} / {stats.workingDaysPassed}
               </div>
-            )}
-            {stats.absentCount > 0 && (
-              <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
-                <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
+              <div className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-100 flex items-center gap-1.5 whitespace-nowrap">
+                <CalendarMinus className="w-3.5 h-3.5" /> Leaves: {stats.leaveCount}
               </div>
-            )}
-          </div>
+              {stats.wfhCount > 0 && (
+                <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
+                  <Laptop className="w-3.5 h-3.5" /> WFH: {stats.wfhCount}
+                </div>
+              )}
+              {stats.fieldCount > 0 && (
+                <div className="px-3 py-1.5 bg-fuchsia-50 text-fuchsia-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-fuchsia-100 flex items-center gap-1.5 whitespace-nowrap">
+                  <Map className="w-3.5 h-3.5" /> Field: {stats.fieldCount}
+                </div>
+              )}
+              {stats.absentCount > 0 && (
+                <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
+                  <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3 shrink-0 self-start md:self-end">
           <button onClick={() => setIsRequestModalOpen(true)} className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
@@ -362,7 +364,7 @@ export default function Dashboard() {
                 const dateStr = day ? `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
                 const myLog = dateStr ? monthAttendance[dateStr] : null;
                 
-                const isAbsent = isPastDay && !isLeave && !myLog;
+                const isAbsent = !isAdmin && isPastDay && !isLeave && !myLog;
                 
                 return (
                   <div 
@@ -402,7 +404,7 @@ export default function Dashboard() {
                           </div>
                         )}
 
-                        {!isLeave && !isAbsent && myLog && (
+                        {!isAdmin && !isLeave && !isAbsent && myLog && (
                           <div className="hidden sm:block mt-0.5 w-full text-center">
                             <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md truncate max-w-full inline-block ${
                               myLog.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
@@ -423,7 +425,7 @@ export default function Dashboard() {
                              <X className="w-3 h-3 text-red-600" strokeWidth={4} />
                           </div>
                         )}
-                        {!isLeave && !isAbsent && myLog && (
+                        {!isAdmin && !isLeave && !isAbsent && myLog && (
                           <div className={`sm:hidden absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${
                              myLog.status === 'On Leave' ? 'bg-amber-500' :
                              myLog.status.startsWith('On ') ? 'bg-orange-500' :
@@ -449,18 +451,22 @@ export default function Dashboard() {
                  </div>
                  Leave / Off
                </div>
-               <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-md bg-red-100 border border-red-200 flex items-center justify-center">
-                   <X className="w-2.5 h-2.5 text-red-600 sm:hidden" strokeWidth={4} />
-                 </div>
-                 Absent
-               </div>
-               <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                   <div className="w-1 h-1 bg-emerald-500 rounded-full sm:hidden"></div>
-                 </div>
-                 Present
-               </div>
+               {!isAdmin && (
+                 <>
+                   <div className="flex items-center gap-2">
+                     <div className="w-3 h-3 rounded-md bg-red-100 border border-red-200 flex items-center justify-center">
+                       <X className="w-2.5 h-2.5 text-red-600 sm:hidden" strokeWidth={4} />
+                     </div>
+                     Absent
+                   </div>
+                   <div className="flex items-center gap-2">
+                     <div className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                       <div className="w-1 h-1 bg-emerald-500 rounded-full sm:hidden"></div>
+                     </div>
+                     Present
+                   </div>
+                 </>
+               )}
                <div className="flex items-center gap-2">
                  <div className="w-3 h-3 rounded-md bg-blue-100 border border-blue-200"></div>
                  Today
