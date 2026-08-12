@@ -3,11 +3,12 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Loader2, Users, Download, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { calculateEmployeeAttendanceMetrics } from '../utils/attendanceUtils';
 
 export default function EmployeeAttendanceAnalysis() {
   const { companyId } = useAuthStore();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -167,7 +168,11 @@ export default function EmployeeAttendanceAnalysis() {
                 </tr>
               ) : (
                 analysisData.map(emp => (
-                  <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors">
+                  <tr 
+                    key={emp.id} 
+                    onClick={() => navigate(`/attendance-analysis/${emp.id}?month=${selectedMonth}`)}
+                    className="hover:bg-zinc-50/50 transition-colors cursor-pointer"
+                  >
                     <td className="px-5 py-4">
                       <div className="flex flex-col">
                         <span className="text-[14px] font-semibold text-zinc-900">{emp.name}</span>
