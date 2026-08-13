@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { db } from '../../firebase';
@@ -47,6 +47,8 @@ export function Sidebar() {
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
     { icon: Users, label: 'Manage Attendance', path: '/manage-attendance' },
     { icon: UserCog, label: 'Employees', path: '/employees' },
+    { icon: MonitorSmartphone, label: 'Assets', path: '/assets' },
+    { icon: Shield, label: 'Company Vault', path: '/company-vault' },
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
     { icon: FileText, label: 'Documents', path: '/documents' },
     { icon: Megaphone, label: 'Ad Settings', path: '/ad-settings' },

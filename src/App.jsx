@@ -28,6 +28,8 @@ import Login from './pages/Login';
 import Employees from './pages/Employees';
 import Reimbursements from './pages/Reimbursements';
 import AdSettings from './pages/AdSettings';
+import Assets from './pages/Assets';
+import CompanyVault from './pages/CompanyVault';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -128,6 +130,8 @@ function App() {
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />
           <Route path="ad-settings" element={<AdSettings />} />
+          <Route path="assets" element={<PermissionRoute permissionLabel="Assets"><Assets /></PermissionRoute>} />
+          <Route path="company-vault" element={<PermissionRoute permissionLabel="Company Info"><CompanyVault /></PermissionRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

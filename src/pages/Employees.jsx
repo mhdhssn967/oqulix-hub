@@ -3,11 +3,12 @@ import { collection, doc, setDoc, getDocs, serverTimestamp, arrayUnion } from 'f
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, secondaryAuth } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircle, Eye, EyeOff, MonitorSmartphone } from 'lucide-react';
 
 export default function Employees() {
   const { user, companyId } = useAuthStore();
   const [employees, setEmployees] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [rolesData, setRolesData] = useState({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,7 +30,8 @@ export default function Employees() {
 
   const availablePermissions = [
     "CRM", "CRM Analysis", "Finance", "Clients", "Reimbursements", "Tasks", 
-    "Attendance", "Employees", "Performance", "Documents", "Settings"
+    "Attendance", "Employees", "Performance", "Documents", "Settings",
+    "Assets", "Company Info", "Vault"
   ];
 
   // Fetch existing employees and roles
@@ -47,6 +49,10 @@ export default function Employees() {
         roles[rDoc.id] = rDoc.data().permissions || [];
       });
       setRolesData(roles);
+
+      const assetsSnap = await getDocs(collection(db, `userData/${companyId}/assets`));
+      const assetsData = assetsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAssets(assetsData);
     } catch (err) {
       console.error("Error fetching data:", err);
     } finally {
@@ -417,6 +423,42 @@ export default function Employees() {
                 </button>
               </div>
             </form>
+
+            {editingEmployeeId && (
+              <div className="p-4 bg-zinc-50 border-t border-zinc-100">
+                <h3 className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <MonitorSmartphone className="w-4 h-4" />
+                  Assets Currently Handled
+                </h3>
+                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                  {assets.filter(a => a.handledBy === editingEmployeeId).length > 0 ? (
+                    assets.filter(a => a.handledBy === editingEmployeeId).map(asset => (
+                      <div key={asset.id} className="bg-white p-3 rounded-lg border border-zinc-200 shadow-sm flex justify-between items-start">
+                        <div>
+                          <div className="text-[13px] font-bold text-zinc-900">{asset.name}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5">{asset.type} • {asset.id}</div>
+                          {asset.history?.filter(h => h.employee === editingEmployeeId && h.action !== 'Returned').sort((a, b) => b.date.seconds - a.date.seconds)[0] && (
+                            <div className="text-[10px] text-zinc-400 mt-1">
+                              Handed over on: {new Date(asset.history.filter(h => h.employee === editingEmployeeId && h.action !== 'Returned').sort((a, b) => b.date.seconds - a.date.seconds)[0].date.seconds * 1000).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${asset.status === 'Under Maintenance' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {asset.status}
+                          </span>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-zinc-200 text-zinc-600 bg-zinc-50">
+                            {asset.condition}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-[12px] text-zinc-500 italic">No assets assigned.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
