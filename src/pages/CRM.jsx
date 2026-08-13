@@ -92,7 +92,7 @@ export default function CRM() {
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
 
   const getFilteredItemsForUser = (items, type = 'leads') => {
-    if (isAdmin || isManager || !user?.uid) return items;
+    if (isAdmin || isManager || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
     if (type === 'adLeads' && canManageAdLeads) return items;
     return items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid);
   };
