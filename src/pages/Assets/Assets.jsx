@@ -66,6 +66,7 @@ export default function Assets() {
 
   // Helper to get employee name
   const getEmployeeName = (uid) => {
+    if (uid === 'in_office') return 'In Office';
     const emp = employees.find(e => e.id === uid);
     return emp ? emp.name : 'Unknown';
   };
@@ -169,6 +170,7 @@ export default function Assets() {
             <option value="VR Headset">VR Headset</option>
             <option value="Mobile Phone">Mobile Phone</option>
             <option value="Monitor">Monitor</option>
+            <option value="Facilities & Appliances">Facilities & Appliances</option>
             <option value="Other">Other</option>
           </select>
           
@@ -203,6 +205,7 @@ export default function Assets() {
           >
             <option value="All">All Handlers</option>
             <option value="Unassigned">Unassigned</option>
+            <option value="in_office">In Office</option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.name}</option>
             ))}
@@ -242,7 +245,9 @@ export default function Assets() {
                           <MonitorSmartphone className="w-5 h-5" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[14px] font-semibold text-zinc-900">{asset.name}</span>
+                          <span className="text-[14px] font-semibold text-zinc-900">
+                            {asset.name} {asset.quantity > 1 && <span className="text-[11px] font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded ml-1">x{asset.quantity}</span>}
+                          </span>
                           <span className="text-[12px] text-zinc-500 truncate max-w-[200px]" title={asset.accessories?.join(', ')}>
                             {asset.accessories && asset.accessories.length > 0 ? `${asset.accessories.length} accessories` : 'No accessories'}
                           </span>

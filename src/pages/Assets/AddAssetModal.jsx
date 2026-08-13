@@ -12,6 +12,7 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
   const [formData, setFormData] = useState({
     name: '',
     type: 'Laptop',
+    quantity: 1,
     boughtFrom: '',
     boughtOn: '',
     price: '',
@@ -79,6 +80,7 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
         type: formData.type === 'Other' ? formData.otherType : formData.type,
         boughtFrom: formData.boughtFrom,
         boughtOn: formData.boughtOn ? new Date(formData.boughtOn) : null,
+        quantity: parseInt(formData.quantity) || 1,
         price: parseFloat(formData.price) || 0,
         handledBy: formData.handledBy || null,
         status: finalStatus,
@@ -151,6 +153,7 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
                 <option value="Networking Equipment">Networking Equipment</option>
                 <option value="Office Equipment">Office Equipment</option>
                 <option value="Furniture">Furniture</option>
+                <option value="Facilities & Appliances">Facilities & Appliances (Fans, Lights, etc.)</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -184,6 +187,14 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
             </div>
 
             <div>
+              <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Quantity / Count *</label>
+              <input 
+                type="number" required min="1" step="1" name="quantity" value={formData.quantity} onChange={handleInputChange}
+                className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+              />
+            </div>
+
+            <div>
               <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Price (₹) *</label>
               <input 
                 type="number" required min="0" step="0.01" name="price" value={formData.price} onChange={handleInputChange}
@@ -199,6 +210,7 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
                 className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
               >
                 <option value="">-- Leave Unassigned --</option>
+                <option value="in_office">In Office</option>
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
@@ -220,7 +232,7 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
             </div>
             
             <div>
-              <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Condition Note</label>
+              <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Note</label>
               <input 
                 type="text" name="conditionNote" value={formData.conditionNote} onChange={handleInputChange}
                 className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"

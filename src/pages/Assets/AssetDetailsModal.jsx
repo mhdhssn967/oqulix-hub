@@ -14,6 +14,7 @@ export default function AssetDetailsModal({ asset, isOpen, onClose, employees })
   if (!isOpen || !asset) return null;
 
   const getEmployeeName = (uid) => {
+    if (uid === 'in_office') return 'In Office';
     const emp = employees.find(e => e.id === uid);
     return emp ? emp.name : 'Unknown Employee';
   };
@@ -57,7 +58,9 @@ export default function AssetDetailsModal({ asset, isOpen, onClose, employees })
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-zinc-900 tracking-tight">{asset.name}</h2>
+                <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+                  {asset.name} {asset.quantity > 1 && <span className="text-[13px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-md ml-1">x{asset.quantity}</span>}
+                </h2>
                 <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${getStatusColor(asset.status)}`}>
                   {asset.status}
                 </span>
@@ -158,7 +161,7 @@ export default function AssetDetailsModal({ asset, isOpen, onClose, employees })
                   </div>
                   {asset.conditionNote && (
                     <div>
-                      <span className="block text-[11px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Condition Note</span>
+                      <span className="block text-[11px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Note</span>
                       <span className="text-[13px] text-zinc-800 font-medium">{asset.conditionNote}</span>
                     </div>
                   )}

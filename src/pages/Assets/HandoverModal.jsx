@@ -68,6 +68,7 @@ export default function HandoverModal({ isOpen, onClose, asset, employees }) {
               className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
             >
               <option value="">-- Select Employee --</option>
+              {asset.handledBy !== 'in_office' && <option value="in_office">In Office</option>}
               {employees.filter(e => e.id !== asset.handledBy).map(emp => (
                 <option key={emp.id} value={emp.id}>{emp.name}</option>
               ))}
