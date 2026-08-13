@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
 
@@ -122,7 +122,7 @@ export default function ManageAttendance() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: getCurrentTimeStr() });
-  const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' });
+  const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
 
   const getTimeStrFromDate = (d) => {
     if (!d) return '';
@@ -134,7 +134,7 @@ export default function ManageAttendance() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { log, clockInTime, clockOutTime, workType } = editLogPrompt;
+      const { log, clockInTime, clockOutTime, workType, breaks } = editLogPrompt;
       let updateData = { workType };
       
       const [year, month, day] = log.date.split('-');
@@ -149,10 +149,26 @@ export default function ManageAttendance() {
         updateData.clockedOutAt = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(h, 10), parseInt(m, 10), 0);
       }
 
+      if (breaks !== undefined) {
+        updateData.breaks = breaks.map(b => {
+          let startTime = null;
+          let endTime = null;
+          if (b.startStr) {
+             const [h, m] = b.startStr.split(':');
+             startTime = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(h, 10), parseInt(m, 10), 0);
+          }
+          if (b.endStr) {
+             const [h, m] = b.endStr.split(':');
+             endTime = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10), parseInt(h, 10), parseInt(m, 10), 0);
+          }
+          return { type: b.type, startTime, endTime };
+        });
+      }
+
       await setDoc(doc(db, `userData/${companyId}/attendanceLogs`, log.id), updateData, { merge: true });
       
       Swal.fire({ title: 'Success', text: 'Attendance updated successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
-      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' });
+      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
       fetchData();
     } catch (err) {
       console.error(err);
@@ -687,7 +703,18 @@ export default function ManageAttendance() {
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => setEditLogPrompt({ isOpen: true, log, clockInTime: getTimeStrFromDate(log.clockedInAt), clockOutTime: getTimeStrFromDate(log.clockedOutAt), workType: log.workType || 'Office' })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Log">
+                          <button onClick={() => setEditLogPrompt({ 
+                              isOpen: true, 
+                              log, 
+                              clockInTime: getTimeStrFromDate(log.clockedInAt), 
+                              clockOutTime: getTimeStrFromDate(log.clockedOutAt), 
+                              workType: log.workType || 'Office',
+                              breaks: (log.breaks || []).map(b => ({
+                                ...b,
+                                startStr: getTimeStrFromDate(b.startTime),
+                                endStr: getTimeStrFromDate(b.endTime)
+                              }))
+                            })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Log">
                             <Pencil className="w-4 h-4" />
                           </button>
                           {log.status === 'Present' && log.workType !== 'Field' && (
@@ -1119,12 +1146,12 @@ export default function ManageAttendance() {
       {/* Edit Log Modal */}
       {editLogPrompt.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] })}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200 flex flex-col">
             <form onSubmit={handleEditSubmit}>
               <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-[15px] font-semibold text-zinc-900">Edit Attendance</h2>
-                <button type="button" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })} className="text-zinc-400 hover:text-black transition-colors">
+                <button type="button" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] })} className="text-zinc-400 hover:text-black transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1156,12 +1183,69 @@ export default function ManageAttendance() {
                     <option value="Field">Field</option>
                   </select>
                 </div>
+
+                <div className="pt-2 border-t border-zinc-200/50 mt-1">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-[12px] font-bold text-zinc-800">Manage Breaks</label>
+                    <button type="button" onClick={() => setEditLogPrompt(p => ({ ...p, breaks: [...(p.breaks || []), { type: 'Custom', startStr: '', endStr: '' }] }))} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-md transition-colors flex items-center gap-1">
+                      <Plus className="w-3.5 h-3.5" /> Add Break
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    {editLogPrompt.breaks && editLogPrompt.breaks.length > 0 ? (
+                      editLogPrompt.breaks.map((brk, idx) => (
+                        <div key={idx} className="flex flex-col gap-2 p-3 bg-white border border-zinc-200 rounded-lg shadow-sm">
+                          <div className="flex items-center justify-between border-b border-zinc-100 pb-2 mb-1">
+                            <select 
+                              value={brk.type || 'Custom'} 
+                              onChange={(e) => setEditLogPrompt(p => {
+                                const newBreaks = [...p.breaks];
+                                newBreaks[idx].type = e.target.value;
+                                return { ...p, breaks: newBreaks };
+                              })}
+                              className="text-[11px] font-bold text-zinc-700 bg-zinc-100 px-2 py-1 rounded uppercase tracking-wide outline-none cursor-pointer hover:bg-zinc-200"
+                            >
+                              <option value="Tea">Tea</option>
+                              <option value="Lunch">Lunch</option>
+                              <option value="Custom">Custom</option>
+                            </select>
+                            <button type="button" onClick={() => setEditLogPrompt(p => ({ ...p, breaks: p.breaks.filter((_, i) => i !== idx) }))} className="text-red-500 hover:text-red-700 bg-red-50 p-1 rounded transition-colors" title="Delete Break">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">Start Time</label>
+                              <TimePicker12Hour value={brk.startStr} onChange={(val) => setEditLogPrompt(p => {
+                                const newBreaks = [...p.breaks];
+                                newBreaks[idx].startStr = val;
+                                return { ...p, breaks: newBreaks };
+                              })} />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">End Time</label>
+                              <TimePicker12Hour value={brk.endStr} onChange={(val) => setEditLogPrompt(p => {
+                                const newBreaks = [...p.breaks];
+                                newBreaks[idx].endStr = val;
+                                return { ...p, breaks: newBreaks };
+                              })} />
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-4 text-[12px] text-zinc-400 italic bg-zinc-50/50 rounded-lg border border-dashed border-zinc-200">
+                        No breaks recorded.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               
               <div className="flex justify-end gap-2 p-4 bg-white">
                 <button 
                   type="button"
-                  onClick={() => setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '' })}
+                  onClick={() => setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] })}
                   className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
                 >
                   Cancel
