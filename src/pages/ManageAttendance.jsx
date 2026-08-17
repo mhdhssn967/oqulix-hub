@@ -470,6 +470,7 @@ export default function ManageAttendance() {
   
   // Filter employees for clock in modal based on search and if not clocked in
   const availableEmployees = employees.filter(emp => {
+    if (emp.isActive === false) return false;
     const matchesSearch = emp.name?.toLowerCase().includes(searchQuery.toLowerCase());
     const notClockedIn = !clockedInIds.includes(emp.id);
     return matchesSearch && notClockedIn;
@@ -477,6 +478,7 @@ export default function ManageAttendance() {
 
   // Filter employees for leave modal based on search and if not clocked in
   const availableLeaveEmployees = employees.filter(emp => {
+    if (emp.isActive === false) return false;
     const matchesSearch = emp.name?.toLowerCase().includes(leaveSearchQuery.toLowerCase());
     const notClockedIn = !clockedInIds.includes(emp.id);
     return matchesSearch && notClockedIn;

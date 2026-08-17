@@ -604,9 +604,9 @@ export default function TaskManagement() {
                 <label className="block text-sm font-semibold text-zinc-700 mb-1.5">Assign To*</label>
                 <select required name="assignedToUid" value={formData.assignedToUid} onChange={handleInputChange} className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-2.5 text-[14px] text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all cursor-pointer">
                   <option value="" disabled>Select an employee</option>
-                  <option value={user?.uid}>Assign to Myself</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
+                  <option value="">Assign To...</option>
+                  {employees.filter(e => e.isActive !== false).map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.position || 'Employee'})</option>
                   ))}
                 </select>
               </div>

@@ -25,13 +25,15 @@ export default function Employees() {
     email: '',
     password: '',
     assignedRegions: '',
-    permissions: []
+    permissions: [],
+    dateOfJoining: '',
+    isActive: true
   });
 
   const availablePermissions = [
     "CRM", "CRM Analysis", "Finance", "Clients", "Reimbursements", "Tasks", 
     "Attendance", "Employees", "Performance", "Documents", "Settings",
-    "Assets", "Company Info", "Vault"
+    "Assets", "Company Info", "Vault", "Payroll Management"
   ];
 
   // Fetch existing employees and roles
@@ -104,7 +106,9 @@ export default function Employees() {
           position: formData.position,
           phone: formData.phone,
           assignedRegions: formData.assignedRegions,
-          permissions: formData.permissions
+          permissions: formData.permissions,
+          dateOfJoining: formData.dateOfJoining || '',
+          isActive: formData.isActive !== false
         };
         await setDoc(doc(db, `userData/${companyId}/employees`, editingEmployeeId), updateData, { merge: true });
         
@@ -133,6 +137,8 @@ export default function Employees() {
           password: formData.password,
           assignedRegions: formData.assignedRegions,
           permissions: formData.permissions,
+          dateOfJoining: formData.dateOfJoining || '',
+          isActive: formData.isActive !== false,
           createdAt: serverTimestamp(),
           userId: employeeId
         };
@@ -221,7 +227,9 @@ export default function Employees() {
                       email: emp.email || '',
                       password: emp.password || '',
                       assignedRegions: emp.assignedRegions || '',
-                      permissions: emp.permissions || []
+                      permissions: emp.permissions || [],
+                      dateOfJoining: emp.dateOfJoining || '',
+                      isActive: emp.isActive !== false
                     });
                     setEditingEmployeeId(emp.id);
                     setIsModalOpen(true);
@@ -231,7 +239,12 @@ export default function Employees() {
                         <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px]">
                           {emp.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-[14px] font-semibold text-zinc-900">{emp.name}</span>
+                        <div className="flex flex-col">
+                          <span className="text-[14px] font-semibold text-zinc-900">{emp.name}</span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${emp.isActive !== false ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {emp.isActive !== false ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -288,138 +301,190 @@ export default function Employees() {
       {/* Add Employee Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" >
-          <div  className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{maxWidth:'500px'}}>
-            <div className="flex items-center justify-between p-4 border-b border-zinc-100" >
-              <h2 className="text-[15px] font-semibold text-zinc-900">{editingEmployeeId ? 'Edit Employee' : 'Add New Employee'}</h2>
-              <button type="button" onClick={() => !isSubmitting && setIsModalOpen(false)} className="text-zinc-400 hover:text-black transition-colors">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setIsModalOpen(false)}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{maxWidth:'850px'}}>
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100" >
+              <h2 className="text-[16px] font-semibold text-zinc-900">{editingEmployeeId ? 'Edit Employee' : 'Add New Employee'}</h2>
+              <button type="button" onClick={() => !isSubmitting && setIsModalOpen(false)} className="text-zinc-400 hover:text-black transition-colors bg-zinc-100 hover:bg-zinc-200 p-1.5 rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>
             
-            <form onSubmit={handleAddEmployee} className="p-4 flex flex-col gap-3">
+            <form onSubmit={handleAddEmployee} className="p-5">
               {error && (
-                <div className="p-2.5 bg-red-50 text-red-600 rounded-lg text-[12px] font-medium flex items-start gap-1.5 border border-red-100">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-[13px] font-medium flex items-start gap-2 border border-red-100 mb-5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <p>{error}</p>
                 </div>
               )}
               
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Full Name</label>
-                <input 
-                  type="text" required name="name" value={formData.name} onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
-                  placeholder="John Doe"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Position / Title</label>
-                <input 
-                  type="text" required name="position" value={formData.position} onChange={handleRoleChange}
-                  list="roles-list"
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
-                  placeholder="Sales Associate"
-                />
-                <datalist id="roles-list">
-                  {Object.keys(rolesData).map(roleId => (
-                    <option key={roleId} value={roleId} />
-                  ))}
-                </datalist>
-              </div>
-              
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Phone Number</label>
-                <input 
-                  type="tel" required name="phone" value={formData.phone} onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
-                  placeholder="+1 (555) 000-0000"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Assigned Regions</label>
-                <input 
-                  type="text" name="assignedRegions" value={formData.assignedRegions} onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
-                  placeholder="North, South (optional)"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-2 mt-1">Assign Permissions</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                  {availablePermissions.map(perm => {
-                    const currentRoleId = formData.position.trim().toLowerCase().replace(/\s+/g, '');
-                    const isExistingRole = !!rolesData[currentRoleId];
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column - General Info */}
+                <div className="flex flex-col gap-4">
+                  <h3 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 pb-2">General Details</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Full Name</label>
+                      <input 
+                        type="text" required name="name" value={formData.name} onChange={handleInputChange}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                        placeholder="John Doe"
+                      />
+                    </div>
                     
-                    return (
-                      <label key={perm} className={`flex items-center gap-2 text-[12.5px] text-zinc-700 hover:text-black bg-zinc-50 border border-zinc-200/60 p-2 rounded-lg transition-colors ${isExistingRole ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-zinc-100'}`}>
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Position / Title</label>
+                      <input 
+                        type="text" required name="position" value={formData.position} onChange={handleRoleChange}
+                        list="roles-list"
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                        placeholder="Sales Associate"
+                      />
+                      <datalist id="roles-list">
+                        {Object.keys(rolesData).map(roleId => (
+                          <option key={roleId} value={roleId} />
+                        ))}
+                      </datalist>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Phone Number</label>
+                      <input 
+                        type="tel" required name="phone" value={formData.phone} onChange={handleInputChange}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                        placeholder="+1 (555) 000-0000"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Assigned Regions</label>
+                      <input 
+                        type="text" name="assignedRegions" value={formData.assignedRegions} onChange={handleInputChange}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                        placeholder="North, South (optional)"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Date of Joining</label>
+                      <input 
+                        type="date" name="dateOfJoining" value={formData.dateOfJoining || ''} onChange={handleInputChange}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <h3 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 pb-2 mt-2">Account Credentials</h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Email Address</label>
+                      <input 
+                        type="email" required name="email" value={formData.email} onChange={handleInputChange}
+                        disabled={!!editingEmployeeId}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        placeholder="john@example.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Account Password</label>
+                      <div className="relative">
                         <input 
-                          type="checkbox"
-                          checked={formData.permissions.includes(perm)}
-                          onChange={() => !isExistingRole && handlePermissionToggle(perm)}
-                          disabled={isExistingRole}
-                          className="rounded border-zinc-300 text-black focus:ring-black/20 w-3.5 h-3.5 disabled:cursor-not-allowed"
+                          type={showPassword ? "text" : "password"} required={!editingEmployeeId} minLength="6" name="password" value={formData.password} onChange={handleInputChange}
+                          disabled={!!editingEmployeeId}
+                          className="w-full pl-3 pr-10 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          placeholder="Min. 6 characters"
                         />
-                        <span className="truncate">{perm}</span>
-                      </label>
-                    );
-                  })}
+                        {!editingEmployeeId && (
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-zinc-400 hover:text-zinc-600 transition-colors bg-white hover:bg-zinc-100 rounded-md shadow-sm border border-zinc-100"
+                          >
+                            {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-2 italic leading-tight">
-                  {!!rolesData[formData.position.trim().toLowerCase().replace(/\s+/g, '')] 
-                    ? "Permissions are locked because this is an existing title." 
-                    : "Select permissions for this new title."}
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Email Address</label>
-                <input 
-                  type="email" required name="email" value={formData.email} onChange={handleInputChange}
-                  disabled={!!editingEmployeeId}
-                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="john@example.com"
-                />
+
+                {/* Right Column - Permissions & Status */}
+                <div className="flex flex-col h-full bg-zinc-50/50 p-4 rounded-xl border border-zinc-200/60 justify-between">
+                  <div className="pt-2">
+                    <h3 className="text-[12px] font-bold text-zinc-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-zinc-400" />
+                      Access Permissions
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {availablePermissions.map((perm) => {
+                        const currentRoleId = formData.position.trim().toLowerCase().replace(/\s+/g, '');
+                        const isExistingRole = !!rolesData[currentRoleId];
+                        const isChecked = isExistingRole 
+                          ? (rolesData[currentRoleId] || []).includes(perm)
+                          : formData.permissions.includes(perm);
+                        
+                        return (
+                          <button
+                            key={perm}
+                            type="button"
+                            disabled={isExistingRole}
+                            onClick={() => handlePermissionToggle(perm)}
+                            className={`px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors ${
+                              isChecked 
+                                ? 'bg-black text-white border-black' 
+                                : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
+                            } ${isExistingRole ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          >
+                            {perm}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50 flex items-start gap-2 text-blue-800">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+                      <p className="text-[11px] leading-relaxed">
+                        {!!rolesData[formData.position.trim().toLowerCase().replace(/\s+/g, '')] 
+                          ? "Permissions are locked because this is an existing title. All users with this title share these permissions." 
+                          : "Select permissions for this new title. Future users with this title will automatically inherit these."}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-zinc-200/60 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-[13px] font-bold text-zinc-900">Account Status</h3>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">Active employees can log in and be assigned to tasks.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer"
+                        checked={formData.isActive}
+                        onChange={(e) => setFormData(p => ({ ...p, isActive: e.target.checked }))}
+                      />
+                      <div className="w-9 h-5 bg-zinc-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1">Account Password</label>
-                <div className="relative">
-                  <input 
-                    type={showPassword ? "text" : "password"} required={!editingEmployeeId} minLength="6" name="password" value={formData.password} onChange={handleInputChange}
-                    disabled={!!editingEmployeeId}
-                    className="w-full pl-3 pr-10 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    placeholder="Min. 6 characters"
-                  />
-                  {!editingEmployeeId && (
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2 mt-1">
+              <div className="flex justify-end gap-3 pt-5 mt-6 border-t border-zinc-100">
                 <button
                   type="button"
                   onClick={() => !isSubmitting && setIsModalOpen(false)}
-                  className="flex-1 py-2 px-3 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                  className="py-2.5 px-6 text-[13px] font-semibold text-zinc-600 bg-white border border-zinc-200 hover:bg-zinc-50 hover:text-zinc-900 rounded-xl transition-colors shadow-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-[2] py-2 px-3 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-70 flex items-center justify-center"
+                  className="py-2.5 px-8 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 min-w-[140px]"
                 >
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingEmployeeId ? 'Save Changes' : 'Add Employee')}
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingEmployeeId ? 'Update Details' : 'Add Employee')}
                 </button>
               </div>
             </form>

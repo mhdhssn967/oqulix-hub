@@ -205,25 +205,25 @@ export default function AdSettings() {
               <Megaphone className="w-8 h-8 text-zinc-400" />
             </div>
             <h3 className="text-base font-semibold text-zinc-900 mb-1">No Ad Campaigns</h3>
-            <p className="text-sm text-zinc-500">Get started by creating your first ad campaign.</p>
+            <p className="text-[13px] text-zinc-500">Get started by creating your first ad campaign.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead className="bg-zinc-50 border-b border-zinc-200/80">
                 <tr>
-                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Campaign Name</th>
-                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Segment</th>
-                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider">Created At</th>
-                  <th className="py-4 px-6 text-xs font-medium text-zinc-500 uppercase tracking-wider text-right">Action</th>
+                  <th className="py-4 px-6 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Campaign Name</th>
+                  <th className="py-4 px-6 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Segment</th>
+                  <th className="py-4 px-6 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
+                  <th className="py-4 px-6 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Created At</th>
+                  <th className="py-4 px-6 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {campaigns.map((camp) => (
                   <tr key={camp.id} className="hover:bg-zinc-50/50 transition-colors">
                     <td className="py-4 px-6">
-                      <div className="text-sm font-medium text-zinc-900">{camp.name}</div>
+                      <div className="text-[14px] font-semibold text-zinc-900">{camp.name}</div>
                     </td>
                     <td className="py-4 px-6">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 border border-zinc-200/60">

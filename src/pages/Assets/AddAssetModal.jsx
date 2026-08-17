@@ -210,8 +210,9 @@ export default function AddAssetModal({ isOpen, onClose, employees }) {
                 className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
               >
                 <option value="">-- Leave Unassigned --</option>
+                <option value="">Select an employee...</option>
                 <option value="in_office">In Office</option>
-                {employees.map(emp => (
+                {employees.filter(e => e.isActive !== false).map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name}</option>
                 ))}
               </select>

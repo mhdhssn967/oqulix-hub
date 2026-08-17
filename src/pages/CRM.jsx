@@ -1956,8 +1956,8 @@ export default function CRM() {
                       }}
                       className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
                     >
-                      <option value="" disabled>Select Employee</option>
-                      {allEmployees.map(emp => (
+                      <option value="">Select an employee...</option>
+                      {allEmployees.filter(e => e.isActive !== false).map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
                       ))}
                     </select>
@@ -2281,9 +2281,9 @@ export default function CRM() {
                           }} 
                           className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer"
                         >
-                          <option value="" disabled>Select Employee</option>
-                          {allEmployees.map(emp => (
-                            <option key={emp.uid} value={emp.uid}>{emp.name || emp.empName}</option>
+                          <option value="">Assign lead...</option>
+                          {allEmployees.filter(e => e.isActive !== false).map(emp => (
+                            <option key={emp.id} value={emp.uid}>{emp.name || emp.empName}</option>
                           ))}
                         </select>
                       </div>

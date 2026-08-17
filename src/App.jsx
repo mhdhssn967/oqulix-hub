@@ -31,6 +31,9 @@ import Reimbursements from './pages/Reimbursements';
 import AdSettings from './pages/AdSettings';
 import Assets from './pages/Assets';
 import CompanyVault from './pages/CompanyVault';
+import PayrollManagement from './pages/Payroll/PayrollManagement';
+import EmployeePayrollAdminView from './pages/Payroll/EmployeePayrollAdminView';
+import EmployeePayroll from './pages/Payroll/EmployeePayroll';
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -134,6 +137,9 @@ function App() {
           <Route path="ad-settings" element={<AdSettings />} />
           <Route path="assets" element={<PermissionRoute permissionLabel="Assets"><Assets /></PermissionRoute>} />
           <Route path="company-vault" element={<PermissionRoute permissionLabel="Company Info"><CompanyVault /></PermissionRoute>} />
+          <Route path="payroll-management" element={<PermissionRoute permissionLabel="Payroll Management"><PayrollManagement /></PermissionRoute>} />
+          <Route path="payroll-management/:employeeId" element={<PermissionRoute permissionLabel="Payroll Management"><EmployeePayrollAdminView /></PermissionRoute>} />
+          <Route path="payroll" element={<EmployeePayroll />} />
         </Route>
       </Routes>
     </BrowserRouter>

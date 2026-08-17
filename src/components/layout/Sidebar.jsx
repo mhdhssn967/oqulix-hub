@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield, Banknote, Calculator, Wallet } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { db } from '../../firebase';
@@ -41,7 +41,7 @@ export function Sidebar() {
     { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
     { icon: CreditCard, label: 'Finance', path: '/finance' },
     { icon: Users, label: 'Clients', path: '/clients' },
-    { icon: Receipt, label: 'Reimbursements', path: '/reimbursements' },
+    { icon: Banknote, label: 'Reimbursements', path: '/reimbursements' },
     { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
     { icon: ClipboardList, label: 'Task Manager', path: '/task-manager' },
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
@@ -51,18 +51,20 @@ export function Sidebar() {
     { icon: Shield, label: 'Company Vault', path: '/company-vault' },
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
     { icon: FileText, label: 'Documents', path: '/documents' },
+    { icon: Calculator, label: 'Payroll Management', path: '/payroll-management' },
+    { icon: Wallet, label: 'Payroll', path: '/payroll' },
     { icon: Megaphone, label: 'Ad Settings', path: '/ad-settings' },
   ];
 
   const hasPermission = (label) => {
-    if (label === 'Dashboard') return true; // Always visible
+    if (label === 'Dashboard' || label === 'Payroll') return true; // Always visible
     if (isAdmin || isManager) return true;
     
     if (permissions && permissions.length > 0) {
       return permissions.includes(label);
     }
     // Fallback if no permissions are loaded yet or for backwards compatibility
-    return !['Finance', 'Employees', 'Task Manager'].includes(label);
+    return !['Finance', 'Employees', 'Task Manager', 'Payroll Management'].includes(label);
   };
 
   const navItems = allNavItems.filter(item => hasPermission(item.label));
