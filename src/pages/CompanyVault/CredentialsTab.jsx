@@ -145,11 +145,18 @@ export default function CredentialsTab({ data, canEdit, searchTerm }) {
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider bg-zinc-100 px-1.5 py-0.5 rounded-sm">{cred.category}</span>
                   <h3 className="text-[15px] font-bold text-zinc-900 mt-1">{cred.service}</h3>
                 </div>
-                {cred.url && (
-                  <a href={cred.url} target="_blank" rel="noreferrer" className="p-1.5 bg-zinc-50 text-zinc-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors" title="Open Login URL">
-                    <ExternalLink className="w-4 h-4"/>
-                  </a>
-                )}
+                <div className="flex items-center gap-2">
+                  {cred.url && (
+                    <a href={cred.url} target="_blank" rel="noreferrer" className="p-1.5 bg-zinc-50 text-zinc-400 hover:text-blue-600 rounded-md hover:bg-blue-50 transition-colors" title="Open Login URL">
+                      <ExternalLink className="w-4 h-4"/>
+                    </a>
+                  )}
+                  {canEdit && (
+                    <button onClick={() => handleDelete(cred.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100" title="Delete Credential">
+                      <Trash2 className="w-4 h-4"/>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -186,11 +193,6 @@ export default function CredentialsTab({ data, canEdit, searchTerm }) {
                 )}
               </div>
 
-              {canEdit && (
-                <button onClick={() => handleDelete(cred.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 -mr-2" title="Delete Credential">
-                  <Trash2 className="w-4 h-4"/>
-                </button>
-              )}
             </div>
           );
         }) : (

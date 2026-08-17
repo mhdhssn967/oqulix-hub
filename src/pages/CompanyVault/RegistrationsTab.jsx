@@ -109,7 +109,14 @@ export default function RegistrationsTab({ data, canEdit, searchTerm }) {
             <div key={reg.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 relative group flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
                 <span className="text-[13px] font-bold text-zinc-500 uppercase tracking-wider">{reg.type}</span>
-                <CopyButton text={reg.number} label="" className="!p-1" />
+                <div className="flex items-center gap-2">
+                  <CopyButton text={reg.number} label="" className="!p-1" />
+                  {canEdit && (
+                    <button onClick={() => handleDelete(reg.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-red-50 text-red-600 rounded-md hover:bg-red-100" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5"/>
+                    </button>
+                  )}
+                </div>
               </div>
               
               <div className="text-[16px] font-bold text-black font-mono break-all">{reg.number}</div>
@@ -129,11 +136,6 @@ export default function RegistrationsTab({ data, canEdit, searchTerm }) {
               
               {reg.notes && <div className="text-[12px] text-zinc-600 italic mt-1">{reg.notes}</div>}
 
-              {canEdit && (
-                <button onClick={() => handleDelete(reg.id)} className="absolute top-3 right-8 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100" title="Delete">
-                  <Trash2 className="w-3.5 h-3.5"/>
-                </button>
-              )}
             </div>
           );
         }) : (

@@ -181,6 +181,34 @@ export default function Finance() {
     return (tx.service === "Director's Loan Deposit") ? acc + Number(tx.amount || 0) : acc;
   }, 0);
 
+  const gstLiabilities = useMemo(() => {
+    const now = new Date();
+    const currentMonthPrefix = now.toISOString().substring(0, 7);
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthPrefix = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const thisMonthRevenue = transactions.reduce((acc, tx) => {
+      const txMonth = tx.date ? tx.date.substring(0, 7) : '';
+      if (txMonth === currentMonthPrefix && tx.isRevenue && tx.creditType === "revenue") {
+        return acc + Number(tx.amount || 0);
+      }
+      return acc;
+    }, 0);
+
+    const lastMonthRevenue = transactions.reduce((acc, tx) => {
+      const txMonth = tx.date ? tx.date.substring(0, 7) : '';
+      if (txMonth === lastMonthPrefix && tx.isRevenue && tx.creditType === "revenue") {
+        return acc + Number(tx.amount || 0);
+      }
+      return acc;
+    }, 0);
+
+    return {
+      current: thisMonthRevenue - (thisMonthRevenue / 1.18),
+      last: lastMonthRevenue - (lastMonthRevenue / 1.18)
+    };
+  }, [transactions]);
+
   const sourceBalances = useMemo(() => {
     return filteredTransactions.reduce((acc, tx) => {
       const source = tx.source || 'Unknown Source';
@@ -373,13 +401,6 @@ export default function Finance() {
 
             <div className="flex gap-2 w-full sm:w-auto">
               <button
-                onClick={() => window.location.href = '/finance/gst-analysis'}
-                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl text-sm font-medium hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"
-              >
-                <Calculator className="w-4 h-4" />
-                GST Analysis
-              </button>
-              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors shadow-sm ${showFilters ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
               >
@@ -455,6 +476,36 @@ export default function Finance() {
             </div>
           </div>
         )}
+
+        <button 
+          onClick={() => window.location.href = '/finance/gst-analysis'}
+          className="w-full bg-gradient-to-r from-blue-50 to-indigo-50/30 hover:from-blue-100 hover:to-indigo-100/50 p-5 rounded-2xl border border-blue-200/60 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between transition-all text-left relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 opacity-[0.04] pointer-events-none group-hover:scale-110 transition-transform duration-500">
+             <Calculator className="w-64 h-64 text-blue-900" />
+          </div>
+          <div className="relative z-10 flex flex-col sm:flex-row gap-8 w-full sm:w-auto">
+            <div className="mb-4 sm:mb-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                 <Calculator className="w-4 h-4 text-blue-600" />
+                 <h3 className="text-zinc-600 font-medium text-sm">GST Liability This Month</h3>
+              </div>
+              <div className="text-3xl font-bold text-zinc-900 tracking-tight">₹{gstLiabilities.current.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            
+            <div className="hidden sm:block w-px bg-blue-200/50 self-stretch"></div>
+            
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                 <h3 className="text-zinc-500 font-medium text-[11px] uppercase tracking-wider">Last Month</h3>
+              </div>
+              <div className="text-xl font-semibold text-zinc-700">₹{gstLiabilities.last.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+          <div className="relative z-10 flex items-center gap-2 text-blue-700 text-sm font-semibold bg-white hover:bg-blue-50 transition-colors px-5 py-2.5 rounded-xl shadow-sm border border-blue-200 mt-4 sm:mt-0">
+            Open GST Analysis <ChevronRight className="w-4 h-4" />
+          </div>
+        </button>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">

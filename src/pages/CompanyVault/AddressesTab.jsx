@@ -108,16 +108,18 @@ export default function AddressesTab({ data, canEdit, searchTerm }) {
             <div key={addr.id} className="bg-white rounded-xl border border-zinc-200 shadow-sm p-4 relative group flex flex-col gap-3">
               <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
                 <span className="text-[14px] font-bold text-zinc-800 flex items-center gap-1.5"><Map className="w-4 h-4 text-zinc-400"/> {addr.type}</span>
-                <CopyButton text={fullAddress} label="Copy Full Address" />
+                <div className="flex items-center gap-2">
+                  <CopyButton text={fullAddress} label="Copy Full Address" />
+                  {canEdit && (
+                    <button onClick={() => handleDelete(addr.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100" title="Delete">
+                      <Trash2 className="w-4 h-4"/>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="text-[14px] text-zinc-700 leading-relaxed whitespace-pre-wrap">
                 {fullAddress}
               </div>
-              {canEdit && (
-                <button onClick={() => handleDelete(addr.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100 -mr-2" title="Delete">
-                  <Trash2 className="w-4 h-4"/>
-                </button>
-              )}
             </div>
           );
         }) : (

@@ -133,7 +133,14 @@ export default function BankAccountsTab({ data, canEdit, searchTerm }) {
                     <Building className="w-4 h-4 text-emerald-600"/> {bank.bankName} 
                     <span className="text-[12px] font-medium text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded-full ml-2">{bank.accountName}</span>
                   </span>
-                  <CopyButton text={bankDetailsText} label="Copy Bank Details" />
+                  <div className="flex items-center gap-2">
+                    <CopyButton text={bankDetailsText} label="Copy Bank Details" />
+                    {canEdit && (
+                      <button onClick={() => handleDelete(bank.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-red-50 text-red-600 rounded-md hover:bg-red-100" title="Delete Account">
+                        <Trash2 className="w-4 h-4"/>
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-6">
@@ -147,11 +154,6 @@ export default function BankAccountsTab({ data, canEdit, searchTerm }) {
                 </div>
               </div>
 
-              {canEdit && (
-                <button onClick={() => handleDelete(bank.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 -mr-2" title="Delete Account">
-                  <Trash2 className="w-4 h-4"/>
-                </button>
-              )}
             </div>
           );
         }) : (
