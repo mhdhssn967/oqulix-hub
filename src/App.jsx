@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import Dashboard from './pages/Dashboard';
 import CRM from './pages/CRM';
 import Finance from './pages/Finance';
+import GstAnalysis from './pages/GstAnalysis';
 import Tasks from './pages/Tasks';
 import TaskManagement from './pages/TaskManagement';
 import CompletedTasks from './pages/CompletedTasks';
@@ -113,6 +114,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="crm" element={<PermissionRoute permissionLabel="CRM"><CRM /></PermissionRoute>} />
           <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
+          <Route path="finance/gst-analysis" element={<PermissionRoute permissionLabel="Finance"><GstAnalysis /></PermissionRoute>} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="task-manager" element={<PermissionRoute permissionLabel="Task Manager"><TaskManagement /></PermissionRoute>} />
           <Route path="completed-tasks" element={<PermissionRoute permissionLabel="Task Manager"><CompletedTasks /></PermissionRoute>} />

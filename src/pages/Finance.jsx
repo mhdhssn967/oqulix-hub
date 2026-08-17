@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { collection, getDocs, query, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X, Calculator } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Label } from 'recharts';
 import AddTransactionModal from '../components/AddTransactionModal';
 
@@ -349,6 +349,18 @@ export default function Finance() {
             </div>
             
             <select
+              name="transactionType"
+              value={filters.transactionType}
+              onChange={handleFilterChange}
+              className="px-4 py-2 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors shadow-sm cursor-pointer"
+            >
+              <option value="all">All Types</option>
+              <option value="revenue">Revenue</option>
+              <option value="expense">Debit / Expense</option>
+              <option value="credit">Credit / Deposit</option>
+            </select>
+
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-4 py-2 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-black/5 transition-colors shadow-sm cursor-pointer"
@@ -360,6 +372,13 @@ export default function Finance() {
             </select>
 
             <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => window.location.href = '/finance/gst-analysis'}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl text-sm font-medium hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"
+              >
+                <Calculator className="w-4 h-4" />
+                GST Analysis
+              </button>
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors shadow-sm ${showFilters ? 'bg-zinc-100 border-zinc-300 text-zinc-900' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
@@ -438,13 +457,25 @@ export default function Finance() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-zinc-500">Total Revenue</p>
-              <h3 className="text-2xl font-bold text-emerald-600 mt-1">₹{totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">Total Revenue</p>
+                <h3 className="text-2xl font-bold text-emerald-600 mt-1">₹{totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                <TrendingUp className="w-6 h-6" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <TrendingUp className="w-6 h-6" />
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-zinc-100 pt-3">
+               <div>
+                 <span className="text-zinc-500 block mb-0.5">Amount (-GST)</span>
+                 <span className="font-semibold text-zinc-700">₹{(totalRevenue / 1.18).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+               </div>
+               <div className="text-right">
+                 <span className="text-zinc-500 block mb-0.5">18% GST</span>
+                 <span className="font-semibold text-zinc-700">₹{(totalRevenue - (totalRevenue / 1.18)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+               </div>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">

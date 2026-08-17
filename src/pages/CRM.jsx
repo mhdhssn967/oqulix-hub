@@ -104,6 +104,7 @@ export default function CRM() {
   const [bulkAdLeadText, setBulkAdLeadText] = useState('');
   const [bulkAdLeadAssignedToUid, setBulkAdLeadAssignedToUid] = useState('');
   const [bulkAdLeadAssignedToName, setBulkAdLeadAssignedToName] = useState('');
+  const [bulkAdLeadCampaign, setBulkAdLeadCampaign] = useState('');
   const [isDistributorModalOpen, setIsDistributorModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
@@ -398,7 +399,7 @@ export default function CRM() {
         assignedToUid: bulkAdLeadAssignedToUid,
         assignedToName: bulkAdLeadAssignedToName,
         message: '',
-        campaign: '',
+        campaign: bulkAdLeadCampaign,
         updatedAt: new Date(),
         currentStatus: 'New Lead',
         newLead: true,
@@ -419,6 +420,7 @@ export default function CRM() {
       setBulkAdLeadText('');
       setBulkAdLeadAssignedToUid('');
       setBulkAdLeadAssignedToName('');
+      setBulkAdLeadCampaign('');
       
       Swal.fire({ icon: "success", title: "Success", text: `Successfully added ${newLeads.length} leads.` });
     } catch (error) {
@@ -1139,6 +1141,7 @@ export default function CRM() {
                 setBulkAdLeadText('');
                 setBulkAdLeadAssignedToUid('');
                 setBulkAdLeadAssignedToName('');
+                setBulkAdLeadCampaign('');
                 setIsBulkAdLeadModalOpen(true);
               }}
               className="bg-white hover:bg-zinc-50 text-black px-4 py-2 rounded-lg font-medium text-[13px] transition-all border border-zinc-200 shadow-sm flex items-center gap-2"
@@ -1956,6 +1959,20 @@ export default function CRM() {
                       <option value="" disabled>Select Employee</option>
                       {allEmployees.map(emp => (
                         <option key={emp.id} value={emp.id}>{emp.name || emp.email}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Campaign Data (Optional)</label>
+                    <select
+                      value={bulkAdLeadCampaign}
+                      onChange={(e) => setBulkAdLeadCampaign(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
+                    >
+                      <option value="">No Campaign</option>
+                      {adCampaignsList.filter(c => c.status === 'Active').map(camp => (
+                        <option key={camp.id} value={camp.name}>{camp.name}</option>
                       ))}
                     </select>
                   </div>
