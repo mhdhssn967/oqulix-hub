@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { collection, getDocs, query, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X, Calculator } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X, Calculator, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Label } from 'recharts';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import AddTransactionModal from '../components/AddTransactionModal';
 
 export default function Finance() {
@@ -80,6 +82,140 @@ export default function Finance() {
         alert("Error deleting transaction");
       }
     }
+  };
+
+  const handleDownloadExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Financial_Data');
+
+    // Add Main Heading
+    worksheet.mergeCells('A1:H1');
+    const titleRow = worksheet.getCell('A1');
+    titleRow.value = 'Financial Report';
+    titleRow.font = { size: 16, bold: true };
+    titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Add Date Sub-heading
+    worksheet.mergeCells('A2:H2');
+    const dateRow = worksheet.getCell('A2');
+    const dateStr = new Date().toLocaleDateString();
+    dateRow.value = `Generated on: ${dateStr}`;
+    dateRow.font = { size: 11, italic: true };
+    dateRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    worksheet.addRow([]); // Blank row
+
+    // Define Columns
+    worksheet.columns = [
+      { header: 'S.No', key: 'sno', width: 8 },
+      { header: 'Date', key: 'date', width: 15 },
+      { header: 'Source', key: 'source', width: 25 },
+      { header: 'Type', key: 'type', width: 15 },
+      { header: 'Credit', key: 'credit', width: 20 },
+      { header: 'Debit', key: 'debit', width: 20 },
+      { header: 'Service', key: 'service', width: 20 },
+      { header: 'Remarks', key: 'remarks', width: 35 }
+    ];
+
+    // Format headers
+    const headerRow = worksheet.getRow(4);
+    headerRow.font = { bold: true };
+    headerRow.eachCell(cell => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF2F2F2' }
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    // Populate Data Rows
+    filteredTransactions.forEach((tx, index) => {
+      const isCredit = tx.transactionType === 'revenue' || tx.transactionType === 'credit';
+      const amount = tx.amount || 0;
+      
+      let creditVal = '';
+      let debitVal = '';
+
+      if (isCredit) {
+        creditVal = `+ ${amount.toLocaleString('en-IN')}`;
+        totalCredit += amount;
+      } else {
+        debitVal = `- ${amount.toLocaleString('en-IN')}`;
+        totalDebit += amount;
+      }
+
+      const row = worksheet.addRow({
+        sno: index + 1,
+        date: tx.date ? new Date(tx.date).toLocaleDateString() : 'N/A',
+        source: tx.source || 'N/A',
+        type: tx.type || 'N/A',
+        credit: creditVal,
+        debit: debitVal,
+        service: tx.service || 'N/A',
+        remarks: tx.remarks || 'N/A'
+      });
+
+      // Style values
+      row.getCell('credit').font = { color: { argb: 'FF00B050' }, bold: true };
+      row.getCell('debit').font = { color: { argb: 'FFFF0000' }, bold: true };
+      row.getCell('sno').alignment = { horizontal: 'center' };
+      row.getCell('credit').alignment = { horizontal: 'right' };
+      row.getCell('debit').alignment = { horizontal: 'right' };
+
+      // Add borders to all populated cells
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+    });
+
+    worksheet.addRow([]); // Blank row
+
+    // Summary Row
+    const net = totalCredit - totalDebit;
+    const summaryRow = worksheet.addRow({
+      type: 'TOTALS',
+      credit: `+ ${totalCredit.toLocaleString('en-IN')}`,
+      debit: `- ${totalDebit.toLocaleString('en-IN')}`,
+      service: 'NET BALANCE',
+      remarks: `${net >= 0 ? '+' : ''}${net.toLocaleString('en-IN')}`
+    });
+
+    summaryRow.font = { bold: true };
+    summaryRow.getCell('credit').font = { color: { argb: 'FF00B050' }, bold: true };
+    summaryRow.getCell('debit').font = { color: { argb: 'FFFF0000' }, bold: true };
+    summaryRow.getCell('remarks').font = { color: { argb: net >= 0 ? 'FF00B050' : 'FFFF0000' }, bold: true };
+    summaryRow.getCell('credit').alignment = { horizontal: 'right' };
+    summaryRow.getCell('debit').alignment = { horizontal: 'right' };
+    
+    summaryRow.eachCell({ includeEmpty: false }, cell => {
+      cell.border = {
+        top: { style: 'medium' },
+        bottom: { style: 'medium' },
+        left: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Write and Download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const filenameDate = new Date().toISOString().split('T')[0];
+    saveAs(blob, `Finance_Export_${filenameDate}.xlsx`);
   };
 
   const handleEdit = (tx) => {
@@ -406,6 +542,13 @@ export default function Finance() {
               >
                 <Filter className="w-4 h-4" />
                 Filters
+              </button>
+              <button
+                onClick={handleDownloadExcel}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-4 py-2 border border-zinc-200 bg-white text-zinc-700 rounded-xl text-sm font-medium hover:bg-zinc-50 transition-colors shadow-sm whitespace-nowrap"
+              >
+                <Download className="w-4 h-4" />
+                Export
               </button>
               <button
                 onClick={() => setIsAddModalOpen(true)}
