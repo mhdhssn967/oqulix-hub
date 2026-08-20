@@ -1677,7 +1677,21 @@ export default function CRM() {
                 ></textarea>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <a 
+                  href={`tel:${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9+]/g, '')}`} 
+                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Phone className="w-3.5 h-3.5" /> Call
+                </a>
+                <a 
+                  href={`https://wa.me/${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9]/g, '')}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+                </a>
                 <button 
                   type="button" 
                   onClick={() => {
@@ -1691,16 +1705,8 @@ export default function CRM() {
                   }} 
                   className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Phone className="w-3.5 h-3.5" /> Copy Number
+                  <Copy className="w-3.5 h-3.5" /> Copy
                 </button>
-                <a 
-                  href={`https://wa.me/${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9]/g, '')}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-                </a>
               </div>
 
               <div className="flex flex-col gap-2 mt-2">
