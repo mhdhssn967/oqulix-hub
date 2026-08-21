@@ -67,7 +67,7 @@ const DISTRIBUTOR_STATUS_OPTIONS = [
 
 export default function CRM() {
   const [activeSegment, setActiveSegment] = useState('happymoves');
-  const [activeTab, setActiveTab] = useState('regular');
+  const [activeTab, setActiveTab] = useState('ads');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
   const [distributors, setDistributors] = useState([]);
@@ -88,6 +88,7 @@ export default function CRM() {
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [leadTypeFilter, setLeadTypeFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('All');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
 
@@ -143,7 +144,7 @@ export default function CRM() {
     institutionName: '',
     contactNumber: '',
     region: '',
-    leadType: '',
+    leadType: 'Hospital',
     customLeadType: '',
     priority: 'Medium',
     remarks: '',
@@ -435,8 +436,8 @@ export default function CRM() {
     e.preventDefault();
     if (!companyId) return;
     
-    if (!adLeadFormData.name.trim() || !adLeadFormData.contactNumber.trim() || !adLeadFormData.leadType) {
-      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Name, Contact Number and Lead Type are required." });
+    if (!adLeadFormData.contactNumber.trim()) {
+      Swal.fire({ icon: "warning", title: "Missing Fields", text: "Contact Number is required." });
       return;
     }
     if (!adLeadFormData.assignedToUid && isAdmin) {
@@ -449,7 +450,7 @@ export default function CRM() {
       const finalLeadType = adLeadFormData.leadType === 'Other' ? adLeadFormData.customLeadType : adLeadFormData.leadType;
       
       const payload = {
-        name: adLeadFormData.name,
+        name: adLeadFormData.name.trim() || 'Unknown',
         institutionName: adLeadFormData.institutionName,
         contactNumber: adLeadFormData.contactNumber,
         contactNo: adLeadFormData.contactNumber, // for consistency
@@ -495,7 +496,7 @@ export default function CRM() {
       
       setIsAdLeadModalOpen(false);
       setEditingLeadId(null);
-      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
       
       Swal.fire({
         title: editingLeadId ? 'Updated!' : 'Added!',
@@ -1001,8 +1002,10 @@ export default function CRM() {
   };
 
   const getPriorityColor = (priority) => {
-    if (priority === 'Urgent') return 'text-red-600 flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
-    return 'text-zinc-600 bg-zinc-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
+    if (priority === 'Urgent' || priority === 'High') return 'text-red-600 flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
+    if (priority === 'Medium') return 'text-orange-600 flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
+    if (priority === 'Low') return 'text-green-600 flex items-center gap-1 bg-green-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
+    return 'text-zinc-600 flex items-center gap-1 bg-zinc-50 px-2 py-0.5 rounded-md text-[11px] font-semibold';
   };
 
   const currentData = activeTab === 'regular' ? regularLeads : activeTab === 'ads' ? adLeads : distributors;
@@ -1097,6 +1100,11 @@ export default function CRM() {
 
       const leadType = item.leadType || 'N/A';
       if (leadTypeFilter !== '' && leadType !== leadTypeFilter) return false;
+
+      if (priorityFilter !== 'All') {
+        const priority = item.priority || 'Medium';
+        if (priority !== priorityFilter) return false;
+      }
 
       if (monthFilter !== '') {
         const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
@@ -1194,8 +1202,8 @@ export default function CRM() {
           {/* Custom Tabs */}
           <div className="flex items-center gap-6 border-b border-zinc-200/80 mb-6 overflow-x-auto no-scrollbar whitespace-nowrap">
         {[
-          { id: 'regular', label: 'Regular Leads', count: regularLeads.length },
           { id: 'ads', label: 'Ad Leads', count: adLeads.length },
+          { id: 'regular', label: 'Regular Leads', count: regularLeads.length },
           { id: 'distributors', label: 'Distributors', count: distributors.length },
         ].map(tab => (
           <button
@@ -1264,17 +1272,18 @@ export default function CRM() {
           </div>
           
           <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+
+            <div className="relative w-36 sm:w-44 shrink-0">
+              <AlertCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                value={priorityFilter}
+                onChange={(e) => { setPriorityFilter(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
               >
-                <option value="">All Statuses</option>
-                {(activeTab === 'distributors' ? DISTRIBUTOR_STATUS_OPTIONS : LEAD_STATUS_OPTIONS).map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
+                <option value="All">All Priorities</option>
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
               </select>
             </div>
             
@@ -1320,7 +1329,7 @@ export default function CRM() {
                 ))}
               </select>
             </div>
-            
+
             <button
               onClick={() => { setShowIrregularPhonesOnly(!showIrregularPhonesOnly); setCurrentPage(1); }}
               className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-2 whitespace-nowrap ${
@@ -1381,6 +1390,15 @@ export default function CRM() {
                           NEW
                         </span>
                       )}
+                      {lead.priority && (
+                        <span className={`absolute bottom-0 left-0 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-md shadow-sm uppercase tracking-wider z-10 leading-none ${
+                          lead.priority === 'High' || lead.priority === 'Urgent' ? 'bg-red-500' :
+                          lead.priority === 'Medium' ? 'bg-orange-500' :
+                          'bg-green-500'
+                        }`}>
+                          {lead.priority}
+                        </span>
+                      )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
@@ -1416,6 +1434,11 @@ export default function CRM() {
                           </div>
                         )}
                       </div>
+                      {lead.remarks && (
+                        <div className="mt-1.5 text-[11px] text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-100 max-w-[200px] line-clamp-2" title={lead.remarks}>
+                          {lead.remarks}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.employeeName || 'N/A'}</td>
                     <td className="px-5 py-4">
@@ -1442,19 +1465,32 @@ export default function CRM() {
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Lead Info</th>
+                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status & Agent</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Institution & Region</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider max-w-xs">Message</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status & Agent</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
-                  <tr key={lead.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
+                  <tr key={lead.id} className={`transition-colors group cursor-pointer ${
+                    isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 
+                    (!(lead.statusHistory?.length > 1) && !(lead.history?.length > 1)) ? 'bg-blue-50/80 hover:bg-blue-100/80' : 
+                    'hover:bg-zinc-50/50'
+                  }`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(lead) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
                           NEW
+                        </span>
+                      )}
+                      {lead.priority && (
+                        <span className={`absolute bottom-0 left-0 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-md shadow-sm uppercase tracking-wider z-10 leading-none ${
+                          lead.priority === 'High' || lead.priority === 'Urgent' ? 'bg-red-500' :
+                          lead.priority === 'Medium' ? 'bg-orange-500' :
+                          'bg-green-500'
+                        }`}>
+                          {lead.priority}
                         </span>
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
@@ -1493,12 +1529,23 @@ export default function CRM() {
                           </div>
                         )}
                       </div>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span className={getPriorityColor(lead.priority)}>
-                          {lead.priority === 'Urgent' && <AlertCircle className="w-3 h-3" />}
-                          {lead.priority}
-                        </span>
-                        {isMissedFollowUp(lead) && <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider">Missed Follow-up</span>}
+                      {lead.remarks && (
+                        <div className="mt-1.5 text-[11px] text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-100 max-w-[200px] line-clamp-2" title={lead.remarks}>
+                          {lead.remarks}
+                        </div>
+                      )}
+                      {isMissedFollowUp(lead) && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="text-[10px] text-red-600 font-bold uppercase tracking-wider">Missed Follow-up</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
+                        {lead.currentStatus}
+                      </span>
+                      <div className="text-[12px] text-zinc-500 mt-1">
+                        Rep: <span className="font-medium text-zinc-700">{lead.assignedToName}</span>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -1512,14 +1559,6 @@ export default function CRM() {
                         "{lead.message}"
                       </p>
                       <p className="text-[11px] text-zinc-400 mt-1">Type: {lead.leadType}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
-                        {lead.currentStatus}
-                      </span>
-                      <div className="text-[12px] text-zinc-500 mt-1">
-                        Rep: <span className="font-medium text-zinc-700">{lead.assignedToName}</span>
-                      </div>
                     </td>
                     <td className="px-5 py-4 text-right">
                       <button className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-md transition-colors opacity-0 group-hover:opacity-100">
@@ -1555,6 +1594,15 @@ export default function CRM() {
                       {isRecentLead(dist) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
                           NEW
+                        </span>
+                      )}
+                      {dist.priority && (
+                        <span className={`absolute bottom-0 left-0 text-white text-[9px] font-black px-1.5 py-0.5 rounded-tr-md shadow-sm uppercase tracking-wider z-10 leading-none ${
+                          dist.priority === 'High' || dist.priority === 'Urgent' ? 'bg-red-500' :
+                          dist.priority === 'Medium' ? 'bg-orange-500' :
+                          'bg-green-500'
+                        }`}>
+                          {dist.priority}
                         </span>
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
@@ -1599,6 +1647,11 @@ export default function CRM() {
                           </div>
                         )}
                       </div>
+                      {dist.remarks && (
+                        <div className="mt-1.5 text-[11px] text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-100 max-w-[200px] line-clamp-2" title={dist.remarks}>
+                          {dist.remarks}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
@@ -1798,22 +1851,29 @@ export default function CRM() {
       {selectedLead && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 sm:p-8 flex items-start justify-between relative overflow-hidden">
+            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 sm:p-8 flex flex-col sm:flex-row items-start justify-between gap-5 relative overflow-hidden shrink-0">
               <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 opacity-10 pointer-events-none">
                 <Target className="w-64 h-64 text-white" />
               </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="bg-white/20 text-white text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-md">
+              <button 
+                onClick={() => setSelectedLead(null)}
+                className="absolute top-4 right-4 sm:hidden text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-xl p-2 z-20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="relative z-10 w-full sm:w-auto pr-10 sm:pr-0">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md tracking-wide uppercase">
                     Lead Profile
                   </span>
                   {selectedLead.currentStatus && (
-                    <span className="bg-emerald-500/20 text-emerald-300 text-xs font-semibold px-2.5 py-1 rounded-full backdrop-blur-md border border-emerald-500/30">
+                    <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md border border-emerald-500/30 tracking-wide uppercase">
                       {selectedLead.currentStatus}
                     </span>
                   )}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight break-words">
                   {selectedLead.clientName || selectedLead.name || selectedLead.distributorName || 'Unknown Lead'}
                 </h2>
                 {(selectedLead.place || selectedLead.region) && (
@@ -1823,24 +1883,24 @@ export default function CRM() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-3 relative z-10">
+              <div className="grid grid-cols-2 sm:flex items-center gap-3 relative z-10 w-full sm:w-auto mt-4 sm:mt-0">
                 {(activeTab === 'regular' || activeTab === 'ads' || activeTab === 'distributors') && (
                   <button 
                     onClick={() => openEditModal(selectedLead)}
-                    className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
+                    className="w-full sm:w-auto justify-center bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-4 sm:px-5 py-2.5 sm:py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
                   >
                     Edit Profile
                   </button>
                 )}
                 <button 
                   onClick={() => handleDeleteLead(selectedLead)}
-                  className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all rounded-xl px-5 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
+                  className="w-full sm:w-auto justify-center bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white transition-all rounded-xl px-4 sm:px-5 py-2.5 sm:py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
                 >
                   Delete
                 </button>
                 <button 
                   onClick={() => setSelectedLead(null)}
-                  className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl p-2 ml-1"
+                  className="hidden sm:flex text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl p-2 ml-1"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2186,7 +2246,7 @@ export default function CRM() {
                 if (!isSubmitting) {
                   setIsAdLeadModalOpen(false);
                   setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 }
               }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
                 <X className="w-4 h-4" />
@@ -2203,8 +2263,8 @@ export default function CRM() {
                     
                     <div className="flex flex-col py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <div className="flex items-center w-full">
-                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name*</label>
-                        <input type="text" list="global-client-names" required name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
+                        <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name</label>
+                        <input type="text" list="global-client-names" name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
                       </div>
                       {getDuplicateWarning(adLeadFormData.name)}
                     </div>
@@ -2228,8 +2288,8 @@ export default function CRM() {
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
-                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type*</label>
-                      <select required name="leadType" value={adLeadFormData.leadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Lead Type</label>
+                      <select name="leadType" value={adLeadFormData.leadType} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
                         <option value="" disabled>Select Type</option>
                         {segmentClients.length > 0 ? segmentClients.map(client => (
                           <option key={client} value={client}>{client}</option>
