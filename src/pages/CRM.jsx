@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info } from 'lucide-react';
-import { doc, getDoc, getDocs, updateDoc, setDoc, collection, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
@@ -213,7 +213,7 @@ export default function CRM() {
     if (!clientName || !companyId) return;
     try {
       const formattedString = `${clientName} (${associateName || 'Unknown Associate'})`;
-      const globalRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
+      const globalRef = doc(db, 'userData', companyId, 'crm', 'allClients');
       await setDoc(globalRef, {
         clients: arrayUnion({
           clientName: clientName,
@@ -305,36 +305,36 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
+      const docRef = doc(db, 'userData', companyId, 'crm', 'leads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
       
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...leadPayload } : item);
-      } else {
-        const newLead = {
-          ...leadPayload,
-          id: doc(collection(db, 'temp')).id,
-          currentStatus: leadPayload.currentStatus || 'New Lead',
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          userId: user.uid,
-          assignedToUid: user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newLead, ...items];
+      const leadData = {
+        id: docRef.id,
+        ...leadPayload,
+        updatedAt: serverTimestamp()
+      };
+
+      if (!editingLeadId) {
+        leadData.createdAt = serverTimestamp();
+        leadData.userId = user.uid;
+        leadData.assignedToUid = user.uid;
+        leadData.employeeName = isAdmin ? 'Admin' : (employeeData?.name || 'Employee');
+        leadData.addedByName = isAdmin ? 'Admin' : (employeeData?.name || 'Employee');
+        leadData.newLead = true;
+        leadData.currentStatus = leadPayload.currentStatus || 'New Lead';
+        leadData.date = new Date().toISOString().slice(0, 10);
       }
-      
-      await setDoc(docRef, { items }, { merge: true });
+
+      await setDoc(docRef, leadData, { merge: true });
       
       const savedClientName = leadPayload.clientName || leadPayload.name;
       const savedAssociate = leadPayload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedLeads = getFilteredItemsForUser(items, 'leads');
-      setRegularLeads(fetchedLeads);
+      if (editingLeadId) {
+        setRegularLeads(prev => prev.map(it => it.id === editingLeadId ? { ...it, ...leadData } : it));
+      } else {
+        setRegularLeads(prev => [{ ...leadData }, ...prev]);
+      }
       
       setIsModalOpen(false);
       setEditingLeadId(null);
@@ -382,7 +382,7 @@ export default function CRM() {
 
     setIsSubmitting(true);
     try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
+      const docRef = doc(db, 'userData', companyId, 'crm', 'adLeads');
       const snap = await getDoc(docRef);
       let items = snap.exists() ? (snap.data().items || []) : [];
 
@@ -466,33 +466,35 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-      } else {
-        const newLead = {
-          ...payload,
-          id: doc(collection(db, 'temp')).id,
-          currentStatus: 'New Lead',
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-          addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-          userId: (isAdmin || isManager || canManageAdLeads) ? payload.assignedToUid : user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newLead, ...items];
+      const docRef = doc(db, 'userData', companyId, 'crm', 'adLeads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
+      
+      const leadData = {
+        id: docRef.id,
+        ...payload,
+        updatedAt: serverTimestamp()
+      };
+
+      if (!editingLeadId) {
+        leadData.createdAt = serverTimestamp();
+        leadData.userId = (isAdmin || isManager || canManageAdLeads) ? payload.assignedToUid : user.uid;
+        leadData.employeeName = isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee'));
+        leadData.addedByName = isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee'));
+        leadData.newLead = true;
+        leadData.currentStatus = payload.currentStatus || 'New Lead';
+        leadData.date = new Date().toISOString().slice(0, 10);
       }
-      await setDoc(docRef, { items }, { merge: true });
+
+      await setDoc(docRef, leadData, { merge: true });
 
       const savedClientName = payload.name || payload.institutionName;
       const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
-      setAdLeads(fetchedLeads);
+      if (editingLeadId) {
+        setAdLeads(prev => prev.map(it => it.id === editingLeadId ? { ...it, ...leadData } : it));
+      } else {
+        setAdLeads(prev => [{ ...leadData }, ...prev]);
+      }
       
       setIsAdLeadModalOpen(false);
       setEditingLeadId(null);
@@ -531,32 +533,35 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
-      if (editingLeadId) {
-        items = items.map(item => item.id === editingLeadId ? { ...item, ...payload } : item);
-      } else {
-        const newDistributor = {
-          ...payload,
-          id: doc(collection(db, 'temp')).id,
-          newLead: true,
-          employeeName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          addedByName: isAdmin ? 'Admin' : (employeeData?.name || 'Employee'),
-          userId: user.uid,
-          date: new Date().toISOString().slice(0, 10),
-          createdAt: new Date(),
-        };
-        items = [newDistributor, ...items];
+      const docRef = doc(db, 'userData', companyId, 'crm', 'distributors', 'items', editingLeadId || doc(collection(db, 'temp')).id);
+      
+      const leadData = {
+        id: docRef.id,
+        ...payload,
+        updatedAt: serverTimestamp()
+      };
+
+      if (!editingLeadId) {
+        leadData.createdAt = serverTimestamp();
+        leadData.userId = (isAdmin || isManager) ? (payload.assignedToUid || user.uid) : user.uid;
+        leadData.employeeName = isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee'));
+        leadData.addedByName = isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee'));
+        leadData.newLead = true;
+        leadData.currentStatus = payload.currentStatus || 'Haven\'t yet contacted';
+        leadData.date = new Date().toISOString().slice(0, 10);
       }
-      await setDoc(docRef, { items }, { merge: true });
+
+      await setDoc(docRef, leadData, { merge: true });
 
       const savedClientName = payload.distributorName;
       const savedAssociate = payload.assignedToName || (isAdmin ? 'Admin' : (employeeData?.name || 'Employee'));
       await updateGlobalClientList(savedClientName, savedAssociate);
 
-      const fetchedDistributors = getFilteredItemsForUser(items, 'distributors');
-      setDistributors(fetchedDistributors);
+      if (editingLeadId) {
+        setDistributors(prev => prev.map(it => it.id === editingLeadId ? { ...it, ...leadData } : it));
+      } else {
+        setDistributors(prev => [{ ...leadData }, ...prev]);
+      }
 
       setIsDistributorModalOpen(false);
       setEditingLeadId(null);
@@ -678,12 +683,13 @@ export default function CRM() {
     if (activeTab === 'distributors') collectionName = 'distributors';
     
     try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const items = snap.data().items || [];
-        const newItems = items.filter(item => item.id !== lead.id);
-        await updateDoc(docRef, { items: newItems });
+      const docRef = doc(db, 'userData', companyId, 'crm', collectionName, 'items', lead.id);
+      await deleteDoc(docRef);
+      
+      let newItems = [];
+      if (activeTab === 'regular') newItems = regularLeads.filter(item => item.id !== lead.id);
+      if (activeTab === 'ads') newItems = adLeads.filter(item => item.id !== lead.id);
+      if (activeTab === 'distributors') newItems = distributors.filter(item => item.id !== lead.id);
         
         const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
         
@@ -699,7 +705,6 @@ export default function CRM() {
           timer: 1500,
           showConfirmButton: false
         });
-      }
     } catch (err) {
       console.error("Error deleting lead:", err);
       Swal.fire({
@@ -736,25 +741,17 @@ export default function CRM() {
       const sourceCollection = activeTab === 'regular' ? 'leads' : 'distributors';
       
       // 1. Delete from source collection
-      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', sourceCollection);
-      const sourceSnap = await getDoc(sourceDocRef);
-      if (sourceSnap.exists()) {
-        const items = sourceSnap.data().items || [];
-        const newItems = items.filter(item => item.id !== lead.id);
-        await updateDoc(sourceDocRef, { items: newItems });
-        
-        const fetchedItems = (!isAdmin && !isManager) && user?.uid ? newItems.filter(item => item.userId === user.uid || item.assignedToUid === user.uid) : newItems;
-        if (activeTab === 'regular') setRegularLeads(fetchedItems);
-        if (activeTab === 'distributors') setDistributors(fetchedItems);
-      }
+      const sourceDocRef = doc(db, 'userData', companyId, 'crm', sourceCollection, 'items', lead.id);
+      await deleteDoc(sourceDocRef);
+      
+      if (activeTab === 'regular') setRegularLeads(prev => prev.filter(item => item.id !== lead.id));
+      if (activeTab === 'distributors') setDistributors(prev => prev.filter(item => item.id !== lead.id));
       
       // 2. Add to adLeads collection
-      const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-      const adLeadsSnap = await getDoc(adLeadsDocRef);
-      let adItems = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
+      const adLeadsDocRef = doc(collection(db, 'userData', companyId, 'crm', 'adLeads', 'items'));
       
       const newAdLead = {
-        id: doc(collection(db, 'temp')).id,
+        id: adLeadsDocRef.id,
         name: activeTab === 'regular' ? (lead.personOfContact || lead.clientName || lead.name || '') : (lead.contactPersonName || lead.distributorName || ''),
         institutionName: activeTab === 'regular' ? (lead.clientName || lead.name || '') : (lead.distributorName || ''),
         contactNumber: lead.contactNo || lead.contactNumber || '',
@@ -767,21 +764,19 @@ export default function CRM() {
         assignedToUid: lead.assignedToUid || lead.userId || user.uid,
         assignedToName: lead.assignedToName || lead.employeeName || employeeData?.name || '',
         message: lead.message || 'Converted from ' + (activeTab === 'regular' ? 'Regular Lead' : 'Distributor'),
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
         currentStatus: lead.currentStatus || 'New Lead',
         newLead: true,
         employeeName: lead.employeeName || employeeData?.name || '',
         addedByName: lead.addedByName || employeeData?.name || '',
         userId: lead.userId || user.uid,
         date: new Date().toISOString().slice(0, 10),
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
       };
       
-      adItems = [newAdLead, ...adItems];
-      await setDoc(adLeadsDocRef, { items: adItems }, { merge: true });
+      await setDoc(adLeadsDocRef, newAdLead, { merge: true });
       
-      const adFetchedItems = getFilteredItemsForUser(adItems, 'adLeads');
-      setAdLeads(adFetchedItems);
+      setAdLeads(prev => [{ ...newAdLead }, ...prev]);
       
       setSelectedLead(null);
       setQuickUpdateLead(null);
@@ -812,59 +807,55 @@ export default function CRM() {
     if (activeTab === 'distributors') collectionName = 'distributors';
 
     try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName);
+      const docRef = doc(db, 'userData', companyId, 'crm', collectionName, 'items', quickUpdateLead.id);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        const items = snap.data().items || [];
-        const newItems = items.map(item => {
-          if (item.id === quickUpdateLead.id) {
-            const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
-            const newRemarks = remarkAddition 
-              ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
-              : item.remarks;
-              
-            let currentHistory = item.statusHistory || [];
-            if (currentHistory.length === 0) {
-              let initialDate = new Date().toISOString();
-              const oldDateRaw = item.date || item.lastContacted || item.createdAt;
-              if (oldDateRaw) {
-                if (oldDateRaw.seconds) initialDate = new Date(oldDateRaw.seconds * 1000).toISOString();
-                else if (!isNaN(new Date(oldDateRaw))) initialDate = new Date(oldDateRaw).toISOString();
-              }
-              currentHistory.push({
-                date: initialDate,
-                status: item.currentStatus || 'New Lead',
-                remarks: item.remarks || ''
-              });
-            }
-
-            const historyEntry = {
-              date: new Date().toISOString(),
-              status: updateStatus,
-              remarks: updateRemarks.trim()
-            };
-            const statusHistory = [...currentHistory, historyEntry];
-
-            return {
-              ...item,
-              currentStatus: updateStatus,
-              remarks: newRemarks,
-              statusHistory,
-              lastContacted: new Date().toISOString().split('T')[0],
-              lastFollowedUp: new Date().toISOString().split('T')[0]
-            };
+        const item = snap.data();
+        
+        const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
+        const newRemarks = remarkAddition 
+          ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
+          : item.remarks;
+          
+        let currentHistory = item.statusHistory || [];
+        if (currentHistory.length === 0) {
+          let initialDate = new Date().toISOString();
+          const oldDateRaw = item.date || item.lastContacted || item.createdAt;
+          if (oldDateRaw) {
+            if (oldDateRaw.seconds) initialDate = new Date(oldDateRaw.seconds * 1000).toISOString();
+            else if (!isNaN(new Date(oldDateRaw))) initialDate = new Date(oldDateRaw).toISOString();
           }
-          return item;
-        });
+          currentHistory.push({
+            date: initialDate,
+            status: item.currentStatus || 'New Lead',
+            remarks: item.remarks || ''
+          });
+        }
+
+        const historyEntry = {
+          date: new Date().toISOString(),
+          status: updateStatus,
+          remarks: updateRemarks.trim()
+        };
+        const statusHistory = [...currentHistory, historyEntry];
+
+        const updatedData = {
+          currentStatus: updateStatus,
+          remarks: newRemarks,
+          statusHistory,
+          lastContacted: new Date().toISOString().split('T')[0],
+          lastFollowedUp: new Date().toISOString().split('T')[0],
+          updatedAt: serverTimestamp()
+        };
         
-        await updateDoc(docRef, { items: newItems });
+        await updateDoc(docRef, updatedData);
         
-        const fetchedItems = getFilteredItemsForUser(newItems, collectionName);
-        
-        if (activeTab === 'regular') setRegularLeads(fetchedItems);
-        if (activeTab === 'ads') setAdLeads(fetchedItems);
-        if (activeTab === 'distributors') setDistributors(fetchedItems);
+        // Update local state
+        const updateLocalState = (itemsList) => itemsList.map(it => it.id === item.id ? { ...it, ...updatedData } : it);
+        if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
+        if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
+        if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
       }
       setQuickUpdateLead(null);
     } catch (err) {
@@ -888,18 +879,18 @@ export default function CRM() {
     const fetchCRMData = async () => {
       if (!companyId) return;
       try {
-        const leadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads');
-        const adLeadsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
-        const distributorsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors');
+        const leadsColRef = collection(db, 'userData', companyId, 'crm', 'leads', 'items');
+        const adLeadsColRef = collection(db, 'userData', companyId, 'crm', 'adLeads', 'items');
+        const distributorsColRef = collection(db, 'userData', companyId, 'crm', 'distributors', 'items');
         const empsColRef = collection(db, 'userData', companyId, 'employees');
         const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
-        const globalClientsDocRef = doc(db, 'userData', companyId, 'segments', 'General', 'crmData', 'allClients');
+        const globalClientsDocRef = doc(db, 'userData', companyId, 'crm', 'allClients');
         const campaignsRef = collection(db, 'userData', companyId, 'adCampaigns');
         
         const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap, campaignsSnap] = await Promise.all([
-          getDoc(leadsDocRef),
-          getDoc(adLeadsDocRef),
-          getDoc(distributorsDocRef),
+          getDocs(leadsColRef),
+          getDocs(adLeadsColRef),
+          getDocs(distributorsColRef),
           getDocs(empsColRef),
           getDoc(segmentDocRef),
           getDoc(globalClientsDocRef),
@@ -924,9 +915,9 @@ export default function CRM() {
         const empsList = empsSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
         setAllEmployees(empsList);
 
-        let fetchedLeads = leadsSnap.exists() ? (leadsSnap.data().items || []) : [];
-        let fetchedAdLeads = adLeadsSnap.exists() ? (adLeadsSnap.data().items || []) : [];
-        let fetchedDistributors = distributorsSnap.exists() ? (distributorsSnap.data().items || []) : [];
+        let fetchedLeads = leadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let fetchedAdLeads = adLeadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let fetchedDistributors = distributorsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         fetchedLeads = getFilteredItemsForUser(fetchedLeads, 'leads');
         fetchedAdLeads = getFilteredItemsForUser(fetchedAdLeads, 'adLeads');

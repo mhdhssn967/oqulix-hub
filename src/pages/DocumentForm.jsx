@@ -64,10 +64,10 @@ export default function DocumentForm() {
       const needsClients = selectedConfig.groups.some(g => g.fields.some(f => f.source === 'clients'));
       if (needsClients) {
         try {
-          const leadsRef = doc(db, 'userData', userId, 'segments', 'happymoves', 'crmData', 'leads');
-          const snap = await getDoc(leadsRef);
-          if (snap.exists()) {
-            const items = snap.data().items || [];
+          const leadsRef = collection(db, 'userData', userId, 'segments', 'happymoves', 'crmData', 'leads', 'items');
+          const snap = await getDocs(leadsRef);
+          if (!snap.empty) {
+            const items = snap.docs.map(d => ({id: d.id, ...d.data()}));
             const leadsData = items.map(item => ({
               id: item.id,
               clientName: item.clientName || item.name || 'Unnamed Lead'
