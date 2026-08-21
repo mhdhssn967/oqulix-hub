@@ -88,12 +88,24 @@ export default function Analysis() {
     if (showAdLeads) pool = pool.concat(adLeads.map(i => ({ ...i, _type: 'adLead' })));
     if (showDistributors) pool = pool.concat(distributors.map(i => ({ ...i, _type: 'distributor' })));
     if (employeeFilter) {
-      pool = pool.filter(i => 
-        i.employeeName === employeeFilter || 
-        i.assignedToName === employeeFilter || 
-        i.addedByName === employeeFilter || 
-        (employeeFilter === 'Unknown' && !i.employeeName && !i.assignedToName && !i.addedByName)
-      );
+      pool = pool.filter(i => {
+        const isAddedBy = i.addedByName === employeeFilter;
+        if (isAddedBy) return true;
+
+        const isAssigned = i.employeeName === employeeFilter || i.assignedToName === employeeFilter;
+        if (isAssigned) {
+          if (i._type === 'adLead') {
+            const hasStatusHistory = i.statusHistory && i.statusHistory.length > 0;
+            const statusChanged = i.currentStatus && i.currentStatus !== 'New Lead';
+            return hasStatusHistory || statusChanged;
+          }
+          return true;
+        }
+
+        if (employeeFilter === 'Unknown' && !i.employeeName && !i.assignedToName && !i.addedByName) return true;
+        
+        return false;
+      });
     }
     return pool;
   }, [regularLeads, adLeads, distributors, showLeads, showAdLeads, showDistributors, employeeFilter]);

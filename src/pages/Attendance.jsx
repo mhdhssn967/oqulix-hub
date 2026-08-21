@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import RequestModal from '../components/RequestModal';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus } from 'lucide-react';
+import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase } from 'lucide-react';
 
 export default function Attendance() {
   const { user, companyId } = useAuthStore();
@@ -16,6 +16,23 @@ export default function Attendance() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('attendance');
   const [myRequests, setMyRequests] = useState([]);
+  const [customHolidays, setCustomHolidays] = useState({});
+
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      if (!companyId) return;
+      try {
+        const holidaysRef = doc(db, 'userData', companyId, 'settings', 'holidays');
+        const holidaysSnap = await getDoc(holidaysRef);
+        if (holidaysSnap.exists() && holidaysSnap.data().dates) {
+          setCustomHolidays(holidaysSnap.data().dates);
+        }
+      } catch (err) {
+        console.error("Error fetching holidays:", err);
+      }
+    };
+    fetchHolidays();
+  }, [companyId]);
 
   const fetchAttendance = async () => {
     if (!companyId || !user) return;
@@ -91,6 +108,28 @@ export default function Attendance() {
     return `${totalHours}h ${totalMinutes}m`;
   };
 
+  const isLeaveDay = (y, m, d) => {
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    if (customHolidays[dateStr]) return true;
+
+    const date = new Date(y, m, d);
+    const dayOfWeek = date.getDay();
+    
+    if (dayOfWeek === 0) return true; // Sunday
+    if (dayOfWeek === 6) { // 2nd and 4th Saturday
+      const weekNumber = Math.ceil(d / 7);
+      if (weekNumber === 2 || weekNumber === 4) return true;
+    }
+    return false;
+  };
+
+  const extraDaysCount = logs.filter(log => {
+    if (log.status === 'On Leave') return false;
+    if (!log.date) return false;
+    const [y, m, d] = log.date.split('-');
+    return isLeaveDay(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  }).length;
+
   return (
     <div className="flex flex-col gap-6 font-sans">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -142,8 +181,20 @@ export default function Attendance() {
             No attendance records found for {new Date(selectedMonth + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="flex flex-col">
+            {extraDaysCount > 0 && (
+              <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-cyan-50/50">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-cyan-600" />
+                  <span className="text-[13px] font-semibold text-cyan-900">Extra Days Worked (Holidays/Weekends)</span>
+                </div>
+                <div className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-full text-[12px] font-bold">
+                  {extraDaysCount} {extraDaysCount === 1 ? 'day' : 'days'}
+                </div>
+              </div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50/50 border-b border-zinc-100">
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Date</th>
@@ -219,6 +270,7 @@ export default function Attendance() {
               </tbody>
             </table>
           </div>
+        </div>
         )}
       </div>
       ) : (

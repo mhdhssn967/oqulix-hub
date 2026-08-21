@@ -462,8 +462,7 @@ export default function CRM() {
         assignedToName: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToName : (employeeData?.name || ''),
         message: adLeadFormData.message,
         campaign: adLeadFormData.campaign || '',
-        updatedAt: new Date(),
-        currentStatus: adLeadFormData.currentStatus || 'New Lead'
+        updatedAt: new Date()
       };
 
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads');
@@ -475,6 +474,7 @@ export default function CRM() {
         const newLead = {
           ...payload,
           id: doc(collection(db, 'temp')).id,
+          currentStatus: 'New Lead',
           newLead: true,
           employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
           addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
@@ -1008,7 +1008,16 @@ export default function CRM() {
   const currentData = activeTab === 'regular' ? regularLeads : activeTab === 'ads' ? adLeads : distributors;
 
   const uniqueStatuses = [...new Set(currentData.map(item => item.currentStatus || 'N/A'))].filter(Boolean).sort();
-  const uniqueEmployees = [...new Set(currentData.map(item => item.employeeName || item.assignedToName || item.addedByName || 'N/A'))].filter(Boolean).sort();
+  const uniqueEmployees = [...new Set(
+    currentData.flatMap(item => {
+      const names = [];
+      if (item.employeeName) names.push(item.employeeName);
+      if (item.assignedToName) names.push(item.assignedToName);
+      if (item.addedByName) names.push(item.addedByName);
+      if (names.length === 0) names.push('N/A');
+      return names;
+    })
+  )].filter(Boolean).sort();
   const uniqueMonths = [...new Set(currentData.map(item => {
     if (!item.date && !item.createdAt) return 'N/A';
     const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
@@ -1073,8 +1082,13 @@ export default function CRM() {
       const status = item.currentStatus || 'N/A';
       if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
       
-      const employee = item.employeeName || item.assignedToName || item.addedByName || 'N/A';
-      if (employeeFilter !== '' && employee !== employeeFilter) return false;
+      if (employeeFilter !== '') {
+        const matchesEmployee = (item.employeeName === employeeFilter) || 
+                                (item.assignedToName === employeeFilter) || 
+                                (item.addedByName === employeeFilter) || 
+                                (employeeFilter === 'N/A' && !item.employeeName && !item.assignedToName && !item.addedByName);
+        if (!matchesEmployee) return false;
+      }
       
       const phone = item.contactNo || item.contactNumber || '';
       if (showIrregularPhonesOnly && !isIrregularPhone(phone)) return false;

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
-import { Clock, CheckSquare, Calendar, CreditCard, ChevronRight, ChevronLeft, LayoutDashboard, User, ArrowUpRight, TrendingUp, Sparkles, CheckCircle, Laptop, Map, CalendarMinus, AlertCircle, X, Plus } from 'lucide-react';
+import { Clock, CheckSquare, Calendar, CreditCard, ChevronRight, ChevronLeft, LayoutDashboard, User, ArrowUpRight, TrendingUp, Sparkles, CheckCircle, Laptop, Map, CalendarMinus, AlertCircle, X, Plus, Briefcase } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import RequestModal from '../components/RequestModal';
@@ -160,7 +160,8 @@ export default function Dashboard() {
     fieldCount: 0,
     officeCount: 0,
     leaveCount: 0,
-    absentCount: 0
+    absentCount: 0,
+    extraDaysCount: 0
   });
 
   useEffect(() => {
@@ -193,6 +194,7 @@ export default function Dashboard() {
     let fieldCount = 0;
     let officeCount = 0;
     let leaveCount = 0;
+    let extraDaysCount = 0;
 
     Object.values(monthAttendance).forEach(log => {
       if (log.status === 'On Leave') {
@@ -202,10 +204,18 @@ export default function Dashboard() {
         if (log.workType === 'WFH') wfhCount++;
         else if (log.workType === 'Field') fieldCount++;
         else officeCount++;
+        
+        if (log.date) {
+          const [y, m, d] = log.date.split('-');
+          if (y && m && d) {
+            const holCheck = isLeaveDay(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+            if (holCheck.isLeave) extraDaysCount++;
+          }
+        }
       }
     });
 
-    const absentCount = Math.max(0, workingDaysPassed - totalPresent - leaveCount);
+    const absentCount = Math.max(0, workingDaysPassed - (totalPresent - extraDaysCount) - leaveCount);
 
     setStats({
       totalWorkingDays,
@@ -215,7 +225,8 @@ export default function Dashboard() {
       fieldCount,
       officeCount,
       leaveCount,
-      absentCount
+      absentCount,
+      extraDaysCount
     });
   }, [monthAttendance, calYear, calMonth, customHolidays]);
 
@@ -301,6 +312,11 @@ export default function Dashboard() {
               {stats.absentCount > 0 && (
                 <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
                   <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
+                </div>
+              )}
+              {stats.extraDaysCount > 0 && (
+                <div className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-cyan-100 flex items-center gap-1.5 whitespace-nowrap">
+                  <Briefcase className="w-3.5 h-3.5" /> Extra Days: {stats.extraDaysCount}
                 </div>
               )}
             </div>
