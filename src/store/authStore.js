@@ -11,6 +11,7 @@ export const useAuthStore = create((set) => ({
   role: null,
   companyId: null,
   permissions: [],
+  isHR: false,
   loading: true,
 
   initAuth: () => {
@@ -24,22 +25,25 @@ export const useAuthStore = create((set) => ({
           // Fetch all role documents from `users` collection
           const rolesSnapshot = await getDocs(collection(db, 'users'));
           let userRole = null;
+          let userRoles = [];
           let permissions = [];
           
           rolesSnapshot.forEach(roleDoc => {
             const data = roleDoc.data();
             if (data.userIds && data.userIds.includes(user.uid)) {
               userRole = roleDoc.id;
+              userRoles.push(roleDoc.id.toLowerCase());
               permissions = (empData && empData.permissions) ? empData.permissions : (data.permissions || []);
             }
           });
 
           // Set standard flags based on role for backward compatibility
           const lowerRole = userRole ? userRole.toLowerCase() : '';
-          const isAdmin = lowerRole === 'admin';
-          const isManager = lowerRole === 'hr' || lowerRole === 'manager';
+          const isAdmin = userRoles.includes('admin');
+          const isManager = userRoles.includes('hr') || userRoles.includes('manager') || userRoles.some(r => r.includes('manager'));
+          const isHR = userRoles.some(r => r.includes('hr')) || (empData && empData.department && empData.department.toLowerCase() === 'hr') || (empData && empData.position && empData.position.toLowerCase().includes('hr'));
           const isAdLeadManager = user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1';
-          const isEmployee = !!userRole && !isAdmin;
+          const isEmployee = userRoles.length > 0 && !isAdmin;
 
           if (userRole) {
             set({ 
@@ -48,6 +52,7 @@ export const useAuthStore = create((set) => ({
               isEmployee, 
               isManager, 
               isAdLeadManager,
+              isHR,
               role: userRole,
               employeeData: empData, 
               companyId: empData ? empData.companyid : user.uid, 
@@ -56,14 +61,14 @@ export const useAuthStore = create((set) => ({
             });
           } else {
             // User not found in any role document
-            set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, role: null, companyId: null, permissions: [], loading: false });
+            set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, isHR: false, role: null, companyId: null, permissions: [], loading: false });
           }
         } catch (error) {
           console.error("Error checking auth status:", error);
-          set({ user, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, companyId: null, permissions: [], loading: false });
+          set({ user, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, isHR: false, companyId: null, permissions: [], loading: false });
         }
       } else {
-        set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, companyId: null, permissions: [], loading: false });
+        set({ user: null, isAdmin: false, isEmployee: false, isManager: false, isAdLeadManager: false, isHR: false, companyId: null, permissions: [], loading: false });
       }
     });
   },

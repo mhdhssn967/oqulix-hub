@@ -24,7 +24,7 @@ const getEmployee = (item) =>
 
 // ─── Main Component ─────────────────────────────────────
 export default function Analysis() {
-  const { user, isAdmin, isManager, companyId } = useAuthStore();
+  const { user, isAdmin, isManager, companyId, isHR } = useAuthStore();
   const [activeSegment, setActiveSegment] = useState('happymoves');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
@@ -60,7 +60,7 @@ export default function Analysis() {
         
         const filterData = (items) => {
           if (!items) return [];
-          if (isAdmin || isManager) return items;
+          if (isAdmin || isManager || isHR) return items;
           return items.filter(i => 
             i.userId === user?.uid || 
             i.assignedToUid === user?.uid || 

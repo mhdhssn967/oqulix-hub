@@ -20,14 +20,13 @@ const companyId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1'; // Extracted from your other u
 
 async function fetchEmployees() {
   try {
-    const snap = await getDocs(collection(db, `userData/${companyId}/employees`));
-    const employees = snap.docs.map(doc => ({
+    const snap = await getDocs(collection(db, `users`));
+    const users = snap.docs.map(doc => ({
       id: doc.id,
-      name: doc.data().name,
-      position: doc.data().position
+      userIds: doc.data().userIds
     }));
     
-    console.log(JSON.stringify(employees, null, 2));
+    console.log(JSON.stringify(users, null, 2));
     process.exit(0);
   } catch (error) {
     console.error("Error fetching employees:", error);

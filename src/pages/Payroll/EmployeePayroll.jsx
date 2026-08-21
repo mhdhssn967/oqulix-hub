@@ -70,7 +70,7 @@ export default function EmployeePayroll() {
   const totalDeductions = payrollLogs.reduce((sum, l) => sum + (l.deductions || 0), 0);
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
+    <div className="flex flex-col gap-6 w-full">
       <header className="flex flex-col gap-1">
         <h1 className="text-3xl font-semibold text-black tracking-tight">My Payroll</h1>
         <p className="text-[15px] text-zinc-500">View your salary history and download payslips.</p>
