@@ -99,7 +99,8 @@ export default function EmployeePayroll() {
       });
       
       const actualHours = (totalMinutesWorked / 60) + (fieldDays * 6.5);
-      const fullSalary = employeeData?.salary || 0;
+      const empDoc = await getDoc(doc(db, `userData/${companyId}/employees`, user.uid));
+      const fullSalary = empDoc.exists() ? (empDoc.data().salary || 0) : 0;
       let calculatedSalary = fullSalary;
       
       if (expectedHours > 0) {

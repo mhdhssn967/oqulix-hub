@@ -3,7 +3,8 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase';
 import RequestModal from '../components/RequestModal';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase } from 'lucide-react';
+import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase, Activity } from 'lucide-react';
+import { calculateEmployeeAttendanceMetrics } from '../utils/attendanceUtils';
 
 export default function Attendance() {
   const { user, companyId } = useAuthStore();
@@ -17,6 +18,59 @@ export default function Attendance() {
   const [activeTab, setActiveTab] = useState('attendance');
   const [myRequests, setMyRequests] = useState([]);
   const [customHolidays, setCustomHolidays] = useState({});
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    if (logs.length === 0) {
+      setStats(null);
+      return;
+    }
+    
+    const [y, m] = selectedMonth.split('-');
+    const year = parseInt(y, 10);
+    const month = parseInt(m, 10) - 1;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let workingDays = 0;
+    
+    const checkLeaveDay = (y, m, d) => {
+      const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (customHolidays[dateStr]) return true;
+
+      const date = new Date(y, m, d);
+      const dayOfWeek = date.getDay();
+      
+      if (dayOfWeek === 0) return true; // Sunday
+      if (dayOfWeek === 6) { // 2nd and 4th Saturday
+        const weekNumber = Math.ceil(d / 7);
+        if (weekNumber === 2 || weekNumber === 4) return true;
+      }
+      return false;
+    };
+    
+    const now = new Date();
+    const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    let daysPassed = 0;
+    if (selectedMonth === currentMonthPrefix) {
+      daysPassed = Math.min(now.getDate(), daysInMonth);
+    } else if (selectedMonth < currentMonthPrefix) {
+      daysPassed = daysInMonth;
+    } else {
+      daysPassed = 0;
+    }
+
+    let offDaysPassed = 0;
+    for(let i=1; i<=daysPassed; i++) {
+      if (checkLeaveDay(year, month, i)) {
+        offDaysPassed++;
+      }
+    }
+    
+    const workingDaysPassed = Math.max(0, daysPassed - offDaysPassed);
+    
+    const calculatedStats = calculateEmployeeAttendanceMetrics({ id: user?.uid, name: 'Employee' }, logs, workingDaysPassed);
+    setStats(calculatedStats);
+    
+  }, [logs, selectedMonth, customHolidays, user]);
 
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -182,6 +236,53 @@ export default function Attendance() {
           </div>
         ) : (
           <div className="flex flex-col">
+            {stats && (
+              <div className="p-5 border-b border-zinc-100 bg-white grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-[12px] font-semibold text-zinc-500 uppercase">Working Hours</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-zinc-900">{stats.totalHours}</span>
+                    <span className="text-[13px] font-medium text-zinc-500">/ {stats.expectedHours}h</span>
+                  </div>
+                </div>
+                
+                <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="text-[12px] font-semibold text-emerald-700 uppercase">Present Days</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-emerald-800">{stats.presentDays}</span>
+                    <span className="text-[13px] font-medium text-emerald-600">/ {stats.workingDaysPassed}</span>
+                  </div>
+                </div>
+
+                <div className="bg-fuchsia-50 p-4 rounded-xl border border-fuchsia-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Briefcase className="w-4 h-4 text-fuchsia-600" />
+                    <span className="text-[12px] font-semibold text-fuchsia-700 uppercase">Field Work</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-fuchsia-800">{stats.fieldDays}</span>
+                    <span className="text-[13px] font-medium text-fuchsia-600">days</span>
+                  </div>
+                </div>
+                
+                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity className="w-4 h-4 text-indigo-600" />
+                    <span className="text-[12px] font-semibold text-indigo-700 uppercase">Avg Hours / Day</span>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-indigo-800">{stats.avgHours}</span>
+                    <span className="text-[13px] font-medium text-indigo-600">h</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {extraDaysCount > 0 && (
               <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-cyan-50/50">
                 <div className="flex items-center gap-2">
@@ -255,8 +356,29 @@ export default function Attendance() {
                           {log.status}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-[13px] font-medium text-zinc-600">
-                        {timeStr}
+                      <td className="px-5 py-4">
+                        <div className="text-[13px] font-medium text-zinc-600">
+                          {timeStr}
+                        </div>
+                        {log.breaks && log.breaks.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {log.breaks.map((b, idx) => {
+                              const start = b.startTime?.toDate ? b.startTime.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '...';
+                              const end = b.endTime?.toDate ? b.endTime.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'Ongoing';
+                              let duration = '';
+                              if (b.startTime && b.endTime) {
+                                const ms = (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) - (b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime));
+                                duration = `${Math.floor(ms / 60000)}m`;
+                              }
+                              return (
+                                <span key={idx} className="inline-flex items-center gap-1 text-[10px] font-medium text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100/50">
+                                  <Coffee className="w-3 h-3" />
+                                  {start} - {end} {duration && `(${duration})`}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-[13px] font-semibold text-zinc-900">{calculateWorkingDuration(log)}</span>
