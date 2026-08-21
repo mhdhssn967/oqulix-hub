@@ -29,7 +29,111 @@ export default function EmployeePayrollAdminView() {
     deductions: 0
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [calculationDetails, setCalculationDetails] = useState(null);
   const [generatingPdfId, setGeneratingPdfId] = useState(null);
+
+  const handleOpenProcessModal = async (monthStr, existingLog) => {
+    const isProcessed = !!existingLog;
+    setFormData({
+      baseSalary: isProcessed ? (existingLog.baseSalary || 0) : (employee.salary || 0),
+      bonus: isProcessed ? (existingLog.bonus || 0) : 0,
+      incentives: isProcessed ? (existingLog.incentives || 0) : 0,
+      deductions: isProcessed ? (existingLog.deductions || 0) : 0
+    });
+    setProcessModal({ isOpen: true, month: monthStr, existingLog });
+    setCalculationDetails({ loading: true });
+    
+    try {
+      const [yearStr, monthStrPart] = monthStr.split('-');
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStrPart, 10);
+      
+      const holidaysRef = doc(db, 'userData', companyId, 'settings', 'holidays');
+      const holidaysSnap = await getDoc(holidaysRef);
+      const customHolidays = holidaysSnap.exists() && holidaysSnap.data().dates ? holidaysSnap.data().dates : {};
+      
+      const isLeaveDay = (y, m, d) => {
+        const dStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (customHolidays[dStr]) return true;
+        const date = new Date(y, m, d);
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0) return true;
+        if (dayOfWeek === 6) {
+          const weekNumber = Math.ceil(d / 7);
+          if (weekNumber === 2 || weekNumber === 4) return true;
+        }
+        return false;
+      };
+      
+      const daysInMonth = new Date(year, month, 0).getDate();
+      let offDays = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        if (isLeaveDay(year, month - 1, i)) {
+          offDays++;
+        }
+      }
+      
+      const workingDays = daysInMonth - offDays;
+      const expectedHours = workingDays * 6.5;
+      
+      const attQ = query(
+        collection(db, `userData/${companyId}/attendanceLogs`),
+        where('employeeId', '==', employeeId)
+      );
+      const attSnap = await getDocs(attQ);
+      
+      let totalMinutesWorked = 0;
+      let fieldDays = 0;
+      
+      attSnap.docs.forEach(d => {
+        const log = d.data();
+        if (log.date && log.date.startsWith(monthStr) && log.status !== 'On Leave') {
+          if (log.workType === 'Field') {
+            fieldDays++;
+          } else if (log.clockedInAt) {
+            const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+            const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
+            let ms = tOut.getTime() - tIn.getTime();
+            if (log.breaks && Array.isArray(log.breaks)) {
+              log.breaks.forEach(b => {
+                if (b.startTime) {
+                  const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
+                  const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
+                  ms -= (bE.getTime() - bS.getTime());
+                }
+              });
+            }
+            if (ms > 0) totalMinutesWorked += Math.floor(ms / 60000);
+          }
+        }
+      });
+      
+      const actualHours = (totalMinutesWorked / 60) + (fieldDays * 6.5);
+      const fullSalary = employee.salary || 0;
+      let calculatedSalary = fullSalary;
+      
+      if (expectedHours > 0) {
+        calculatedSalary = (fullSalary / expectedHours) * actualHours;
+        if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
+      }
+      
+      if (!isProcessed) {
+        setFormData(p => ({ ...p, baseSalary: Math.round(calculatedSalary) }));
+      }
+      
+      setCalculationDetails({
+        loading: false,
+        actualHours: actualHours.toFixed(1),
+        expectedHours: expectedHours.toFixed(1),
+        originalSalary: fullSalary
+      });
+    } catch (err) {
+      console.error(err);
+      setCalculationDetails({ loading: false, error: true });
+    }
+  };
+
+  const [currentMonthExpected, setCurrentMonthExpected] = useState(0);
 
   const fetchData = async () => {
     if (!companyId || !employeeId) return;
@@ -55,6 +159,80 @@ export default function EmployeePayrollAdminView() {
       );
       const logs = logsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPayrollLogs(logs);
+      
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+      
+      const holidaysRef = doc(db, 'userData', companyId, 'settings', 'holidays');
+      const holidaysSnap = await getDoc(holidaysRef);
+      const customHolidays = holidaysSnap.exists() && holidaysSnap.data().dates ? holidaysSnap.data().dates : {};
+      
+      const isLeaveDay = (y, m, d) => {
+        const dStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (customHolidays[dStr]) return true;
+        const date = new Date(y, m, d);
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0) return true;
+        if (dayOfWeek === 6) {
+          const weekNumber = Math.ceil(d / 7);
+          if (weekNumber === 2 || weekNumber === 4) return true;
+        }
+        return false;
+      };
+      
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      let offDays = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        if (isLeaveDay(year, month, i)) {
+          offDays++;
+        }
+      }
+      
+      const expectedHours = (daysInMonth - offDays) * 6.5;
+      
+      const attQ = query(
+        collection(db, `userData/${companyId}/attendanceLogs`),
+        where('employeeId', '==', employeeId)
+      );
+      const attSnap = await getDocs(attQ);
+      
+      let totalMinutesWorked = 0;
+      let fieldDays = 0;
+      
+      attSnap.docs.forEach(d => {
+        const log = d.data();
+        if (log.date && log.date.startsWith(monthStr) && log.status !== 'On Leave') {
+          if (log.workType === 'Field') {
+            fieldDays++;
+          } else if (log.clockedInAt) {
+            const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+            const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
+            let ms = tOut.getTime() - tIn.getTime();
+            if (log.breaks && Array.isArray(log.breaks)) {
+              log.breaks.forEach(b => {
+                if (b.startTime) {
+                  const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
+                  const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
+                  ms -= (bE.getTime() - bS.getTime());
+                }
+              });
+            }
+            if (ms > 0) totalMinutesWorked += Math.floor(ms / 60000);
+          }
+        }
+      });
+      
+      const actualHours = (totalMinutesWorked / 60) + (fieldDays * 6.5);
+      const fullSalary = empDoc.data().salary || 0;
+      let calculatedSalary = fullSalary;
+      
+      if (expectedHours > 0) {
+        calculatedSalary = (fullSalary / expectedHours) * actualHours;
+        if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
+      }
+      setCurrentMonthExpected(Math.round(calculatedSalary));
       
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -195,7 +373,8 @@ export default function EmployeePayrollAdminView() {
 
   const monthsList = generateMonthsList();
   const totalEarned = payrollLogs.reduce((sum, l) => sum + (l.netSalary || 0), 0);
-  const totalBonus = payrollLogs.reduce((sum, l) => sum + (l.bonus || 0) + (l.incentives || 0), 0);
+  const totalBonus = payrollLogs.reduce((sum, l) => sum + (l.bonus || 0), 0);
+  const totalIncentives = payrollLogs.reduce((sum, l) => sum + (l.incentives || 0), 0);
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -206,7 +385,7 @@ export default function EmployeePayrollAdminView() {
         <h1 className="text-2xl font-bold text-black tracking-tight">{employee.name}'s Payroll</h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
           <div>
             <div className="flex justify-between items-start mb-2">
@@ -219,6 +398,18 @@ export default function EmployeePayrollAdminView() {
           </div>
           <p className="text-[12px] text-zinc-500 mt-2">
             Joined: {employee.dateOfJoining ? new Date(employee.dateOfJoining).toLocaleDateString() : 'Unknown'}
+          </p>
+        </div>
+
+        <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-200/50 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div>
+            <div className="flex justify-between items-start mb-2">
+              <p className="text-[13px] font-semibold text-blue-700 uppercase tracking-wider">Curr. Month Expected</p>
+            </div>
+            <h3 className="text-3xl font-bold text-blue-800">₹{currentMonthExpected.toLocaleString()}</h3>
+          </div>
+          <p className="text-[12px] text-blue-600 mt-2">
+            Based on {new Date().toLocaleDateString('default', { month: 'long', year: 'numeric' })} attendance
           </p>
         </div>
         
@@ -245,6 +436,18 @@ export default function EmployeePayrollAdminView() {
             </div>
           </div>
         </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col gap-3 justify-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-zinc-500 uppercase tracking-wider">Total Incentives Given</p>
+              <h3 className="text-xl font-bold text-black mt-0.5">₹{totalIncentives.toLocaleString()}</h3>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white border border-zinc-200/80 shadow-sm rounded-2xl overflow-hidden">
@@ -254,7 +457,8 @@ export default function EmployeePayrollAdminView() {
               <tr className="bg-zinc-50/50 border-b border-zinc-100">
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Month</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Base Salary</th>
-                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Bonus/Incentives</th>
+                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Bonus</th>
+                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Incentive</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Deductions</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Net Paid</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Actions</th>
@@ -279,7 +483,10 @@ export default function EmployeePayrollAdminView() {
                       {isProcessed ? `₹${(existingLog.baseSalary || 0).toLocaleString()}` : '-'}
                     </td>
                     <td className="px-5 py-4 text-[13px] font-medium text-emerald-600 text-right">
-                      {isProcessed ? `+ ₹${((existingLog.bonus || 0) + (existingLog.incentives || 0)).toLocaleString()}` : '-'}
+                      {isProcessed ? `+ ₹${(existingLog.bonus || 0).toLocaleString()}` : '-'}
+                    </td>
+                    <td className="px-5 py-4 text-[13px] font-medium text-purple-600 text-right">
+                      {isProcessed ? `+ ₹${(existingLog.incentives || 0).toLocaleString()}` : '-'}
                     </td>
                     <td className="px-5 py-4 text-[13px] font-medium text-red-500 text-right">
                       {isProcessed ? `- ₹${(existingLog.deductions || 0).toLocaleString()}` : '-'}
@@ -290,15 +497,7 @@ export default function EmployeePayrollAdminView() {
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => {
-                            setFormData({
-                              baseSalary: isProcessed ? (existingLog.baseSalary || 0) : (employee.salary || 0),
-                              bonus: isProcessed ? (existingLog.bonus || 0) : 0,
-                              incentives: isProcessed ? (existingLog.incentives || 0) : 0,
-                              deductions: isProcessed ? (existingLog.deductions || 0) : 0
-                            });
-                            setProcessModal({ isOpen: true, month: monthStr, existingLog });
-                          }}
+                          onClick={() => handleOpenProcessModal(monthStr, existingLog)}
                           className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg transition-colors ${isProcessed ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'}`}
                         >
                           {isProcessed ? 'Edit' : 'Process'}
@@ -313,6 +512,13 @@ export default function EmployeePayrollAdminView() {
                             {generatingPdfId === existingLog.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                           </button>
                         )}
+                        {!isProcessed && calculationDetails?.loading ? (
+                          <p className="mt-1.5 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating hours...</p>
+                        ) : !isProcessed && calculationDetails && !calculationDetails.error ? (
+                          <p className="mt-1.5 text-[10px] text-zinc-500 leading-tight">
+                            Calculated from <span className="font-semibold text-zinc-700">{calculationDetails.actualHours}</span> / {calculationDetails.expectedHours} worked hours. (Standard: ₹{calculationDetails.originalSalary?.toLocaleString()})
+                          </p>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -374,6 +580,13 @@ export default function EmployeePayrollAdminView() {
                 <div>
                   <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Base Salary (₹)</label>
                   <input type="number" required min="0" value={formData.baseSalary} onChange={(e) => setFormData({...formData, baseSalary: e.target.value})} className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all font-medium" />
+                  {!processModal.existingLog && calculationDetails?.loading ? (
+                    <p className="mt-1.5 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating hours...</p>
+                  ) : !processModal.existingLog && calculationDetails && !calculationDetails.error ? (
+                    <p className="mt-1.5 text-[10px] text-zinc-500 leading-tight">
+                      Calculated from <span className="font-semibold text-zinc-700">{calculationDetails.actualHours}</span> / {calculationDetails.expectedHours} worked hours. (Standard: ₹{calculationDetails.originalSalary?.toLocaleString()})
+                    </p>
+                  ) : null}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
