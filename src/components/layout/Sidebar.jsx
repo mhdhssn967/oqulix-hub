@@ -9,7 +9,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 export function Sidebar() {
   const isOpen = useUIStore((s) => s.isMobileMenuOpen);
   const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
-  const { user, isAdmin, isManager, companyId, permissions } = useAuthStore();
+  const { user, isAdmin, isManager, companyId, permissions, isHR } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -58,6 +58,12 @@ export function Sidebar() {
 
   const hasPermission = (label) => {
     if (label === 'Dashboard' || label === 'Payroll') return true; // Always visible
+    
+    if (label === 'Finance' && isHR && !isAdmin) {
+      if (permissions && permissions.includes(label)) return true;
+      return false;
+    }
+    
     if (isAdmin || isManager) return true;
     
     if (permissions && permissions.length > 0) {

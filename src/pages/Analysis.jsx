@@ -87,16 +87,29 @@ export default function Analysis() {
     if (showLeads) pool = pool.concat(regularLeads.map(i => ({ ...i, _type: 'lead' })));
     if (showAdLeads) pool = pool.concat(adLeads.map(i => ({ ...i, _type: 'adLead' })));
     if (showDistributors) pool = pool.concat(distributors.map(i => ({ ...i, _type: 'distributor' })));
-    if (employeeFilter) pool = pool.filter(i => getEmployee(i) === employeeFilter);
+    if (employeeFilter) {
+      pool = pool.filter(i => 
+        i.employeeName === employeeFilter || 
+        i.assignedToName === employeeFilter || 
+        i.addedByName === employeeFilter || 
+        (employeeFilter === 'Unknown' && !i.employeeName && !i.assignedToName && !i.addedByName)
+      );
+    }
     return pool;
   }, [regularLeads, adLeads, distributors, showLeads, showAdLeads, showDistributors, employeeFilter]);
 
   // ── Unique employees ──────────────────────────────────
   const allEmployees = useMemo(() => {
     const names = new Set();
-    regularLeads.forEach(i => names.add(getEmployee(i)));
-    adLeads.forEach(i => names.add(getEmployee(i)));
-    distributors.forEach(i => names.add(getEmployee(i)));
+    const addNames = (item) => {
+      if (item.employeeName) names.add(item.employeeName);
+      if (item.assignedToName) names.add(item.assignedToName);
+      if (item.addedByName) names.add(item.addedByName);
+      if (!item.employeeName && !item.assignedToName && !item.addedByName) names.add('Unknown');
+    };
+    regularLeads.forEach(addNames);
+    adLeads.forEach(addNames);
+    distributors.forEach(addNames);
     return [...names].sort();
   }, [regularLeads, adLeads, distributors]);
 

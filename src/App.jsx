@@ -57,7 +57,12 @@ const AdminRoute = ({ children }) => {
 
 // Permission Route Wrapper
 const PermissionRoute = ({ children, permissionLabel }) => {
-  const { isAdmin, isManager, permissions } = useAuthStore();
+  const { isAdmin, isManager, permissions, isHR } = useAuthStore();
+  
+  if (permissionLabel === 'Finance' && isHR && !isAdmin) {
+    if (permissions && permissions.includes(permissionLabel)) return children;
+    return <Navigate to="/" replace />;
+  }
   
   if (isAdmin || isManager) return children;
   
