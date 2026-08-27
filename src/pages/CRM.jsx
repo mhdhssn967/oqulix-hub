@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info } from 'lucide-react';
-import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download } from 'lucide-react';
+import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
@@ -96,6 +96,109 @@ export default function CRM() {
     if (isAdmin || isManager || isHR || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
     if (type === 'adLeads' && canManageAdLeads) return items;
     return items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid);
+  };
+
+  const handleMigrateArrays = async () => {
+    try {
+      setLoading(true);
+      const segments = ['happymoves', 'gamefaktory'];
+      const collections = ['leads', 'adLeads', 'distributors'];
+      
+      const batchArray = [];
+      let currentBatch = writeBatch(db);
+      let opCount = 0;
+
+      const commitAndReset = async () => {
+        if (opCount > 0) {
+          batchArray.push(currentBatch.commit());
+          currentBatch = writeBatch(db);
+          opCount = 0;
+        }
+      };
+
+      for (const seg of segments) {
+        for (const col of collections) {
+          const oldDocRef = doc(db, 'userData', companyId, 'segments', seg, 'crmData', col);
+          const snap = await getDoc(oldDocRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            // Check all possible array field names the older system might have used
+            const arrayData = data.items || data[col] || data.leads || data.adLeads || data.distributors || [];
+            
+            if (Array.isArray(arrayData)) {
+              for (const item of arrayData) {
+                // write to subcollection
+                if (item.id) {
+                  const newDocRef = doc(db, 'userData', companyId, 'segments', seg, 'crmData', col, 'items', item.id);
+                  currentBatch.set(newDocRef, item);
+                  opCount++;
+                  if (opCount === 500) {
+                    batchArray.push(currentBatch.commit());
+                    currentBatch = writeBatch(db);
+                    opCount = 0;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      await commitAndReset();
+      await Promise.all(batchArray);
+      
+      Swal.fire('Success', 'Migrated arrays to subcollections for all segments!', 'success');
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadGameFaktoryLeads = async () => {
+    try {
+      setLoading(true);
+      // Fetch from the specific old path (which is a document, not a collection)
+      const oldLeadsDocRef = doc(db, 'userData', 'SbHx5KAgBiXpEYIFyT4ht53alFz1', 'crmData', 'leads');
+      const snap = await getDoc(oldLeadsDocRef);
+      
+      if (!snap.exists()) {
+        Swal.fire('Notice', 'No old leads document found.', 'info');
+        return;
+      }
+
+      // The old format stored leads inside an "items" array in the document
+      const items = snap.data().items || [];
+      
+      // Filter those with segment 'gamefaktory'
+      const gamefaktoryDocs = items.filter(d => 
+        (d.segment || '').toLowerCase() === 'gamefaktory'
+      );
+      
+      if (gamefaktoryDocs.length === 0) {
+        Swal.fire('Notice', 'No leads found with segment = gamefaktory in that old path.', 'info');
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(gamefaktoryDocs, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gamefaktory_old_leads.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      Swal.fire('Success', `Downloaded ${gamefaktoryDocs.length} GameFaktory leads!`, 'success');
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Add Lead Modal State
@@ -213,7 +316,7 @@ export default function CRM() {
     if (!clientName || !companyId) return;
     try {
       const formattedString = `${clientName} (${associateName || 'Unknown Associate'})`;
-      const globalRef = doc(db, 'userData', companyId, 'crm', 'allClients');
+      const globalRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'allClients');
       await setDoc(globalRef, {
         clients: arrayUnion({
           clientName: clientName,
@@ -305,7 +408,7 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crm', 'leads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
       
       const leadData = {
         id: docRef.id,
@@ -382,40 +485,46 @@ export default function CRM() {
 
     setIsSubmitting(true);
     try {
-      const docRef = doc(db, 'userData', companyId, 'crm', 'adLeads');
-      const snap = await getDoc(docRef);
-      let items = snap.exists() ? (snap.data().items || []) : [];
+      const batch = writeBatch(db);
+      
+      const newLeads = uniqueNumbers.map(num => {
+        const newDocRef = doc(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items'));
+        return {
+          id: newDocRef.id,
+          name: 'Unknown',
+          institutionName: '',
+          contactNumber: num,
+          contactNo: num,
+          region: '',
+          leadType: 'Other',
+          priority: 'Medium',
+          remarks: '',
+          followUpDate: '',
+          assignedToUid: bulkAdLeadAssignedToUid,
+          assignedToName: bulkAdLeadAssignedToName,
+          message: '',
+          campaign: bulkAdLeadCampaign,
+          updatedAt: serverTimestamp(),
+          currentStatus: 'New Lead',
+          newLead: true,
+          employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+          addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
+          userId: bulkAdLeadAssignedToUid,
+          date: new Date().toISOString().slice(0, 10),
+          createdAt: serverTimestamp(),
+        };
+      });
 
-      const newLeads = uniqueNumbers.map(num => ({
-        id: doc(collection(db, 'temp')).id,
-        name: 'Unknown',
-        institutionName: '',
-        contactNumber: num,
-        contactNo: num,
-        region: '',
-        leadType: 'Other',
-        priority: 'Medium',
-        remarks: '',
-        followUpDate: '',
-        assignedToUid: bulkAdLeadAssignedToUid,
-        assignedToName: bulkAdLeadAssignedToName,
-        message: '',
-        campaign: bulkAdLeadCampaign,
-        updatedAt: new Date(),
-        currentStatus: 'New Lead',
-        newLead: true,
-        employeeName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-        addedByName: isAdmin ? 'Admin' : (isManager ? (employeeData?.name || 'Manager') : (employeeData?.name || 'Employee')),
-        userId: bulkAdLeadAssignedToUid,
-        date: new Date().toISOString().slice(0, 10),
-        createdAt: new Date(),
-      }));
+      newLeads.forEach(leadData => {
+        const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items', leadData.id);
+        batch.set(docRef, leadData);
+      });
 
-      items = [...newLeads, ...items];
-      await setDoc(docRef, { items }, { merge: true });
+      await batch.commit();
 
-      const fetchedLeads = getFilteredItemsForUser(items, 'adLeads');
-      setAdLeads(fetchedLeads);
+      const localNewLeads = newLeads.map(l => ({...l, createdAt: new Date(), updatedAt: new Date()}));
+      
+      setAdLeads(prev => [...localNewLeads, ...prev]);
 
       setIsBulkAdLeadModalOpen(false);
       setBulkAdLeadText('');
@@ -466,7 +575,7 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crm', 'adLeads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items', editingLeadId || doc(collection(db, 'temp')).id);
       
       const leadData = {
         id: docRef.id,
@@ -533,7 +642,7 @@ export default function CRM() {
         updatedAt: new Date()
       };
 
-      const docRef = doc(db, 'userData', companyId, 'crm', 'distributors', 'items', editingLeadId || doc(collection(db, 'temp')).id);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors', 'items', editingLeadId || doc(collection(db, 'temp')).id);
       
       const leadData = {
         id: docRef.id,
@@ -683,7 +792,7 @@ export default function CRM() {
     if (activeTab === 'distributors') collectionName = 'distributors';
     
     try {
-      const docRef = doc(db, 'userData', companyId, 'crm', collectionName, 'items', lead.id);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', lead.id);
       await deleteDoc(docRef);
       
       let newItems = [];
@@ -741,14 +850,14 @@ export default function CRM() {
       const sourceCollection = activeTab === 'regular' ? 'leads' : 'distributors';
       
       // 1. Delete from source collection
-      const sourceDocRef = doc(db, 'userData', companyId, 'crm', sourceCollection, 'items', lead.id);
+      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', sourceCollection, 'items', lead.id);
       await deleteDoc(sourceDocRef);
       
       if (activeTab === 'regular') setRegularLeads(prev => prev.filter(item => item.id !== lead.id));
       if (activeTab === 'distributors') setDistributors(prev => prev.filter(item => item.id !== lead.id));
       
       // 2. Add to adLeads collection
-      const adLeadsDocRef = doc(collection(db, 'userData', companyId, 'crm', 'adLeads', 'items'));
+      const adLeadsDocRef = doc(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items'));
       
       const newAdLead = {
         id: adLeadsDocRef.id,
@@ -807,7 +916,7 @@ export default function CRM() {
     if (activeTab === 'distributors') collectionName = 'distributors';
 
     try {
-      const docRef = doc(db, 'userData', companyId, 'crm', collectionName, 'items', quickUpdateLead.id);
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', quickUpdateLead.id);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const item = snap.data();
@@ -879,12 +988,12 @@ export default function CRM() {
     const fetchCRMData = async () => {
       if (!companyId) return;
       try {
-        const leadsColRef = collection(db, 'userData', companyId, 'crm', 'leads', 'items');
-        const adLeadsColRef = collection(db, 'userData', companyId, 'crm', 'adLeads', 'items');
-        const distributorsColRef = collection(db, 'userData', companyId, 'crm', 'distributors', 'items');
+        const leadsColRef = collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads', 'items');
+        const adLeadsColRef = collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items');
+        const distributorsColRef = collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors', 'items');
         const empsColRef = collection(db, 'userData', companyId, 'employees');
         const segmentDocRef = doc(db, 'userData', companyId, 'segments', activeSegment);
-        const globalClientsDocRef = doc(db, 'userData', companyId, 'crm', 'allClients');
+        const globalClientsDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'allClients');
         const campaignsRef = collection(db, 'userData', companyId, 'adCampaigns');
         
         const [leadsSnap, adLeadsSnap, distributorsSnap, empsSnap, segmentSnap, globalClientsSnap, campaignsSnap] = await Promise.all([
@@ -1181,6 +1290,24 @@ export default function CRM() {
             <Plus className="w-4 h-4" />
             {activeTab === 'ads' ? 'Add Ad Lead' : activeTab === 'distributors' ? 'Add Distributor' : 'Add Regular Lead'}
           </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={handleMigrateArrays}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors shadow-sm text-[13px]"
+              >
+                <AlertCircle className="w-4 h-4" />
+                Migrate Arrays
+              </button>
+              <button
+                onClick={downloadGameFaktoryLeads}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors shadow-sm text-[13px]"
+              >
+                <Download className="w-4 h-4" />
+                Download GF Data
+              </button>
+            </>
+          )}
         </div>
       </header>
 

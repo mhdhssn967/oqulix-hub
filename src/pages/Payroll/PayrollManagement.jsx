@@ -210,7 +210,6 @@ export default function PayrollManagement() {
         let calculated = fullSalary;
         if (expectedHours > 0) {
           calculated = (fullSalary / expectedHours) * actualHours;
-          if (calculated > fullSalary) calculated = fullSalary;
         }
         currentMonthExp[emp.id] = Math.round(calculated);
       });

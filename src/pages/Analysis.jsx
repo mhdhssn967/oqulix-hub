@@ -49,9 +49,9 @@ export default function Analysis() {
       setLoading(true);
       try {
         const [lSnap, aSnap, dSnap] = await Promise.all([
-          getDocs(collection(db, 'userData', companyId, 'crm', 'leads', 'items')),
-          getDocs(collection(db, 'userData', companyId, 'crm', 'adLeads', 'items')),
-          getDocs(collection(db, 'userData', companyId, 'crm', 'distributors', 'items'))
+          getDocs(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads', 'items')),
+          getDocs(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items')),
+          getDocs(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors', 'items'))
         ]);
 
         let allLeads = lSnap.docs.map(d => ({ id: d.id, ...d.data() }));

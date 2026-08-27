@@ -313,9 +313,19 @@ export default function Finance() {
     return (tx.isRevenue && tx.creditType !== "revenue") || tx.typeOfTransaction === "Income" ? acc + Number(tx.amount || 0) : acc;
   }, 0);
   
-  const totalDirectorLoan = filteredTransactions.reduce((acc, tx) => {
+  const directorLoanDepositSum = filteredTransactions.reduce((acc, tx) => {
     return (tx.service === "Director's Loan Deposit") ? acc + Number(tx.amount || 0) : acc;
   }, 0);
+
+  const nonHDFCExpense = filteredTransactions.reduce((acc, tx) => {
+    const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
+    if (isExpense && tx.source !== 'Oqulix HDFC') {
+      return acc + Number(tx.amount || 0);
+    }
+    return acc;
+  }, 0);
+
+  const totalDirectorLoanCardValue = directorLoanDepositSum + nonHDFCExpense;
 
   const gstLiabilities = useMemo(() => {
     const now = new Date();
@@ -620,35 +630,6 @@ export default function Finance() {
           </div>
         )}
 
-        <button 
-          onClick={() => window.location.href = '/finance/gst-analysis'}
-          className="w-full bg-gradient-to-r from-blue-50 to-indigo-50/30 hover:from-blue-100 hover:to-indigo-100/50 p-5 rounded-2xl border border-blue-200/60 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between transition-all text-left relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 opacity-[0.04] pointer-events-none group-hover:scale-110 transition-transform duration-500">
-             <Calculator className="w-64 h-64 text-blue-900" />
-          </div>
-          <div className="relative z-10 flex flex-col sm:flex-row gap-8 w-full sm:w-auto">
-            <div className="mb-4 sm:mb-0">
-              <div className="flex items-center gap-2 mb-1.5">
-                 <Calculator className="w-4 h-4 text-blue-600" />
-                 <h3 className="text-zinc-600 font-medium text-sm">GST Liability This Month</h3>
-              </div>
-              <div className="text-3xl font-bold text-zinc-900 tracking-tight">₹{gstLiabilities.current.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </div>
-            
-            <div className="hidden sm:block w-px bg-blue-200/50 self-stretch"></div>
-            
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                 <h3 className="text-zinc-500 font-medium text-[11px] uppercase tracking-wider">Last Month</h3>
-              </div>
-              <div className="text-xl font-semibold text-zinc-700">₹{gstLiabilities.last.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            </div>
-          </div>
-          <div className="relative z-10 flex items-center gap-2 text-blue-700 text-sm font-semibold bg-white hover:bg-blue-50 transition-colors px-5 py-2.5 rounded-xl shadow-sm border border-blue-200 mt-4 sm:mt-0">
-            Open GST Analysis <ChevronRight className="w-4 h-4" />
-          </div>
-        </button>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
@@ -681,13 +662,25 @@ export default function Finance() {
               <TrendingUp className="w-6 h-6" />
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-zinc-500">Director's Loan Deposit</p>
-              <h3 className="text-2xl font-bold text-purple-600 mt-1">₹{totalDirectorLoan.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">Director's Loan Deposit</p>
+                <h3 className="text-2xl font-bold text-purple-600 mt-1">₹{totalDirectorLoanCardValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
+                <TrendingUp className="w-6 h-6" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
-              <TrendingUp className="w-6 h-6" />
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-zinc-100 pt-3">
+               <div>
+                 <span className="text-zinc-500 block mb-0.5">Loan Deposit</span>
+                 <span className="font-semibold text-zinc-700">₹{directorLoanDepositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+               </div>
+               <div className="text-right">
+                 <span className="text-zinc-500 block mb-0.5">Non-HDFC Expenses</span>
+                 <span className="font-semibold text-zinc-700">₹{nonHDFCExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+               </div>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
@@ -701,6 +694,36 @@ export default function Finance() {
           </div>
         </div>
         
+        <button 
+          onClick={() => window.location.href = '/finance/gst-analysis'}
+          className="w-full bg-gradient-to-r from-blue-50 to-indigo-50/30 hover:from-blue-100 hover:to-indigo-100/50 p-5 rounded-2xl border border-blue-200/60 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between transition-all text-left relative overflow-hidden group"
+        >
+          <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 opacity-[0.04] pointer-events-none group-hover:scale-110 transition-transform duration-500">
+             <Calculator className="w-64 h-64 text-blue-900" />
+          </div>
+          <div className="relative z-10 flex flex-col sm:flex-row gap-8 w-full sm:w-auto">
+            <div className="mb-4 sm:mb-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                 <Calculator className="w-4 h-4 text-blue-600" />
+                 <h3 className="text-zinc-600 font-medium text-sm">GST Liability This Month</h3>
+              </div>
+              <div className="text-3xl font-bold text-zinc-900 tracking-tight">₹{gstLiabilities.current.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            
+            <div className="hidden sm:block w-px bg-blue-200/50 self-stretch"></div>
+            
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                 <h3 className="text-zinc-500 font-medium text-[11px] uppercase tracking-wider">Last Month</h3>
+              </div>
+              <div className="text-xl font-semibold text-zinc-700">₹{gstLiabilities.last.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+          <div className="relative z-10 flex items-center gap-2 text-blue-700 text-sm font-semibold bg-white hover:bg-blue-50 transition-colors px-5 py-2.5 rounded-xl shadow-sm border border-blue-200 mt-4 sm:mt-0">
+            Open GST Analysis <ChevronRight className="w-4 h-4" />
+          </div>
+        </button>
+
         {Object.keys(sourceBalances).length > 0 && (
           <div className="mb-6 flex flex-wrap items-center gap-3">
             {Object.entries(sourceBalances).map(([source, balance]) => {
