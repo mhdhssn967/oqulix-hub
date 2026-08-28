@@ -8,13 +8,17 @@ import Swal from 'sweetalert2';
 import RequestModal from '../components/RequestModal';
 
 export default function Dashboard() {
-  const { user, isAdmin, employeeData, companyId, permissions } = useAuthStore();
+  const { user, isAdmin, isManager, employeeData, companyId, permissions, isAdLeadManager } = useAuthStore();
   const navigate = useNavigate();
   
+  const isDigitalMarketing = employeeData?.position?.trim().toLowerCase() === 'digital marketing';
+  const canManageAdLeads = isDigitalMarketing || isAdLeadManager;
+
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [monthAttendance, setMonthAttendance] = useState({});
   const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [customHolidays, setCustomHolidays] = useState({});
+  const [todaysGlobalFollowUps, setTodaysGlobalFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
@@ -60,6 +64,51 @@ export default function Dashboard() {
 
     fetchDashboardData();
   }, [companyId, user, isAdmin, todayDate]);
+
+  // Global follow-ups fetch across all segments
+  useEffect(() => {
+    if (!companyId) return;
+    const fetchGlobalFollowUps = async () => {
+      try {
+        const segments = ['happymoves', 'gamefaktory'];
+        const collections = ['leads', 'adLeads', 'distributors'];
+        const allFollowUps = [];
+
+        for (const seg of segments) {
+          for (const col of collections) {
+            const colRef = collection(db, 'userData', companyId, 'segments', seg, 'crmData', col, 'items');
+            const snap = await getDocs(colRef);
+            snap.forEach(docSnap => {
+              const data = docSnap.data();
+              const followUp = data.nextFollowUp || data.followUpDate;
+              if (followUp === todayDate) {
+                const sourceName = col === 'leads' ? 'Regular Lead' : col === 'adLeads' ? 'Ad Lead' : 'Distributor';
+                allFollowUps.push({
+                  id: docSnap.id,
+                  ...data,
+                  _sourceCollection: sourceName,
+                  _segmentName: seg === 'happymoves' ? 'Happy Moves' : 'Game Faktory',
+                  _sourceTab: col === 'leads' ? 'regular' : col === 'adLeads' ? 'ads' : 'distributors'
+                });
+              }
+            });
+          }
+        }
+
+        const filteredFollowUps = allFollowUps.filter(item => {
+          if (isAdmin || isManager) return true;
+          if (item._sourceTab === 'ads' && canManageAdLeads) return true;
+          return item.userId === user?.uid || item.assignedToUid === user?.uid;
+        });
+
+        setTodaysGlobalFollowUps(filteredFollowUps);
+      } catch (err) {
+        console.error("Error fetching global follow ups:", err);
+      }
+    };
+    fetchGlobalFollowUps();
+  }, [companyId, isAdmin, isManager, canManageAdLeads, user?.uid, todayDate]);
+
 
   const hasPerm = (label) => {
     if (isAdmin) return true;
@@ -329,6 +378,39 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
+
+      {todaysGlobalFollowUps.length > 0 && (
+        <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-4 shadow-sm">
+          <div className="flex flex-col mb-3">
+            <h2 className="text-[14px] font-bold text-sky-900 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-sky-600" />
+              Today's Follow-Ups
+            </h2>
+            <p className="text-[12px] text-sky-700/80">Across all segments</p>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            {todaysGlobalFollowUps.map(lead => (
+              <div 
+                key={lead.id} 
+                onClick={() => navigate('/crm', { state: { openQuickUpdateLead: lead } })}
+                className="flex-shrink-0 w-64 bg-white border border-sky-100 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-sky-300 transition-all group relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-1 h-full bg-sky-400 group-hover:bg-sky-600 transition-colors" />
+                <div className="flex justify-between items-start mb-1.5 pl-2">
+                  <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">{lead._sourceCollection}</span>
+                  <span className="text-[10px] font-medium text-zinc-400">{lead._segmentName}</span>
+                </div>
+                <div className="pl-2">
+                  <p className="text-[13px] font-bold text-zinc-900 truncate">{lead.clientName || lead.name || lead.distributorName || 'Unnamed'}</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{lead.phone || lead.contactNo || lead.contactNumber || 'No Phone'}</p>
+                  <p className="text-[11px] text-zinc-400 mt-1">Ref: {lead.personOfContact || lead.contactPersonName || 'N/A'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

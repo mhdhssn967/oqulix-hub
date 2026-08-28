@@ -1,41 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
-
-const Pagination = ({ totalItems, currentPage, setCurrentPage, itemsPerPage }) => {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
-  
-  return (
-    <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-100 bg-white">
-      <div className="text-[13px] text-zinc-500">
-        Showing <span className="font-medium text-zinc-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium text-zinc-900">{Math.min(currentPage * itemsPerPage, totalItems)}</span> of <span className="font-medium text-zinc-900">{totalItems}</span> results
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-          disabled={currentPage === 1}
-          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="text-[13px] font-medium text-zinc-700">
-          Page {currentPage} of {totalPages}
-        </div>
-        <button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-          disabled={currentPage === totalPages}
-          className="p-1 rounded-md text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
-};
+import { useLocation, useNavigate } from 'react-router-dom';
+import Pagination from '../components/Pagination';
 
 const LEAD_STATUS_OPTIONS = [
   { value: 'New Lead', label: 'New Lead' },
@@ -66,11 +36,17 @@ const DISTRIBUTOR_STATUS_OPTIONS = [
 ];
 
 export default function CRM() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeSegment, setActiveSegment] = useState('happymoves');
   const [activeTab, setActiveTab] = useState('ads');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
   const [distributors, setDistributors] = useState([]);
+  const [allGlobalClients, setAllGlobalClients] = useState([]);
+  const [similarClients, setSimilarClients] = useState([]);
+  const [showSimilarClientsFor, setShowSimilarClientsFor] = useState('');
+  const [todaysGlobalFollowUps, setTodaysGlobalFollowUps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState(null);
   const [quickUpdateLead, setQuickUpdateLead] = useState(null);
@@ -91,6 +67,7 @@ export default function CRM() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
+  const [sortBy, setSortBy] = useState('added_date_desc');
 
   const getFilteredItemsForUser = (items, type = 'leads') => {
     if (isAdmin || isManager || isHR || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
@@ -98,108 +75,7 @@ export default function CRM() {
     return items.filter(item => item.userId === user.uid || item.assignedToUid === user.uid);
   };
 
-  const handleMigrateArrays = async () => {
-    try {
-      setLoading(true);
-      const segments = ['happymoves', 'gamefaktory'];
-      const collections = ['leads', 'adLeads', 'distributors'];
-      
-      const batchArray = [];
-      let currentBatch = writeBatch(db);
-      let opCount = 0;
 
-      const commitAndReset = async () => {
-        if (opCount > 0) {
-          batchArray.push(currentBatch.commit());
-          currentBatch = writeBatch(db);
-          opCount = 0;
-        }
-      };
-
-      for (const seg of segments) {
-        for (const col of collections) {
-          const oldDocRef = doc(db, 'userData', companyId, 'segments', seg, 'crmData', col);
-          const snap = await getDoc(oldDocRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            // Check all possible array field names the older system might have used
-            const arrayData = data.items || data[col] || data.leads || data.adLeads || data.distributors || [];
-            
-            if (Array.isArray(arrayData)) {
-              for (const item of arrayData) {
-                // write to subcollection
-                if (item.id) {
-                  const newDocRef = doc(db, 'userData', companyId, 'segments', seg, 'crmData', col, 'items', item.id);
-                  currentBatch.set(newDocRef, item);
-                  opCount++;
-                  if (opCount === 500) {
-                    batchArray.push(currentBatch.commit());
-                    currentBatch = writeBatch(db);
-                    opCount = 0;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      await commitAndReset();
-      await Promise.all(batchArray);
-      
-      Swal.fire('Success', 'Migrated arrays to subcollections for all segments!', 'success');
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const downloadGameFaktoryLeads = async () => {
-    try {
-      setLoading(true);
-      // Fetch from the specific old path (which is a document, not a collection)
-      const oldLeadsDocRef = doc(db, 'userData', 'SbHx5KAgBiXpEYIFyT4ht53alFz1', 'crmData', 'leads');
-      const snap = await getDoc(oldLeadsDocRef);
-      
-      if (!snap.exists()) {
-        Swal.fire('Notice', 'No old leads document found.', 'info');
-        return;
-      }
-
-      // The old format stored leads inside an "items" array in the document
-      const items = snap.data().items || [];
-      
-      // Filter those with segment 'gamefaktory'
-      const gamefaktoryDocs = items.filter(d => 
-        (d.segment || '').toLowerCase() === 'gamefaktory'
-      );
-      
-      if (gamefaktoryDocs.length === 0) {
-        Swal.fire('Notice', 'No leads found with segment = gamefaktory in that old path.', 'info');
-        return;
-      }
-
-      const blob = new Blob([JSON.stringify(gamefaktoryDocs, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'gamefaktory_old_leads.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      Swal.fire('Success', `Downloaded ${gamefaktoryDocs.length} GameFaktory leads!`, 'success');
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Add Lead Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -210,6 +86,16 @@ export default function CRM() {
   const [bulkAdLeadAssignedToName, setBulkAdLeadAssignedToName] = useState('');
   const [bulkAdLeadCampaign, setBulkAdLeadCampaign] = useState('');
   const [isDistributorModalOpen, setIsDistributorModalOpen] = useState(false);
+  const [isActiveDistributorModalOpen, setIsActiveDistributorModalOpen] = useState(false);
+  const [activeDistributorFormData, setActiveDistributorFormData] = useState({
+    agreementDate: new Date().toISOString().split('T')[0],
+    agreementDurationYears: '1',
+    territoryExclusivity: 'No',
+    minimumTarget: '',
+    commissionRate: '',
+    remarks: ''
+  });
+  const [convertingDistributorId, setConvertingDistributorId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
@@ -286,7 +172,14 @@ export default function CRM() {
     }
   }, [isModalOpen, isAdLeadModalOpen, isDistributorModalOpen, isAdmin, isManager, canManageAdLeads, employeeData, user]);
 
-  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (['name', 'clientName', 'personOfContact', 'contactNo', 'phone'].includes(name)) {
+      setShowSimilarClientsFor(name);
+      getSimilarClients(value);
+    }
+  };
   const handleAdLeadInputChange = (e) => {
     const { name, value } = e.target;
     setAdLeadFormData(prev => {
@@ -309,8 +202,19 @@ export default function CRM() {
       
       return newData;
     });
+    if (['name', 'institutionName', 'contactNumber', 'phone'].includes(name)) {
+      setShowSimilarClientsFor(name);
+      getSimilarClients(value);
+    }
   };
-  const handleDistributorInputChange = (e) => setDistributorFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleDistributorInputChange = (e) => {
+    const { name, value } = e.target;
+    setDistributorFormData(prev => ({ ...prev, [name]: value }));
+    if (['distributorName', 'contactPersonName', 'contactNumber'].includes(name)) {
+      setShowSimilarClientsFor(name);
+      getSimilarClients(value);
+    }
+  };
 
   const updateGlobalClientList = async (clientName, associateName) => {
     if (!clientName || !companyId) return;
@@ -691,8 +595,9 @@ export default function CRM() {
     }
   };
 
-  const openEditModal = (lead) => {
-    if (activeTab === 'ads') {
+  const openEditModal = (lead, typeOverride) => {
+    const targetTab = typeOverride || activeTab;
+    if (targetTab === 'ads' || targetTab === 'Ad Lead') {
       setAdLeadFormData({
         name: lead.name || '',
         institutionName: lead.institutionName || '',
@@ -710,7 +615,7 @@ export default function CRM() {
       setEditingLeadId(lead.id);
       setSelectedLead(null);
       setIsAdLeadModalOpen(true);
-    } else if (activeTab === 'distributors') {
+    } else if (targetTab === 'distributors' || targetTab === 'Distributor') {
       setDistributorFormData({
         distributorName: lead.distributorName || lead.name || lead.clientName || '',
         state: lead.state || '',
@@ -905,6 +810,66 @@ export default function CRM() {
       });
     }
   };
+  const handleConvertToActiveDistributor = async (e) => {
+    e.preventDefault();
+    if (!companyId || !convertingDistributorId) return;
+
+    const lead = distributors.find(d => d.id === convertingDistributorId);
+    if (!lead) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      const activeDistributorsDocRef = doc(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'activeDistributors', 'items'));
+      
+      const newActiveDistributor = {
+        ...lead,
+        id: activeDistributorsDocRef.id,
+        isActiveDistributor: true,
+        agreementDate: activeDistributorFormData.agreementDate,
+        agreementDurationYears: activeDistributorFormData.agreementDurationYears,
+        territoryExclusivity: activeDistributorFormData.territoryExclusivity,
+        minimumTarget: activeDistributorFormData.minimumTarget,
+        commissionRate: activeDistributorFormData.commissionRate,
+        agreementRemarks: activeDistributorFormData.remarks,
+        currentStatus: 'Active Distributor',
+        convertedAt: serverTimestamp(),
+        convertedByUid: user?.uid,
+        convertedByName: employeeData?.name || 'Admin',
+      };
+      
+      await setDoc(activeDistributorsDocRef, newActiveDistributor, { merge: true });
+      
+      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'distributors', 'items', lead.id);
+      await updateDoc(sourceDocRef, {
+        isActiveDistributor: true,
+        currentStatus: 'Active Distributor',
+        convertedToActiveId: activeDistributorsDocRef.id
+      });
+      
+      setDistributors(prev => prev.map(item => item.id === lead.id ? { ...item, isActiveDistributor: true, currentStatus: 'Active Distributor' } : item));
+      
+      setIsActiveDistributorModalOpen(false);
+      setConvertingDistributorId(null);
+      
+      Swal.fire({
+        title: 'Promoted!',
+        text: 'Distributor is now an Active Distributor.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error converting distributor:", err);
+      Swal.fire({
+        title: 'Error!',
+        text: 'Failed to promote the distributor.',
+        icon: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleQuickUpdate = async (e) => {
     e.preventDefault();
@@ -1028,6 +993,12 @@ export default function CRM() {
         let fetchedAdLeads = adLeadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         let fetchedDistributors = distributorsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        setAllGlobalClients([
+          ...fetchedLeads.map(l => ({...l, _sourceCollection: 'Regular Lead'})),
+          ...fetchedAdLeads.map(l => ({...l, _sourceCollection: 'Ad Lead'})),
+          ...fetchedDistributors.map(l => ({...l, _sourceCollection: 'Distributor'}))
+        ]);
+
         fetchedLeads = getFilteredItemsForUser(fetchedLeads, 'leads');
         fetchedAdLeads = getFilteredItemsForUser(fetchedAdLeads, 'adLeads');
         fetchedDistributors = getFilteredItemsForUser(fetchedDistributors, 'distributors');
@@ -1045,6 +1016,82 @@ export default function CRM() {
     
     fetchCRMData();
   }, [companyId, isAdmin, user?.uid, activeSegment]);
+
+  // Handle cross-page navigation state
+  useEffect(() => {
+    if (location.state?.openQuickUpdateLead) {
+      const lead = location.state.openQuickUpdateLead;
+      setQuickUpdateLead(lead);
+      setUpdateStatus(lead.currentStatus || 'New Lead');
+      setUpdateRemarks('');
+      navigate('.', { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
+
+  // Global follow-ups fetch across all segments
+  useEffect(() => {
+    if (!companyId) return;
+    const fetchGlobalFollowUps = async () => {
+      try {
+        const segments = ['happymoves', 'gamefaktory'];
+        const collections = ['leads', 'adLeads', 'distributors'];
+        const todayStr = new Date().toISOString().split('T')[0];
+        const allFollowUps = [];
+
+        for (const seg of segments) {
+          for (const col of collections) {
+            const colRef = collection(db, 'userData', companyId, 'segments', seg, 'crmData', col, 'items');
+            const snap = await getDocs(colRef);
+            snap.forEach(docSnap => {
+              const data = docSnap.data();
+              const followUp = data.nextFollowUp || data.followUpDate;
+              if (followUp === todayStr) {
+                const sourceName = col === 'leads' ? 'Regular Lead' : col === 'adLeads' ? 'Ad Lead' : 'Distributor';
+                allFollowUps.push({
+                  id: docSnap.id,
+                  ...data,
+                  _sourceCollection: sourceName,
+                  _segmentName: seg === 'happymoves' ? 'Happy Moves' : 'Game Faktory',
+                  _sourceTab: col === 'leads' ? 'regular' : col === 'adLeads' ? 'ads' : 'distributors'
+                });
+              }
+            });
+          }
+        }
+
+        const filteredFollowUps = allFollowUps.filter(item => {
+          if (isAdmin || isManager) return true;
+          if (item._sourceTab === 'ads' && canManageAdLeads) return true;
+          return item.userId === user?.uid || item.assignedToUid === user?.uid;
+        });
+
+        setTodaysGlobalFollowUps(filteredFollowUps);
+      } catch (err) {
+        console.error("Error fetching global follow ups:", err);
+      }
+    };
+    fetchGlobalFollowUps();
+  }, [companyId, isAdmin, isManager, canManageAdLeads, user?.uid]);
+
+  const getSimilarClients = (query) => {
+    if (!query || query.trim().length < 2) {
+      setSimilarClients([]);
+      return;
+    }
+    const lowerQuery = query.toLowerCase();
+    const matches = allGlobalClients.filter(client => {
+      return (
+        (client.clientName && client.clientName.toLowerCase().includes(lowerQuery)) ||
+        (client.name && client.name.toLowerCase().includes(lowerQuery)) ||
+        (client.institutionName && client.institutionName.toLowerCase().includes(lowerQuery)) ||
+        (client.distributorName && client.distributorName.toLowerCase().includes(lowerQuery)) ||
+        (client.contactNo && client.contactNo.includes(lowerQuery)) ||
+        (client.contactNumber && client.contactNumber.includes(lowerQuery)) ||
+        (client.phone && client.phone.includes(lowerQuery))
+      );
+    });
+    setSimilarClients(matches.slice(0, 10)); // limit to 10
+  };
 
   const getIconForKey = (key) => {
     const k = key.toLowerCase();
@@ -1181,7 +1228,7 @@ export default function CRM() {
 
   const getFilteredData = (data, ignoreStatus = false) => {
     const lowerQuery = searchQuery.toLowerCase();
-    return data.filter(item => {
+    const filtered = data.filter(item => {
       const status = item.currentStatus || 'N/A';
       if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
       
@@ -1219,6 +1266,23 @@ export default function CRM() {
       
       return true;
     });
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'added_date_desc') {
+        const dateA = new Date(a.createdAt?.seconds ? a.createdAt.seconds * 1000 : a.createdAt || a.date || 0);
+        const dateB = new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : b.createdAt || b.date || 0);
+        return dateB - dateA;
+      } else if (sortBy === 'last_contacted_desc') {
+        const dateA = new Date(a.lastContacted || a.lastMeetingDate || 0);
+        const dateB = new Date(b.lastContacted || b.lastMeetingDate || 0);
+        return dateB - dateA;
+      } else if (sortBy === 'follow_up_desc') {
+        const dateA = new Date(a.nextFollowUp || a.followUpDate || 0);
+        const dateB = new Date(b.nextFollowUp || b.followUpDate || 0);
+        return dateB - dateA;
+      }
+      return 0;
+    });
   };
 
   const dataFilteredByOtherThanStatus = getFilteredData(currentData, true);
@@ -1233,6 +1297,23 @@ export default function CRM() {
   const filteredAdLeads = getFilteredData(adLeads);
   const filteredDistributors = getFilteredData(distributors);
 
+  const RenderSimilarClients = ({ fieldName }) => {
+    if (showSimilarClientsFor !== fieldName || similarClients.length === 0) return null;
+    return (
+      <div className="mt-1 bg-white border border-rose-200 rounded-md shadow-sm p-2 z-50">
+        <p className="text-xs font-semibold text-rose-600 mb-1">Similar Entries Found:</p>
+        <ul className="max-h-32 overflow-y-auto space-y-1">
+          {similarClients.map((c, idx) => (
+            <li key={idx} className="text-xs text-zinc-700 p-1 bg-rose-50 rounded">
+              <span className="font-medium">[{c._sourceCollection}]</span> {c.clientName || c.name || c.distributorName} 
+              {c.phone || c.contactNo || c.contactNumber ? ` - ${c.phone || c.contactNo || c.contactNumber}` : ''} 
+              <span className="text-zinc-500 ml-1">(Added by: {c.assignedToName || 'Unknown'})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
   return (
     <div className="flex flex-col h-full">
       <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -1272,6 +1353,13 @@ export default function CRM() {
             </button>
           )}
           <button 
+            onClick={() => navigate('/active-distributors')}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-sm flex items-center gap-2"
+          >
+            <Target className="w-4 h-4" />
+            Active Distributors
+          </button>
+          <button 
             onClick={() => {
               setEditingLeadId(null);
               if (activeTab === 'ads') {
@@ -1290,26 +1378,41 @@ export default function CRM() {
             <Plus className="w-4 h-4" />
             {activeTab === 'ads' ? 'Add Ad Lead' : activeTab === 'distributors' ? 'Add Distributor' : 'Add Regular Lead'}
           </button>
-          {isAdmin && (
-            <>
-              <button
-                onClick={handleMigrateArrays}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors shadow-sm text-[13px]"
-              >
-                <AlertCircle className="w-4 h-4" />
-                Migrate Arrays
-              </button>
-              <button
-                onClick={downloadGameFaktoryLeads}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors shadow-sm text-[13px]"
-              >
-                <Download className="w-4 h-4" />
-                Download GF Data
-              </button>
-            </>
-          )}
+
         </div>
       </header>
+
+      {todaysGlobalFollowUps.length > 0 && (
+        <div className="mb-6 bg-sky-50/50 border border-sky-100 rounded-xl p-4 shadow-sm">
+          <div className="flex flex-col mb-3">
+            <h2 className="text-[14px] font-bold text-sky-900 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-sky-600" />
+              Today's Follow-Ups
+            </h2>
+            <p className="text-[12px] text-sky-700/80">Across all segments</p>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            {todaysGlobalFollowUps.map(lead => (
+              <div 
+                key={lead.id} 
+                onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
+                className="flex-shrink-0 w-64 bg-white border border-sky-100 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-sky-300 transition-all group relative overflow-hidden"
+              >
+                <div className="absolute top-0 left-0 w-1 h-full bg-sky-400 group-hover:bg-sky-600 transition-colors" />
+                <div className="flex justify-between items-start mb-1.5 pl-2">
+                  <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">{lead._sourceCollection}</span>
+                  <span className="text-[10px] font-medium text-zinc-400">{lead._segmentName}</span>
+                </div>
+                <div className="pl-2">
+                  <p className="text-[13px] font-bold text-zinc-900 truncate">{lead.clientName || lead.name || lead.distributorName || 'Unnamed'}</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{lead.phone || lead.contactNo || lead.contactNumber || 'No Phone'}</p>
+                  <p className="text-[11px] text-zinc-400 mt-1">Ref: {lead.personOfContact || lead.contactPersonName || 'N/A'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
@@ -1390,6 +1493,19 @@ export default function CRM() {
           </div>
           
           <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
+
+            <div className="relative w-40 sm:w-48 shrink-0">
+              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <select 
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
+              >
+                <option value="added_date_desc">Added Date (Newest)</option>
+                <option value="last_contacted_desc">Last Contacted (Newest)</option>
+                <option value="follow_up_desc">Follow-up Date (Newest)</option>
+              </select>
+            </div>
 
             <div className="relative w-36 sm:w-44 shrink-0">
               <AlertCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -1802,6 +1918,9 @@ export default function CRM() {
             <Pagination totalItems={filteredDistributors.length} currentPage={currentPage} setCurrentPage={setCurrentPage} itemsPerPage={itemsPerPage} />
           </div>
         )}
+
+
+
       </div>
         </>
       )}
@@ -1922,6 +2041,27 @@ export default function CRM() {
                     className="w-full py-3 rounded-xl text-[14px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200"
                   >
                     Convert to Ad Lead
+                  </button>
+                )}
+                {activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor && (
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setConvertingDistributorId(quickUpdateLead.id);
+                      setActiveDistributorFormData({
+                        agreementDate: new Date().toISOString().split('T')[0],
+                        agreementDurationYears: '1',
+                        territoryExclusivity: 'No',
+                        minimumTarget: '',
+                        commissionRate: '',
+                        remarks: ''
+                      });
+                      setQuickUpdateLead(null);
+                      setIsActiveDistributorModalOpen(true);
+                    }} 
+                    className="w-full py-3 rounded-xl text-[14px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200"
+                  >
+                    Promote to Active Distributor
                   </button>
                 )}
               </div>
@@ -2227,7 +2367,7 @@ export default function CRM() {
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Client Name*</label>
                         <input type="text" list="global-client-names" required name="clientName" value={formData.clientName} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Acme Corp" />
                       </div>
-                      {getDuplicateWarning(formData.clientName)}
+                      <RenderSimilarClients fieldName="clientName" />
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
@@ -2310,6 +2450,7 @@ export default function CRM() {
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Phone Number*</label>
                       <input type="text" required name="contactNo" value={formData.contactNo} onChange={handleInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+1 (555) 000-0000" />
                     </div>
+                    <RenderSimilarClients fieldName="contactNo" />
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email Address</label>
@@ -2391,18 +2532,20 @@ export default function CRM() {
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact Name</label>
                         <input type="text" list="global-client-names" name="name" value={adLeadFormData.name} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. Dr. Arun Kumar" />
                       </div>
-                      {getDuplicateWarning(adLeadFormData.name)}
+                      <RenderSimilarClients fieldName="name" />
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Institution</label>
                       <input type="text" name="institutionName" value={adLeadFormData.institutionName} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. City Hospital" />
                     </div>
+                    <RenderSimilarClients fieldName="institutionName" />
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
                       <input type="text" required name="contactNumber" value={adLeadFormData.contactNumber} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="+91 98765 43210" />
                     </div>
+                    <RenderSimilarClients fieldName="contactNumber" />
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Region</label>
@@ -2556,7 +2699,7 @@ export default function CRM() {
                         <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Firm Name*</label>
                         <input type="text" required name="distributorName" value={distributorFormData.distributorName} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" placeholder="e.g. MedSupply Co." />
                       </div>
-                      {getDuplicateWarning(distributorFormData.distributorName)}
+                      <RenderSimilarClients fieldName="distributorName" />
                     </div>
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
@@ -2600,6 +2743,7 @@ export default function CRM() {
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Contact No*</label>
                       <input type="tel" required name="contactNumber" value={distributorFormData.contactNumber} onChange={handleDistributorInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none placeholder:text-zinc-300" />
                     </div>
+                    <RenderSimilarClients fieldName="contactNumber" />
 
                     <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
                       <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Email</label>
@@ -2670,6 +2814,61 @@ export default function CRM() {
                 </button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
                   {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : (editingLeadId ? 'Save Changes' : 'Add Distributor')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {isActiveDistributorModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => !isSubmitting && setIsActiveDistributorModalOpen(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 flex items-center justify-between relative overflow-hidden">
+               <div className="relative z-10">
+                 <h2 className="text-xl font-bold text-white tracking-tight">Active Distributor Terms</h2>
+                 <p className="text-emerald-100 text-sm mt-1">Specify agreement details for this promotion.</p>
+               </div>
+               <button onClick={() => !isSubmitting && setIsActiveDistributorModalOpen(false)} className="text-emerald-100 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 z-20">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            
+            <form onSubmit={handleConvertToActiveDistributor} className="flex flex-col max-h-[80vh] overflow-y-auto no-scrollbar">
+              <div className="p-6 sm:p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Agreement Date</label>
+                    <input type="date" value={activeDistributorFormData.agreementDate} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, agreementDate: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" required />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Duration (Years)</label>
+                    <input type="number" min="0.5" step="0.5" value={activeDistributorFormData.agreementDurationYears} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, agreementDurationYears: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. 1" required />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Exclusivity</label>
+                    <select value={activeDistributorFormData.territoryExclusivity} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, territoryExclusivity: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" required>
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Commission / Margin</label>
+                    <input type="text" value={activeDistributorFormData.commissionRate} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, commissionRate: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. 25%" required />
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Minimum Target</label>
+                    <input type="text" value={activeDistributorFormData.minimumTarget} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, minimumTarget: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. $50,000 / year" />
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Additional Terms</label>
+                    <textarea value={activeDistributorFormData.remarks} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, remarks: e.target.value})} rows="3" className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-[14px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400" placeholder="Any other specific clauses..."></textarea>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 sm:px-8 border-t border-zinc-100 bg-zinc-50 flex items-center justify-end gap-3">
+                <button type="button" onClick={() => !isSubmitting && setIsActiveDistributorModalOpen(false)} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Promoting...</> : 'Promote Distributor'}
                 </button>
               </div>
             </form>

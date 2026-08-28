@@ -9,6 +9,7 @@ import Swal from 'sweetalert2';
 // Import pages
 import Dashboard from './pages/Dashboard';
 import CRM from './pages/CRM';
+import ActiveDistributors from './pages/ActiveDistributors';
 import Finance from './pages/Finance';
 import GstAnalysis from './pages/GstAnalysis';
 import Tasks from './pages/Tasks';
@@ -121,6 +122,7 @@ function App() {
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="crm" element={<PermissionRoute permissionLabel="CRM"><CRM /></PermissionRoute>} />
+          <Route path="active-distributors" element={<PermissionRoute permissionLabel="CRM"><ActiveDistributors /></PermissionRoute>} />
           <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
           <Route path="finance/gst-analysis" element={<PermissionRoute permissionLabel="Finance"><GstAnalysis /></PermissionRoute>} />
           <Route path="tasks" element={<Tasks />} />
