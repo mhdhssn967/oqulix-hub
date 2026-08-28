@@ -67,7 +67,6 @@ export default function CRM() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
-  const [sortBy, setSortBy] = useState('added_date_desc');
 
   const getFilteredItemsForUser = (items, type = 'leads') => {
     if (isAdmin || isManager || isHR || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
@@ -1228,7 +1227,7 @@ export default function CRM() {
 
   const getFilteredData = (data, ignoreStatus = false) => {
     const lowerQuery = searchQuery.toLowerCase();
-    const filtered = data.filter(item => {
+    return data.filter(item => {
       const status = item.currentStatus || 'N/A';
       if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
       
@@ -1265,23 +1264,6 @@ export default function CRM() {
       }
       
       return true;
-    });
-
-    return filtered.sort((a, b) => {
-      if (sortBy === 'added_date_desc') {
-        const dateA = new Date(a.createdAt?.seconds ? a.createdAt.seconds * 1000 : a.createdAt || a.date || 0);
-        const dateB = new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : b.createdAt || b.date || 0);
-        return dateB - dateA;
-      } else if (sortBy === 'last_contacted_desc') {
-        const dateA = new Date(a.lastContacted || a.lastMeetingDate || 0);
-        const dateB = new Date(b.lastContacted || b.lastMeetingDate || 0);
-        return dateB - dateA;
-      } else if (sortBy === 'follow_up_desc') {
-        const dateA = new Date(a.nextFollowUp || a.followUpDate || 0);
-        const dateB = new Date(b.nextFollowUp || b.followUpDate || 0);
-        return dateB - dateA;
-      }
-      return 0;
     });
   };
 
@@ -1493,19 +1475,6 @@ export default function CRM() {
           </div>
           
           <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
-
-            <div className="relative w-40 sm:w-48 shrink-0">
-              <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <select 
-                value={sortBy}
-                onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700"
-              >
-                <option value="added_date_desc">Added Date (Newest)</option>
-                <option value="last_contacted_desc">Last Contacted (Newest)</option>
-                <option value="follow_up_desc">Follow-up Date (Newest)</option>
-              </select>
-            </div>
 
             <div className="relative w-36 sm:w-44 shrink-0">
               <AlertCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
