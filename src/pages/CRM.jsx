@@ -1301,7 +1301,10 @@ export default function CRM() {
       
       if (lowerQuery !== '') {
         const searchString = Object.values(item).filter(v => typeof v !== 'object' && v !== null && v !== undefined).join(' ').toLowerCase();
-        if (!searchString.includes(lowerQuery)) return false;
+        const strippedQuery = lowerQuery.replace(/\\s+/g, '');
+        const strippedSearchString = searchString.replace(/\\s+/g, '');
+        
+        if (!searchString.includes(lowerQuery) && !strippedSearchString.includes(strippedQuery)) return false;
       }
       
       return true;
