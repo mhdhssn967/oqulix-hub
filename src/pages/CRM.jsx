@@ -88,15 +88,17 @@ export default function CRM() {
   const [isActiveDistributorModalOpen, setIsActiveDistributorModalOpen] = useState(false);
   const [activeDistributorFormData, setActiveDistributorFormData] = useState({
     agreementDate: new Date().toISOString().split('T')[0],
-    agreementDurationYears: '1',
-    territoryExclusivity: 'No',
+    agreementDurationMonths: '',
+    territoryExclusivity: 'Non-Exclusive',
+    distributorPrice: '',
     minimumTarget: '',
-    commissionRate: '',
     remarks: ''
   });
   const [convertingDistributorId, setConvertingDistributorId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferTargetEmployee, setTransferTargetEmployee] = useState(null);
   const [allEmployees, setAllEmployees] = useState([]);
   const [segmentClients, setSegmentClients] = useState([]);
   const [globalClients, setGlobalClients] = useState([]);
@@ -826,10 +828,10 @@ export default function CRM() {
         id: activeDistributorsDocRef.id,
         isActiveDistributor: true,
         agreementDate: activeDistributorFormData.agreementDate,
-        agreementDurationYears: activeDistributorFormData.agreementDurationYears,
+        agreementDurationMonths: activeDistributorFormData.agreementDurationMonths,
         territoryExclusivity: activeDistributorFormData.territoryExclusivity,
         minimumTarget: activeDistributorFormData.minimumTarget,
-        commissionRate: activeDistributorFormData.commissionRate,
+        distributorPrice: activeDistributorFormData.distributorPrice,
         agreementRemarks: activeDistributorFormData.remarks,
         currentStatus: 'Active Distributor',
         convertedAt: serverTimestamp(),
@@ -933,6 +935,45 @@ export default function CRM() {
       setQuickUpdateLead(null);
     } catch (err) {
       console.error("Error updating status:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTransferLead = async (e) => {
+    e.preventDefault();
+    if (!companyId || !quickUpdateLead || !transferTargetEmployee) return;
+    setIsSubmitting(true);
+    
+    let collectionName = 'leads';
+    if (activeTab === 'ads') collectionName = 'adLeads';
+    if (activeTab === 'distributors') collectionName = 'distributors';
+
+    try {
+      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', quickUpdateLead.id);
+      
+      const updatedData = {
+        assignedToUid: transferTargetEmployee.uid,
+        assignedToName: transferTargetEmployee.name,
+        transferredFromUid: user?.uid || 'Unknown UID',
+        transferredFromName: user?.name || 'Unknown User',
+        updatedAt: serverTimestamp()
+      };
+      
+      await updateDoc(docRef, updatedData);
+      
+      // Update local state
+      const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
+      if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
+      if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
+      if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
+      
+      setIsTransferModalOpen(false);
+      setTransferTargetEmployee(null);
+      setQuickUpdateLead(null);
+      
+    } catch (err) {
+      console.error("Error transferring lead:", err);
     } finally {
       setIsSubmitting(false);
     }
@@ -1365,24 +1406,24 @@ export default function CRM() {
       </header>
 
       {todaysGlobalFollowUps.length > 0 && (
-        <div className="mb-6 bg-sky-50/50 border border-sky-100 rounded-xl p-4 shadow-sm">
+        <div className="mb-6 bg-red-50/50 border border-red-100 rounded-xl p-4 shadow-sm">
           <div className="flex flex-col mb-3">
-            <h2 className="text-[14px] font-bold text-sky-900 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-sky-600" />
+            <h2 className="text-[14px] font-bold text-red-900 flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-red-600" />
               Today's Follow-Ups
             </h2>
-            <p className="text-[12px] text-sky-700/80">Across all segments</p>
+            <p className="text-[12px] text-red-700/80">Across all segments</p>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
             {todaysGlobalFollowUps.map(lead => (
               <div 
                 key={lead.id} 
                 onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
-                className="flex-shrink-0 w-64 bg-white border border-sky-100 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-sky-300 transition-all group relative overflow-hidden"
+                className="flex-shrink-0 w-64 bg-white border border-red-100 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-red-300 transition-all group relative overflow-hidden"
               >
-                <div className="absolute top-0 left-0 w-1 h-full bg-sky-400 group-hover:bg-sky-600 transition-colors" />
+                <div className="absolute top-0 left-0 w-1 h-full bg-red-400 group-hover:bg-red-600 transition-colors" />
                 <div className="flex justify-between items-start mb-1.5 pl-2">
-                  <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full">{lead._sourceCollection}</span>
+                  <span className="text-[11px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{lead._sourceCollection}</span>
                   <span className="text-[10px] font-medium text-zinc-400">{lead._segmentName}</span>
                 </div>
                 <div className="pl-2">
@@ -1605,7 +1646,12 @@ export default function CRM() {
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
-                    <td className="px-5 py-4 text-[13px] font-medium text-zinc-900">{lead.clientName || lead.name || 'N/A'}</td>
+                    <td className="px-5 py-4">
+                      <div className="text-[13px] font-medium text-zinc-900 flex flex-col gap-1 items-start">
+                        {lead.clientName || lead.name || 'N/A'}
+                        {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">Transferred from {lead.transferredFromName}</span>}
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.personOfContact || 'N/A'}</td>
                     <td className="px-5 py-4 text-[13px] text-zinc-600">
@@ -1702,6 +1748,7 @@ export default function CRM() {
                       <div className="font-semibold text-black text-[12px] sm:text-[14px] flex items-center gap-1 sm:gap-2 truncate">
                         <User className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 shrink-0" />
                         <span className="truncate">{lead.name}</span>
+                        {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ml-2 hidden sm:inline-block">Transferred from {lead.transferredFromName}</span>}
                       </div>
                       <div className="text-[11px] sm:text-[12px] text-zinc-500 mt-1 flex items-center gap-1 truncate">
                         <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> 
@@ -1821,6 +1868,7 @@ export default function CRM() {
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
                         <Target className="w-4 h-4 text-zinc-400" />
                         {dist.distributorName || 'N/A'}
+                        {dist.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">Transferred from {dist.transferredFromName}</span>}
                       </div>
                       <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
                         <MapPin className="w-3 h-3" /> {dist.region || dist.state || 'N/A'}
@@ -2003,6 +2051,13 @@ export default function CRM() {
                 >
                   View Full Profile
                 </button>
+                <button 
+                  type="button" 
+                  onClick={() => setIsTransferModalOpen(true)} 
+                  className="w-full py-3 rounded-xl text-[14px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors"
+                >
+                  Transfer Lead
+                </button>
                 {(activeTab === 'regular' || activeTab === 'distributors') && (
                   <button 
                     type="button"
@@ -2019,10 +2074,10 @@ export default function CRM() {
                       setConvertingDistributorId(quickUpdateLead.id);
                       setActiveDistributorFormData({
                         agreementDate: new Date().toISOString().split('T')[0],
-                        agreementDurationYears: '1',
-                        territoryExclusivity: 'No',
+                        agreementDurationMonths: '',
+                        territoryExclusivity: 'Non-Exclusive',
+                        distributorPrice: '',
                         minimumTarget: '',
-                        commissionRate: '',
                         remarks: ''
                       });
                       setQuickUpdateLead(null);
@@ -2809,9 +2864,9 @@ export default function CRM() {
                     <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Agreement Date</label>
                     <input type="date" value={activeDistributorFormData.agreementDate} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, agreementDate: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" required />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Duration (Years)</label>
-                    <input type="number" min="0.5" step="0.5" value={activeDistributorFormData.agreementDurationYears} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, agreementDurationYears: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. 1" required />
+                  <div>
+                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Duration (Months) *</label>
+                    <input type="number" min="1" step="1" value={activeDistributorFormData.agreementDurationMonths} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, agreementDurationMonths: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. 12" required />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Exclusivity</label>
@@ -2820,9 +2875,9 @@ export default function CRM() {
                       <option value="Yes">Yes</option>
                     </select>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Commission / Margin</label>
-                    <input type="text" value={activeDistributorFormData.commissionRate} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, commissionRate: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. 25%" required />
+                  <div>
+                    <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Distributor Price *</label>
+                    <input type="text" value={activeDistributorFormData.distributorPrice} onChange={(e) => setActiveDistributorFormData({...activeDistributorFormData, distributorPrice: e.target.value})} className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[13px] font-medium text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors" placeholder="e.g. $500" required />
                   </div>
                   <div className="flex flex-col gap-1 md:col-span-2">
                     <label className="text-[12px] font-bold text-zinc-700 uppercase tracking-wider">Minimum Target</label>
@@ -2841,6 +2896,55 @@ export default function CRM() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      
+      {/* Transfer Lead Modal */}
+      {isTransferModalOpen && quickUpdateLead && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => !isSubmitting && setIsTransferModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-zinc-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-zinc-800">Transfer Lead</h3>
+                <p className="text-[12px] text-zinc-500 mt-1">Select an employee to transfer this lead to.</p>
+              </div>
+              <button onClick={() => !isSubmitting && setIsTransferModalOpen(false)} className="text-zinc-400 hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 flex-1 overflow-y-auto">
+              <div className="grid grid-cols-1 gap-2">
+                {allEmployees.map(emp => (
+                  <button
+                    key={emp.uid}
+                    onClick={() => setTransferTargetEmployee(emp)}
+                    className={`text-left px-4 py-3 rounded-xl border transition-colors flex flex-col ${transferTargetEmployee?.uid === emp.uid ? 'border-black bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300'}`}
+                  >
+                    <span className="text-[14px] font-bold text-zinc-900">{emp.name}</span>
+                    <span className="text-[12px] text-zinc-500">{emp.email}</span>
+                  </button>
+                ))}
+                {allEmployees.length === 0 && (
+                  <div className="text-center py-8 text-[13px] text-zinc-500">
+                    No employees found.
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex justify-end gap-3">
+              <button type="button" onClick={() => !isSubmitting && setIsTransferModalOpen(false)} className="px-5 py-2 rounded-xl text-[13px] font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">Cancel</button>
+              <button 
+                type="button"
+                onClick={handleTransferLead}
+                disabled={!transferTargetEmployee || isSubmitting} 
+                className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 disabled:opacity-50 transition-colors flex items-center gap-2"
+              >
+                {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Transferring...</> : 'Confirm Transfer'}
+              </button>
+            </div>
           </div>
         </div>
       )}
