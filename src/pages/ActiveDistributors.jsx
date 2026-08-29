@@ -144,8 +144,8 @@ export default function ActiveDistributors() {
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
       const searchString = Object.values(item).filter(v => typeof v !== 'object' && v !== null && v !== undefined).join(' ').toLowerCase();
-      const strippedQuery = lowerQuery.replace(/\\s+/g, '');
-      const strippedSearchString = searchString.replace(/\\s+/g, '');
+      const strippedQuery = lowerQuery.replace(/\s+/g, '');
+      const strippedSearchString = searchString.replace(/\s+/g, '');
       
       if (!searchString.includes(lowerQuery) && !strippedSearchString.includes(strippedQuery)) return false;
     }
