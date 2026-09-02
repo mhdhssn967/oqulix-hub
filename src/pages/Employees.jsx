@@ -207,8 +207,12 @@ export default function Employees() {
             No employees found. Add your first employee to get started.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="flex flex-col gap-8 p-4">
+            <div className="overflow-x-auto border border-zinc-200 rounded-xl">
+              <div className="px-5 py-3 bg-zinc-50/80 border-b border-zinc-200 font-semibold text-[14px] text-zinc-800">
+                Active Employees
+              </div>
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50/50 border-b border-zinc-100">
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
@@ -218,7 +222,7 @@ export default function Employees() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {employees.map((emp) => (
+                {employees.filter(emp => emp.isActive !== false).map((emp) => (
                   <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors cursor-pointer" onClick={() => {
                     setFormData({
                       name: emp.name || '',
@@ -294,6 +298,101 @@ export default function Employees() {
                 ))}
               </tbody>
             </table>
+            </div>
+
+            {employees.filter(emp => emp.isActive === false).length > 0 && (
+              <div className="overflow-x-auto border border-zinc-200 rounded-xl opacity-75 hover:opacity-100 transition-opacity">
+                <div className="px-5 py-3 bg-zinc-50/80 border-b border-zinc-200 font-semibold text-[14px] text-zinc-800 flex items-center gap-2">
+                  Inactive Employees
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Position & Regions</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Password</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {employees.filter(emp => emp.isActive === false).map((emp) => (
+                      <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors cursor-pointer bg-zinc-50/30" onClick={() => {
+                        setFormData({
+                          name: emp.name || '',
+                          position: emp.position || '',
+                          phone: emp.phone || '',
+                          email: emp.email || '',
+                          password: emp.password || '',
+                          assignedRegions: emp.assignedRegions || '',
+                          permissions: emp.permissions || [],
+                          dateOfJoining: emp.dateOfJoining || '',
+                          isActive: emp.isActive !== false
+                        });
+                        setEditingEmployeeId(emp.id);
+                        setIsModalOpen(true);
+                      }}>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-zinc-200 text-zinc-500 flex items-center justify-center font-bold text-[12px]">
+                              {emp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[14px] font-semibold text-zinc-600">{emp.name}</span>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-red-500">
+                                Inactive
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-2 items-start">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-200 text-zinc-600 text-[12px] font-medium">
+                              <Briefcase className="w-3.5 h-3.5" />
+                              {emp.position}
+                            </span>
+                            {emp.assignedRegions && (
+                              <div className="text-[12px] text-zinc-400 max-w-[200px] truncate" title={emp.assignedRegions}>
+                                <span className="font-semibold">Regions:</span> {emp.assignedRegions}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 text-[13px] text-zinc-500">
+                              <Mail className="w-3.5 h-3.5 text-zinc-400" />
+                              {emp.email}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[13px] text-zinc-500">
+                              <Phone className="w-3.5 h-3.5 text-zinc-400" />
+                              {emp.phone}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 text-[13px] text-zinc-400 font-mono bg-zinc-100 px-2 py-1 rounded-md border border-zinc-200 min-w-[100px]">
+                              <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{visiblePasswords[emp.id] ? emp.password : '••••••••'}</span>
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePasswordVisibility(emp.id);
+                              }}
+                              className="p-1 text-zinc-400 hover:text-zinc-600 transition-colors rounded-md hover:bg-zinc-200"
+                              title={visiblePasswords[emp.id] ? "Hide password" : "Show password"}
+                            >
+                              {visiblePasswords[emp.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

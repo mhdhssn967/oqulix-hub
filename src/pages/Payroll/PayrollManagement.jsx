@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, getDocs, setDoc, doc, getDoc, serverTimestamp, orderBy, where } from 'firebase/firestore';
+import { collection, query, getDocs, setDoc, doc, getDoc, serverTimestamp, orderBy, where, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuthStore } from '../../store/authStore';
 import { Receipt, Search, Download, DollarSign, Plus, X, Loader2, ArrowRight, IndianRupee, TrendingUp } from 'lucide-react';
@@ -15,8 +15,13 @@ export default function PayrollManagement() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  const now = new Date();
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const [selectedMonthForExpected, setSelectedMonthForExpected] = useState(`${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`);
+  
   // Modals
   const [processSalaryPrompt, setProcessSalaryPrompt] = useState({ isOpen: false, employee: null });
+  const [processAllPrompt, setProcessAllPrompt] = useState({ isOpen: false, data: {} });
   
   // Form State
   const [formData, setFormData] = useState({
@@ -140,10 +145,10 @@ export default function PayrollManagement() {
       const logs = logsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPayrollLogs(logs);
 
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth();
-      const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const [yearStr, monthStrPart] = selectedMonthForExpected.split('-');
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStrPart, 10) - 1;
+      const monthStr = selectedMonthForExpected;
       
       const holidaysRef = doc(db, 'userData', companyId, 'settings', 'holidays');
       const holidaysSnap = await getDoc(holidaysRef);
@@ -224,7 +229,7 @@ export default function PayrollManagement() {
 
   useEffect(() => {
     fetchData();
-  }, [companyId]);
+  }, [companyId, selectedMonthForExpected]);
 
   const handleProcessSalary = async (e) => {
     e.preventDefault();
@@ -260,6 +265,69 @@ export default function PayrollManagement() {
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'Failed to process salary.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleProcessAllSalary = () => {
+    if (!selectedMonthForExpected) {
+      Swal.fire('Error', 'Please select a month first.', 'error');
+      return;
+    }
+
+    const activeEmployees = employees.filter(e => e.isActive !== false);
+    if (activeEmployees.length === 0) {
+      Swal.fire('Info', 'No active employees to process.', 'info');
+      return;
+    }
+    
+    const initialData = {};
+    activeEmployees.forEach(emp => {
+      initialData[emp.id] = currentMonthExpected[emp.id] || 0;
+    });
+
+    setProcessAllPrompt({ isOpen: true, data: initialData });
+  };
+
+  const confirmProcessAllSalary = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const activeEmployees = employees.filter(emp => emp.isActive !== false);
+      const batch = writeBatch(db);
+      let count = 0;
+
+      activeEmployees.forEach(emp => {
+        const finalSalary = Number(processAllPrompt.data[emp.id]) || 0;
+        
+        const newLog = {
+          employeeId: emp.id,
+          employeeName: emp.name,
+          role: emp.position || 'Employee',
+          month: selectedMonthForExpected,
+          baseSalary: finalSalary,
+          bonus: 0,
+          incentives: 0,
+          deductions: 0,
+          netSalary: finalSalary,
+          status: 'Paid',
+          processedDate: serverTimestamp()
+        };
+
+        const docRef = doc(collection(db, `userData/${companyId}/payrollLogs`));
+        batch.set(docRef, newLog);
+        count++;
+      });
+
+      await batch.commit();
+
+      Swal.fire('Success', `Successfully processed salaries for ${count} employees.`, 'success');
+      setProcessAllPrompt({ isOpen: false, data: {} });
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', 'Failed to process all salaries.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -303,6 +371,16 @@ export default function PayrollManagement() {
             </div>
           </div>
         </div>
+        <div className="flex items-center shrink-0">
+          <button 
+            onClick={handleProcessAllSalary}
+            disabled={isSubmitting}
+            className="bg-black hover:bg-zinc-800 text-white px-4 py-2.5 rounded-xl font-medium text-[13px] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+            Process All Salaries
+          </button>
+        </div>
       </header>
 
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
@@ -317,6 +395,15 @@ export default function PayrollManagement() {
               className="w-full pl-9 pr-4 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
             />
           </div>
+          <div className="flex items-center gap-3">
+            <label className="text-[13px] font-semibold text-zinc-600">Expected Salary Month:</label>
+            <input
+              type="month"
+              value={selectedMonthForExpected}
+              onChange={(e) => setSelectedMonthForExpected(e.target.value)}
+              className="px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -324,14 +411,20 @@ export default function PayrollManagement() {
             <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="flex flex-col gap-8 p-4">
+            <div className="overflow-x-auto border border-zinc-200 rounded-xl">
+              <div className="px-5 py-3 bg-zinc-50/80 border-b border-zinc-200 font-semibold text-[14px] text-zinc-800">
+                Active Employees
+              </div>
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50/50 border-b border-zinc-100">
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Employee</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Role</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Standard Base Salary</th>
-                  <th className="px-5 py-4 text-[12px] font-semibold text-blue-600 uppercase tracking-wider text-right bg-blue-50/50">Curr. Month Expected</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-blue-600 uppercase tracking-wider text-right bg-blue-50/50">
+                    Expected ({new Date(parseInt(selectedMonthForExpected.split('-')[0]), parseInt(selectedMonthForExpected.split('-')[1]) - 1).toLocaleString('default', { month: 'short', year: 'numeric' })})
+                  </th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Paid (All Time)</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Bonus</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Incentives</th>
@@ -339,7 +432,7 @@ export default function PayrollManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {filteredEmployees.map(emp => {
+                {filteredEmployees.filter(emp => emp.isActive !== false).map(emp => {
                   const stats = getEmployeeStats(emp.id);
                   return (
                     <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors">
@@ -399,9 +492,171 @@ export default function PayrollManagement() {
                 })}
               </tbody>
             </table>
+            </div>
+
+            {filteredEmployees.filter(emp => emp.isActive === false).length > 0 && (
+              <div className="overflow-x-auto border border-zinc-200 rounded-xl opacity-75 hover:opacity-100 transition-opacity">
+                <div className="px-5 py-3 bg-zinc-50/80 border-b border-zinc-200 font-semibold text-[14px] text-zinc-800">
+                  Inactive Employees
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 border-b border-zinc-100">
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Employee</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Role</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Standard Base Salary</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-blue-600 uppercase tracking-wider text-right bg-blue-50/50">
+                        Expected ({new Date(parseInt(selectedMonthForExpected.split('-')[0]), parseInt(selectedMonthForExpected.split('-')[1]) - 1).toLocaleString('default', { month: 'short', year: 'numeric' })})
+                      </th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Paid (All Time)</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Bonus</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Total Incentives</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {filteredEmployees.filter(emp => emp.isActive === false).map(emp => {
+                      const stats = getEmployeeStats(emp.id);
+                      return (
+                        <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors bg-zinc-50/30">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-zinc-200 text-zinc-500 flex items-center justify-center font-bold text-[12px]">
+                              {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[14px] font-semibold text-zinc-600">{emp.name}</span>
+                              <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Inactive</span>
+                            </div>
+                          </div>
+                          </td>
+                          <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium">
+                            {emp.position || 'Employee'}
+                          </td>
+                          <td className="px-5 py-4 text-[14px] font-medium text-zinc-500 text-right">
+                            ₹{(emp.salary || 0).toLocaleString()}
+                          </td>
+                          <td className="px-5 py-4 text-[14px] font-bold text-blue-600/70 text-right bg-blue-50/30">
+                            ₹{(currentMonthExpected[emp.id] || 0).toLocaleString()}
+                          </td>
+                          <td className="px-5 py-4 text-[14px] font-semibold text-emerald-600/70 text-right">
+                            ₹{stats.totalPaid.toLocaleString()}
+                          </td>
+                          <td className="px-5 py-4 text-[13px] font-medium text-emerald-600/70 text-right">
+                            ₹{stats.totalBonus.toLocaleString()}
+                          </td>
+                          <td className="px-5 py-4 text-[13px] font-medium text-purple-600/70 text-right">
+                            ₹{stats.totalIncentives.toLocaleString()}
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setFormData({ month: '', baseSalary: emp.salary || 0, bonus: 0, incentives: 0, deductions: 0 });
+                                  setCalculationDetails(null);
+                                  setProcessSalaryPrompt({ isOpen: true, employee: emp });
+                                }}
+                                className="px-3 py-1.5 bg-black/80 text-white text-[12px] font-semibold rounded-lg hover:bg-zinc-800 transition-colors"
+                              >
+                                Process Salary
+                              </button>
+                              <button
+                                onClick={() => navigate(`/payroll-management/${emp.id}`)}
+                                className="px-3 py-1.5 bg-zinc-100 text-zinc-600 text-[12px] font-semibold rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-1.5"
+                              >
+                                Records <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Process All Salary Modal */}
+      {processAllPrompt.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setProcessAllPrompt({ isOpen: false, data: {} })}></div>
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <form onSubmit={confirmProcessAllSalary} className="flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
+                <div>
+                  <h2 className="text-[15px] font-semibold text-zinc-900">Process All Salaries</h2>
+                  <p className="text-[12px] text-zinc-500 mt-1">
+                    Month: {new Date(parseInt(selectedMonthForExpected.split('-')[0]), parseInt(selectedMonthForExpected.split('-')[1]) - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+                <button type="button" onClick={() => !isSubmitting && setProcessAllPrompt({ isOpen: false, data: {} })} className="text-zinc-400 hover:text-black transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-4 overflow-y-auto custom-scrollbar bg-zinc-50/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {employees.filter(e => e.isActive !== false).map(emp => (
+                    <div key={emp.id} className="bg-white border border-zinc-200/80 rounded-xl p-3 flex flex-col justify-between gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-zinc-300 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px] shrink-0 border border-zinc-200/50">
+                          {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <span className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[11px] text-zinc-500 truncate">{emp.position || 'Employee'}</span>
+                            <span className="text-[10px] bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded font-medium border border-zinc-200/60">
+                              Base: ₹{(emp.salary || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <IndianRupee className="w-3.5 h-3.5 text-zinc-400" />
+                        </div>
+                        <input 
+                          type="number"
+                          min="0"
+                          required
+                          value={processAllPrompt.data[emp.id] !== undefined ? processAllPrompt.data[emp.id] : ''}
+                          onChange={(e) => setProcessAllPrompt(prev => ({
+                            ...prev,
+                            data: { ...prev.data, [emp.id]: e.target.value }
+                          }))}
+                          className="w-full pl-8 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[14px] font-bold text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 p-4 border-t border-zinc-100 bg-white shrink-0">
+                <button 
+                  type="button"
+                  onClick={() => setProcessAllPrompt({ isOpen: false, data: {} })}
+                  className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="py-2 px-6 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                  Confirm & Process All
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Process Salary Modal */}
       {processSalaryPrompt.isOpen && (

@@ -1946,8 +1946,8 @@ export default function CRM() {
       )}
       {quickUpdateLead && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setQuickUpdateLead(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden shrink-0">
                <div className="relative z-10">
                  <h2 className="text-xl font-bold text-white tracking-tight">Quick Update</h2>
                  <p className="text-zinc-400 text-sm mt-1">{quickUpdateLead.clientName || quickUpdateLead.name || quickUpdateLead.distributorName || 'Lead'}</p>
@@ -1957,7 +1957,7 @@ export default function CRM() {
                </button>
             </div>
             
-            <form onSubmit={handleQuickUpdate} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleQuickUpdate} className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-4">
               <div>
                 <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Update Status</label>
                 <select 
@@ -2142,7 +2142,7 @@ export default function CRM() {
 
       {selectedLead && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh] transform transition-all" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[80vh] transform transition-all" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 sm:p-8 flex flex-col sm:flex-row items-start justify-between gap-5 relative overflow-hidden shrink-0">
               <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 opacity-10 pointer-events-none">
                 <Target className="w-64 h-64 text-white" />
