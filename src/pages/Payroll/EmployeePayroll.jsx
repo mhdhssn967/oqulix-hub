@@ -133,7 +133,9 @@ export default function EmployeePayroll() {
       }
       
       const empName = employeeData?.name || log.employeeName || 'Employee';
-      await generatePayslipPDF(empName, log, companyName);
+      const empId = employeeData?.employeeId || log.employeeId || '—';
+      const logData = { ...log, employeeId: empId };
+      await generatePayslipPDF(empName, logData, companyName);
     } catch (err) {
       Swal.fire('Error', 'Failed to generate PDF.', 'error');
     } finally {

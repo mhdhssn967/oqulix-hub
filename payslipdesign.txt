@@ -1,0 +1,399 @@
+import React, { useState, useMemo } from "react";
+
+const OQULIX_LOGO = "logo_transp";
+
+const INK = "#0a0a0a";
+const PAPER = "#0a0a0a";
+const LINE = "#2a2a2a";
+const WHITE = "#ffffff";
+const MUTED = "#9a9a9a";
+
+function currency(n) {
+  const v = Number.isFinite(n) ? n : 0;
+  return "₹" + v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+function monthLabel(offset) {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + offset);
+  return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
+export default function PayslipGenerator() {
+  const [name, setName] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [empId, setEmpId] = useState("");
+  const [month, setMonth] = useState(monthLabel(0));
+  const [basic, setBasic] = useState("");
+  const [hra, setHra] = useState("");
+  const [allowances, setAllowances] = useState("");
+  const [deductions, setDeductions] = useState("");
+  const [daysPresent, setDaysPresent] = useState("");
+  const [totalDays, setTotalDays] = useState("");
+  const [showSlip, setShowSlip] = useState(false);
+
+  const nums = useMemo(() => {
+    const b = parseFloat(basic) || 0;
+    const h = parseFloat(hra) || 0;
+    const a = parseFloat(allowances) || 0;
+    const d = parseFloat(deductions) || 0;
+    const gross = b + h + a;
+    const net = gross - d;
+    return { b, h, a, d, gross, net };
+  }, [basic, hra, allowances, deductions]);
+
+  const canGenerate = name.trim() && (parseFloat(basic) || 0) > 0;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: PAPER,
+        color: WHITE,
+        fontFamily: "'Georgia', 'Iowan Old Style', 'Source Serif Pro', serif",
+      }}
+    >
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          .print-area { box-shadow: none !important; border: none !important; margin: 0 !important; }
+          body { background: white !important; }
+        }
+        input, select {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        input::placeholder { color: #6a6a6a; }
+        input:focus, select:focus {
+          outline: none;
+          border-color: ${WHITE} !important;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "48px 24px 80px" }}>
+        <div className="no-print" style={{ marginBottom: 36, display: "flex", alignItems: "center", gap: 16 }}>
+          <img src={OQULIX_LOGO} alt="Oqulix" style={{ height: 52 }} />
+        </div>
+        <div className="no-print" style={{ marginBottom: 32 }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 0.3,
+              color: MUTED,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              marginBottom: 4,
+            }}
+          >
+            Payroll
+          </div>
+          <h1 style={{ fontSize: 26, margin: 0, fontWeight: 500 }}>Payslip generator</h1>
+        </div>
+
+        {!showSlip && (
+          <div
+            className="no-print"
+            style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}
+          >
+            <FormSection title="Employee">
+              <Row>
+                <Field label="Full name" value={name} onChange={setName} placeholder="e.g. Muhammed Suhail K" />
+                <Field label="Employee ID" value={empId} onChange={setEmpId} placeholder="Optional" />
+              </Row>
+              <Row>
+                <Field label="Designation" value={designation} onChange={setDesignation} placeholder="e.g. Digital Marketer" />
+                <Field label="Pay period" value={month} onChange={setMonth} />
+              </Row>
+              <Row>
+                <Field label="Days present" value={daysPresent} onChange={setDaysPresent} type="number" placeholder="Optional" />
+                <Field label="Total working days" value={totalDays} onChange={setTotalDays} type="number" placeholder="Optional" />
+              </Row>
+            </FormSection>
+
+            <FormSection title="Earnings">
+              <Row>
+                <Field label="Basic pay (₹)" value={basic} onChange={setBasic} type="number" />
+                <Field label="HRA (₹)" value={hra} onChange={setHra} type="number" placeholder="Optional" />
+              </Row>
+              <Row>
+                <Field label="Other allowances (₹)" value={allowances} onChange={setAllowances} type="number" placeholder="Optional" />
+                <Field label="Deductions (₹)" value={deductions} onChange={setDeductions} type="number" placeholder="Optional" />
+              </Row>
+            </FormSection>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 28 }}>
+              <button
+                onClick={() => canGenerate && setShowSlip(true)}
+                disabled={!canGenerate}
+                style={{
+                  background: canGenerate ? WHITE : "#3a3a3a",
+                  color: canGenerate ? INK : "#8a8a8a",
+                  border: "none",
+                  padding: "12px 24px",
+                  fontSize: 14,
+                  borderRadius: 4,
+                  cursor: canGenerate ? "pointer" : "not-allowed",
+                  letterSpacing: 0.2,
+                  fontWeight: 600,
+                }}
+              >
+                Generate payslip
+              </button>
+            </div>
+            {!canGenerate && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: MUTED }}>
+                Enter at least the employee name and basic pay to continue.
+              </div>
+            )}
+          </div>
+        )}
+
+        {showSlip && (
+          <div>
+            <div
+              className="no-print"
+              style={{
+                display: "flex",
+                gap: 12,
+                marginBottom: 20,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+              }}
+            >
+              <button
+                onClick={() => setShowSlip(false)}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${LINE}`,
+                  color: WHITE,
+                  padding: "9px 18px",
+                  fontSize: 13.5,
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                ← Edit details
+              </button>
+              <button
+                onClick={handlePrint}
+                style={{
+                  background: WHITE,
+                  border: "none",
+                  color: INK,
+                  padding: "9px 18px",
+                  fontSize: 13.5,
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Print / Save as PDF
+              </button>
+            </div>
+
+            <div
+              className="print-area"
+              style={{
+                background: "#fff",
+                color: "#1a1a1a",
+                border: `1px solid ${LINE}`,
+                maxWidth: 720,
+                margin: "0 auto",
+                overflow: "hidden",
+                borderRadius: 6,
+              }}
+            >
+              <div
+                style={{
+                  background: INK,
+                  padding: "22px 40px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <img src={OQULIX_LOGO} alt="Oqulix" style={{ height: 40 }} />
+                <div
+                  style={{
+                    color: "#cfcfcf",
+                    fontSize: 11,
+                    textAlign: "right",
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  }}
+                >
+                  Payslip · {month}
+                </div>
+              </div>
+
+              <div style={{ padding: "36px 40px 44px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "10px 24px",
+                    fontSize: 13.5,
+                    marginBottom: 28,
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  }}
+                >
+                  <SlipDetail label="Employee name" value={name} />
+                  <SlipDetail label="Employee ID" value={empId || "—"} />
+                  <SlipDetail label="Designation" value={designation || "—"} />
+                  <SlipDetail
+                    label="Attendance"
+                    value={daysPresent && totalDays ? `${daysPresent} / ${totalDays} days` : "—"}
+                  />
+                </div>
+
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #ddd" }}>
+                      <th style={thStyle}>Earnings</th>
+                      <th style={{ ...thStyle, textAlign: "right" }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={tdStyle}>Basic pay</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>{currency(nums.b)}</td>
+                    </tr>
+                    {nums.h > 0 && (
+                      <tr>
+                        <td style={tdStyle}>HRA</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{currency(nums.h)}</td>
+                      </tr>
+                    )}
+                    {nums.a > 0 && (
+                      <tr>
+                        <td style={tdStyle}>Other allowances</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{currency(nums.a)}</td>
+                      </tr>
+                    )}
+                    <tr style={{ borderTop: "1px solid #ddd" }}>
+                      <td style={{ ...tdStyle, fontWeight: 600 }}>Gross earnings</td>
+                      <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>{currency(nums.gross)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {nums.d > 0 && (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginTop: 18 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #ddd" }}>
+                        <th style={thStyle}>Deductions</th>
+                        <th style={{ ...thStyle, textAlign: "right" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={tdStyle}>Total deductions</td>
+                        <td style={{ ...tdStyle, textAlign: "right" }}>{currency(nums.d)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
+
+                <div
+                  style={{
+                    marginTop: 28,
+                    paddingTop: 18,
+                    borderTop: `2px solid ${INK}`,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                  }}
+                >
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>Net pay</div>
+                  <div style={{ fontSize: 24, fontWeight: 700 }}>{currency(nums.net)}</div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 36,
+                    fontSize: 11,
+                    color: "#888",
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  }}
+                >
+                  This is a system-generated payslip and does not require a signature.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FormSection({ title, children }) {
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: MUTED,
+          marginBottom: 12,
+          fontFamily: "Georgia, serif",
+          fontStyle: "italic",
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
+    </div>
+  );
+}
+
+function Row({ children }) {
+  return <div style={{ display: "flex", gap: 12 }}>{children}</div>;
+}
+
+function Field({ label, value, onChange, type = "text", placeholder }) {
+  return (
+    <label style={{ flex: 1, display: "block" }}>
+      <div style={{ fontSize: 12, color: MUTED, marginBottom: 5 }}>{label}</div>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "9px 11px",
+          fontSize: 14,
+          border: `1px solid ${LINE}`,
+          borderRadius: 4,
+          background: "#151515",
+          color: WHITE,
+        }}
+      />
+    </label>
+  );
+}
+
+function SlipDetail({ label, value }) {
+  return (
+    <div>
+      <span style={{ color: "#888" }}>{label}: </span>
+      <span style={{ fontWeight: 500 }}>{value}</span>
+    </div>
+  );
+}
+
+const thStyle = {
+  textAlign: "left",
+  padding: "6px 0",
+  fontSize: 11.5,
+  color: "#888",
+  fontWeight: 500,
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+};
+
+const tdStyle = {
+  padding: "9px 0",
+  color: "#1a1a1a",
+};

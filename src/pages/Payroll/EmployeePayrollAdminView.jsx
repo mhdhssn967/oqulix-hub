@@ -353,7 +353,8 @@ export default function EmployeePayrollAdminView() {
       } catch (e) {
          console.log("Could not fetch company name", e);
       }
-      await generatePayslipPDF(employee.name, log, companyName);
+      const logData = { ...log, employeeId: employee.employeeId || log.employeeId || '—' };
+      await generatePayslipPDF(employee.name, logData, companyName);
     } catch (err) {
       Swal.fire('Error', 'Failed to generate PDF.', 'error');
     } finally {

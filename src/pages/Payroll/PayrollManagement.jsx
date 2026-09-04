@@ -240,24 +240,86 @@ export default function PayrollManagement() {
 
     setIsSubmitting(true);
     try {
-      const netSalary = Number(formData.baseSalary) + Number(formData.bonus) + Number(formData.incentives) - Number(formData.deductions);
+      const finalBase = Number(formData.baseSalary) || 0;
+      const finalBonus = Number(formData.bonus) || 0;
+      const finalIncentives = Number(formData.incentives) || 0;
+      const finalDeductions = Number(formData.deductions) || 0;
+      const netSalary = finalBase + finalBonus + finalIncentives - finalDeductions;
       
+      const batch = writeBatch(db);
+      const today = new Date();
+      const txDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`;
+
       const newLog = {
         employeeId: processSalaryPrompt.employee.id,
         employeeName: processSalaryPrompt.employee.name,
         role: processSalaryPrompt.employee.position || 'Employee',
         month: formData.month,
-        baseSalary: Number(formData.baseSalary),
-        bonus: Number(formData.bonus),
-        incentives: Number(formData.incentives),
-        deductions: Number(formData.deductions),
+        baseSalary: finalBase,
+        bonus: finalBonus,
+        incentives: finalIncentives,
+        deductions: finalDeductions,
         netSalary,
         status: 'Paid',
         processedDate: serverTimestamp()
       };
 
       const docRef = doc(collection(db, `userData/${companyId}/payrollLogs`));
-      await setDoc(docRef, newLog);
+      batch.set(docRef, newLog);
+
+      // Financial Records
+      if (finalBase > 0) {
+        const baseRef = doc(collection(db, `userData/${companyId}/financialData`));
+        batch.set(baseRef, {
+          isExpense: true,
+          isRevenue: false,
+          date: txDate,
+          source: 'Oqulix HDFC',
+          service: 'General',
+          type: 'Business Development',
+          typeOfTransaction: 'Business Development',
+          category: 'Salary',
+          amount: finalBase,
+          remarks: `Salary ${processSalaryPrompt.employee.name}`,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      if (finalBonus > 0) {
+        const bonusRef = doc(collection(db, `userData/${companyId}/financialData`));
+        batch.set(bonusRef, {
+          isExpense: true,
+          isRevenue: false,
+          date: txDate,
+          source: 'Oqulix HDFC',
+          service: 'General',
+          type: 'Business Development',
+          typeOfTransaction: 'Business Development',
+          category: 'Bonus',
+          amount: finalBonus,
+          remarks: `Bonus ${processSalaryPrompt.employee.name}`,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      if (finalIncentives > 0) {
+        const incentiveRef = doc(collection(db, `userData/${companyId}/financialData`));
+        batch.set(incentiveRef, {
+          isExpense: true,
+          isRevenue: false,
+          date: txDate,
+          source: 'Oqulix HDFC',
+          service: 'General',
+          type: 'Business Development',
+          typeOfTransaction: 'Business Development',
+          category: 'Incentive',
+          amount: finalIncentives,
+          remarks: `Incentive ${processSalaryPrompt.employee.name}`,
+          createdAt: serverTimestamp()
+        });
+      }
+
+      await batch.commit();
 
       Swal.fire({ title: 'Success', text: 'Salary processed successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
       setProcessSalaryPrompt({ isOpen: false, employee: null });
@@ -284,7 +346,12 @@ export default function PayrollManagement() {
     
     const initialData = {};
     activeEmployees.forEach(emp => {
-      initialData[emp.id] = currentMonthExpected[emp.id] || 0;
+      const expected = currentMonthExpected[emp.id];
+      initialData[emp.id] = {
+        baseSalary: (expected !== undefined && expected !== 0) ? expected : (emp.salary || 0),
+        bonus: 0,
+        incentives: 0
+      };
     });
 
     setProcessAllPrompt({ isOpen: true, data: initialData });
@@ -298,19 +365,26 @@ export default function PayrollManagement() {
       const batch = writeBatch(db);
       let count = 0;
 
+      const today = new Date();
+      const txDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`;
+
       activeEmployees.forEach(emp => {
-        const finalSalary = Number(processAllPrompt.data[emp.id]) || 0;
+        const empData = processAllPrompt.data[emp.id] || { baseSalary: 0, bonus: 0, incentives: 0 };
+        const finalBase = Number(empData.baseSalary) || 0;
+        const finalBonus = Number(empData.bonus) || 0;
+        const finalIncentives = Number(empData.incentives) || 0;
+        const netSalary = finalBase + finalBonus + finalIncentives;
         
         const newLog = {
           employeeId: emp.id,
           employeeName: emp.name,
           role: emp.position || 'Employee',
           month: selectedMonthForExpected,
-          baseSalary: finalSalary,
-          bonus: 0,
-          incentives: 0,
+          baseSalary: finalBase,
+          bonus: finalBonus,
+          incentives: finalIncentives,
           deductions: 0,
-          netSalary: finalSalary,
+          netSalary: netSalary,
           status: 'Paid',
           processedDate: serverTimestamp()
         };
@@ -318,6 +392,58 @@ export default function PayrollManagement() {
         const docRef = doc(collection(db, `userData/${companyId}/payrollLogs`));
         batch.set(docRef, newLog);
         count++;
+
+        // Financial Records
+        if (finalBase > 0) {
+          const baseRef = doc(collection(db, `userData/${companyId}/financialData`));
+          batch.set(baseRef, {
+            isExpense: true,
+            isRevenue: false,
+            date: txDate,
+            source: 'Oqulix HDFC',
+            service: 'General',
+            type: 'Business Development',
+            typeOfTransaction: 'Business Development',
+            category: 'Salary',
+            amount: finalBase,
+            remarks: `Salary ${emp.name}`,
+            createdAt: serverTimestamp()
+          });
+        }
+
+        if (finalBonus > 0) {
+          const bonusRef = doc(collection(db, `userData/${companyId}/financialData`));
+          batch.set(bonusRef, {
+            isExpense: true,
+            isRevenue: false,
+            date: txDate,
+            source: 'Oqulix HDFC',
+            service: 'General',
+            type: 'Business Development',
+            typeOfTransaction: 'Business Development',
+            category: 'Bonus',
+            amount: finalBonus,
+            remarks: `Bonus ${emp.name}`,
+            createdAt: serverTimestamp()
+          });
+        }
+
+        if (finalIncentives > 0) {
+          const incentiveRef = doc(collection(db, `userData/${companyId}/financialData`));
+          batch.set(incentiveRef, {
+            isExpense: true,
+            isRevenue: false,
+            date: txDate,
+            source: 'Oqulix HDFC',
+            service: 'General',
+            type: 'Business Development',
+            typeOfTransaction: 'Business Development',
+            category: 'Incentive',
+            amount: finalIncentives,
+            remarks: `Incentive ${emp.name}`,
+            createdAt: serverTimestamp()
+          });
+        }
       });
 
       await batch.commit();
@@ -615,21 +741,65 @@ export default function PayrollManagement() {
                           </div>
                         </div>
                       </div>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <IndianRupee className="w-3.5 h-3.5 text-zinc-400" />
+                      <div className="grid grid-cols-3 gap-2 mt-1 pt-3 border-t border-zinc-100/80">
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Base Salary</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                              <IndianRupee className="w-3 h-3 text-zinc-400" />
+                            </div>
+                            <input 
+                              type="number"
+                              min="0"
+                              required
+                              onWheel={(e) => e.target.blur()}
+                              value={processAllPrompt.data[emp.id]?.baseSalary ?? ''}
+                              onChange={(e) => setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: { ...prev.data, [emp.id]: { ...prev.data[emp.id], baseSalary: e.target.value } }
+                              }))}
+                              className="w-full pl-6 pr-2 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
                         </div>
-                        <input 
-                          type="number"
-                          min="0"
-                          required
-                          value={processAllPrompt.data[emp.id] !== undefined ? processAllPrompt.data[emp.id] : ''}
-                          onChange={(e) => setProcessAllPrompt(prev => ({
-                            ...prev,
-                            data: { ...prev.data, [emp.id]: e.target.value }
-                          }))}
-                          className="w-full pl-8 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[14px] font-bold text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Bonus</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                              <IndianRupee className="w-3 h-3 text-zinc-400" />
+                            </div>
+                            <input 
+                              type="number"
+                              min="0"
+                              onWheel={(e) => e.target.blur()}
+                              value={processAllPrompt.data[emp.id]?.bonus ?? ''}
+                              onChange={(e) => setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: { ...prev.data, [emp.id]: { ...prev.data[emp.id], bonus: e.target.value } }
+                              }))}
+                              className="w-full pl-6 pr-2 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-blue-700 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Incentives</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                              <IndianRupee className="w-3 h-3 text-zinc-400" />
+                            </div>
+                            <input 
+                              type="number"
+                              min="0"
+                              onWheel={(e) => e.target.blur()}
+                              value={processAllPrompt.data[emp.id]?.incentives ?? ''}
+                              onChange={(e) => setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: { ...prev.data, [emp.id]: { ...prev.data[emp.id], incentives: e.target.value } }
+                              }))}
+                              className="w-full pl-6 pr-2 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-purple-700 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
