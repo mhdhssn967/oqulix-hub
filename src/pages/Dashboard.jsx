@@ -417,6 +417,35 @@ export default function Dashboard() {
         
         {/* Left Column: Quick Stats & Actions */}
         <div className="lg:col-span-8 flex flex-col gap-6">
+          {quickLinks.length > 0 && (
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+              <h3 className="text-[15px] font-semibold text-zinc-900 mb-5 flex items-center gap-2">
+                <LayoutDashboard className="w-4 h-4 text-zinc-400" />
+                Quick Access
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {quickLinks.map((link, idx) => (
+                  <div 
+                    key={idx}
+                    onClick={() => navigate(link.path)}
+                    className="group p-4 rounded-xl border border-zinc-200 hover:border-black/20 hover:shadow-sm bg-white cursor-pointer transition-all flex items-start gap-4"
+                  >
+                    <div className={`p-3 rounded-xl ${link.color} ${link.border} bg-opacity-50 shrink-0 transition-transform group-hover:scale-105`}>
+                      <link.icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[14px] font-semibold text-zinc-900 truncate">{link.label}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-black transition-colors" />
+                      </div>
+                      <p className="text-[12px] text-zinc-500 mt-0.5 truncate">{link.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Official Company Calendar */}
           <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -571,36 +600,6 @@ export default function Dashboard() {
                </div>
             </div>
           </div>
-
-          {quickLinks.length > 0 && (
-            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
-              <h3 className="text-[15px] font-semibold text-zinc-900 mb-5 flex items-center gap-2">
-                <LayoutDashboard className="w-4 h-4 text-zinc-400" />
-                Quick Access
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {quickLinks.map((link, idx) => (
-                  <div 
-                    key={idx}
-                    onClick={() => navigate(link.path)}
-                    className="group p-4 rounded-xl border border-zinc-200 hover:border-black/20 hover:shadow-sm bg-white cursor-pointer transition-all flex items-start gap-4"
-                  >
-                    <div className={`p-3 rounded-xl ${link.color} ${link.border} bg-opacity-50 shrink-0 transition-transform group-hover:scale-105`}>
-                      <link.icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[14px] font-semibold text-zinc-900 truncate">{link.label}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-black transition-colors" />
-                      </div>
-                      <p className="text-[12px] text-zinc-500 mt-0.5 truncate">{link.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Pending Tasks Banner */}
           <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">

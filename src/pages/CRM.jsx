@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -2041,56 +2041,58 @@ export default function CRM() {
               </div>
 
               <div className="flex flex-col gap-2 mt-2">
-                <button type="submit" disabled={isSubmitting} className="w-full py-3 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : 'Update Status'}
+                <button type="submit" disabled={isSubmitting} className="w-full py-2.5 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <><CheckCircle className="w-4 h-4" /> Update Status</>}
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setSelectedLead(quickUpdateLead);
-                    setQuickUpdateLead(null);
-                  }} 
-                  className="w-full py-3 rounded-xl text-[14px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors"
-                >
-                  View Full Profile
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setIsTransferModalOpen(true)} 
-                  className="w-full py-3 rounded-xl text-[14px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors"
-                >
-                  Transfer Lead
-                </button>
-                {(activeTab === 'regular' || activeTab === 'distributors') && (
+                <div className="grid grid-cols-2 gap-2">
                   <button 
-                    type="button"
-                    onClick={() => handleConvertToAdLead(quickUpdateLead)} 
-                    className="w-full py-3 rounded-xl text-[14px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200"
-                  >
-                    Convert to Ad Lead
-                  </button>
-                )}
-                {activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor && (
-                  <button 
-                    type="button"
+                    type="button" 
                     onClick={() => {
-                      setConvertingDistributorId(quickUpdateLead.id);
-                      setActiveDistributorFormData({
-                        agreementDate: new Date().toISOString().split('T')[0],
-                        agreementDurationMonths: '',
-                        territoryExclusivity: 'Non-Exclusive',
-                        distributorPrice: '',
-                        minimumTarget: '',
-                        remarks: ''
-                      });
+                      setSelectedLead(quickUpdateLead);
                       setQuickUpdateLead(null);
-                      setIsActiveDistributorModalOpen(true);
                     }} 
-                    className="w-full py-3 rounded-xl text-[14px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200"
+                    className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    Promote to Active Distributor
+                    <User className="w-3.5 h-3.5" /> Full Profile
                   </button>
-                )}
+                  <button 
+                    type="button" 
+                    onClick={() => setIsTransferModalOpen(true)} 
+                    className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer
+                  </button>
+                  {(activeTab === 'regular' || activeTab === 'distributors') && (
+                    <button 
+                      type="button"
+                      onClick={() => handleConvertToAdLead(quickUpdateLead)} 
+                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200 flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Megaphone className="w-3.5 h-3.5" /> Convert to Ad
+                    </button>
+                  )}
+                  {activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor && (
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setConvertingDistributorId(quickUpdateLead.id);
+                        setActiveDistributorFormData({
+                          agreementDate: new Date().toISOString().split('T')[0],
+                          agreementDurationMonths: '',
+                          territoryExclusivity: 'Non-Exclusive',
+                          distributorPrice: '',
+                          minimumTarget: '',
+                          remarks: ''
+                        });
+                        setQuickUpdateLead(null);
+                        setIsActiveDistributorModalOpen(true);
+                      }} 
+                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200 flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <TrendingUp className="w-3.5 h-3.5" /> Promote Dist.
+                    </button>
+                  )}
+                </div>
               </div>
 
               {quickUpdateLead.statusHistory && quickUpdateLead.statusHistory.length > 0 && (

@@ -29,15 +29,23 @@ exports.onReimbursementCreated = functions.firestore
         }
       });
 
-      // 2. Get Manager Tokens (Managers are stored in 'employees' with a corresponding doc in 'manager')
+      // 2. Get Manager Tokens
+      const usersSnapshot = await admin.firestore().collection("users").get();
+      const managerIds = new Set();
+      usersSnapshot.forEach((doc) => {
+        const roleName = doc.id.toLowerCase();
+        if (roleName === "hr" || roleName.includes("manager") || roleName === "admin") {
+          const roleData = doc.data();
+          if (roleData.userIds && Array.isArray(roleData.userIds)) {
+            roleData.userIds.forEach((id) => managerIds.add(id));
+          }
+        }
+      });
+
       const employeesSnapshot = await admin.firestore().collection("employees").where("companyid", "==", companyId).get();
       for (const empDoc of employeesSnapshot.docs) {
-        if (empDoc.data().fcmToken) {
-          // Check if this employee is a manager
-          const isManagerDoc = await admin.firestore().collection("manager").doc(empDoc.id).get();
-          if (isManagerDoc.exists) {
-            tokens.push(empDoc.data().fcmToken);
-          }
+        if (empDoc.data().fcmToken && managerIds.has(empDoc.id)) {
+          tokens.push(empDoc.data().fcmToken);
         }
       }
 

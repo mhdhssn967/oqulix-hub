@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
 
@@ -123,6 +123,104 @@ export default function ManageAttendance() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: getCurrentTimeStr() });
   const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
+  const [reportModal, setReportModal] = useState({ isOpen: false, data: null });
+
+  const calculateReportData = (log) => {
+    if (!log || !log.clockedInAt || !log.clockedOutAt) return null;
+    
+    const inDate = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+    const outDate = log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt);
+    
+    const totalGrossMs = outDate - inDate;
+    let totalBreakMs = 0;
+    
+    const sortedBreaks = (log.breaks || [])
+      .map(b => ({
+        ...b,
+        sTime: b.startTime ? (b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime)) : null,
+        eTime: b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : null,
+      }))
+      .filter(b => b.sTime && b.eTime)
+      .sort((a, b) => a.sTime - b.sTime);
+
+    sortedBreaks.forEach(b => {
+      totalBreakMs += (b.eTime - b.sTime);
+    });
+    
+    const productiveMs = totalGrossMs - totalBreakMs;
+    
+    // Late Calculation (Target 10:00 AM)
+    const targetStart = new Date(inDate);
+    targetStart.setHours(10, 0, 0, 0);
+    
+    let lateMs = inDate - targetStart;
+    if (lateMs < 0) lateMs = 0;
+    
+    // Points logic
+    let score = 100;
+    const lateMins = Math.floor(lateMs / 60000);
+    if (lateMins > 0) score -= Math.floor(lateMins / 5) * 2;
+    
+    const productiveMins = Math.floor(productiveMs / 60000);
+    if (productiveMins < 390) score -= Math.floor((390 - productiveMins) / 30) * 5;
+    
+    const breakMins = Math.floor(totalBreakMs / 60000);
+    if (breakMins > 90) score -= Math.floor((breakMins - 90) / 5) * 2;
+    
+    if (score < 0) score = 0;
+    
+    const formatDurationDesign = (ms) => {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      if (h === 0) return `${m}m`;
+      return `${h}h ${m}m`;
+    };
+
+    let timeline = [];
+    let lastTime = inDate;
+    sortedBreaks.forEach(b => {
+      if (b.sTime > lastTime) {
+        timeline.push({ type: 'productive', durationMs: b.sTime - lastTime, startStr: lastTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), endStr: b.sTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) });
+      }
+      timeline.push({ type: 'break', durationMs: b.eTime - b.sTime, startStr: b.sTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), endStr: b.eTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), label: b.type || 'Break' });
+      lastTime = b.eTime;
+    });
+
+    if (outDate > lastTime) {
+      timeline.push({ type: 'productive', durationMs: outDate - lastTime, startStr: lastTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), endStr: outDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) });
+    }
+
+    timeline = timeline.map(t => ({ ...t, durationPercent: totalGrossMs > 0 ? (t.durationMs / totalGrossMs) * 100 : 0 }));
+    const productivePercent = totalGrossMs > 0 ? (productiveMs / totalGrossMs) * 100 : 0;
+    const nonProductivePercent = 100 - productivePercent;
+
+    return {
+      name: log.employeeName,
+      date: log.date,
+      clockInStr: inDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      clockOutStr: outDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      lateStr: lateMs > 0 ? `Late by ${formatDurationDesign(lateMs)}` : 'On time',
+      lateMins,
+      grossStr: formatDurationDesign(totalGrossMs),
+      breakStr: formatDurationDesign(totalBreakMs),
+      breaksCount: sortedBreaks.length,
+      productiveStr: formatDurationDesign(productiveMs),
+      productivePercent: productivePercent.toFixed(1),
+      nonProductivePercent: nonProductivePercent.toFixed(1),
+      score,
+      breaksList: sortedBreaks,
+      timeline
+    };
+  };
+
+  const handleOpenReport = (log) => {
+    const data = calculateReportData(log);
+    if (data) {
+      setReportModal({ isOpen: true, data });
+    } else {
+      Swal.fire('Error', 'Incomplete attendance data for report.', 'error');
+    }
+  };
 
   const getTimeStrFromDate = (d) => {
     if (!d) return '';
@@ -745,7 +843,12 @@ export default function ManageAttendance() {
                             </button>
                           )}
                           {log.status === 'Clocked Out' && (
-                            <span className="text-[12px] text-zinc-400 font-medium italic">Completed</span>
+                            <>
+                              <span className="text-[12px] text-zinc-400 font-medium italic">Completed</span>
+                              <button onClick={() => handleOpenReport(log)} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Send Report">
+                                <Send className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
                           {log.status === 'On Leave' && (
                             <span className="text-[12px] text-rose-600 font-medium italic px-2 py-1 bg-rose-50 rounded border border-rose-100">{log.leaveReason}</span>
@@ -1261,6 +1364,262 @@ export default function ManageAttendance() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {reportModal.isOpen && reportModal.data && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setReportModal({ isOpen: false, data: null })}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()} style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
+            
+            {/* Header */}
+            <div className="bg-slate-800 p-5 flex items-center justify-between relative overflow-hidden shrink-0">
+               <div className="flex items-center gap-3 relative z-10">
+                 <BarChart2 className="w-6 h-6 text-emerald-400" />
+                 <div>
+                   <h2 className="text-xl font-bold text-white tracking-tight leading-tight">Daily Report</h2>
+                   <p className="text-slate-300 text-[13px]">{reportModal.data.name} • {reportModal.data.date}</p>
+                 </div>
+               </div>
+               <button onClick={() => setReportModal({ isOpen: false, data: null })} className="text-slate-400 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full p-2 z-20">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[85vh] bg-slate-50 flex flex-col gap-6">
+              
+              {/* Top Metrics Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-xl border border-slate-200">
+                
+                {/* Score */}
+                <div className="flex items-center gap-4">
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                      <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                      <path className="text-emerald-500" strokeDasharray={`${reportModal.data.score}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold text-slate-800">{reportModal.data.score}</span>
+                      <span className="text-[10px] font-bold text-slate-400">/100</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold w-fit mb-2 border border-emerald-100">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Good performance
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Performance Score</p>
+                    <p className="text-xl font-bold text-slate-800"><span className="text-2xl font-bold">{reportModal.data.score}</span><span className="text-slate-400 text-sm">/100</span></p>
+                  </div>
+                </div>
+
+                {/* Login Hours */}
+                <div className="flex flex-col justify-center border-l border-slate-100 pl-6">
+                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Login Hours</p>
+                  <p className="text-[15px] font-bold text-slate-800">{reportModal.data.clockInStr} – {reportModal.data.clockOutStr}</p>
+                </div>
+
+                {/* Late By */}
+                <div className="flex flex-col justify-center border-l border-slate-100 pl-6">
+                  <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mb-3">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Late By</p>
+                  <p className={`text-[15px] font-bold ${reportModal.data.lateMins > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{reportModal.data.lateMins > 0 ? `${reportModal.data.lateMins} mins` : 'On time'}</p>
+                </div>
+
+              </div>
+
+              {/* Today at a glance */}
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <BarChart2 className="w-4 h-4 text-slate-400" /> Today at a glance
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                        <Zap className="w-4 h-4 fill-current" />
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Productive</p>
+                        <p className="text-xl font-bold text-slate-800">{reportModal.data.productiveStr}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">({reportModal.data.productivePercent}% of total time)</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Gross</p>
+                        <p className="text-xl font-bold text-slate-800">{reportModal.data.grossStr}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">(total logged in time)</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
+                        <Coffee className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Breaks</p>
+                        <p className="text-xl font-bold text-slate-800">{reportModal.data.breakStr}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">({reportModal.data.breaksCount} break{reportModal.data.breaksCount !== 1 ? 's' : ''})</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Attendance</p>
+                        <p className="text-xl font-bold text-slate-800">{reportModal.data.lateMins > 0 ? 'Late' : 'On time'}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">{reportModal.data.lateMins > 0 ? `by ${reportModal.data.lateMins} mins` : 'Perfect timing'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Day timeline */}
+              <div className="bg-white p-5 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" /> Day timeline
+                  </h3>
+                  <div className="flex items-center gap-4 text-[12px] font-medium text-slate-500">
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Productive</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Break</span>
+                  </div>
+                </div>
+                
+                <div className="relative pt-6 pb-2">
+                  <div className="w-full h-3 bg-slate-100 rounded-full flex overflow-hidden">
+                    {reportModal.data.timeline.map((segment, idx) => (
+                      <div 
+                        key={idx} 
+                        style={{ width: `${segment.durationPercent}%` }} 
+                        className={`h-full ${segment.type === 'productive' ? 'bg-emerald-400 border-r border-white' : 'bg-blue-400 border-r border-white'}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Timeline Markers */}
+                  <div className="absolute top-0 left-0 w-full">
+                    <div className="absolute left-0 -translate-x-1/2 flex flex-col items-center">
+                      <span className="text-[11px] font-bold text-slate-800">{reportModal.data.clockInStr}</span>
+                      <span className="text-[10px] text-slate-500">Login</span>
+                      <div className="h-4 border-l border-slate-300 my-1"></div>
+                      <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                    </div>
+                    {reportModal.data.timeline.filter(t => t.type === 'break').map((b, idx) => (
+                       <React.Fragment key={idx}>
+                         {/* Break Start */}
+                         <div className="absolute top-0 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b)).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translateX(-50%)' }}>
+                            <span className="text-[11px] font-bold text-slate-800">{b.startStr}</span>
+                            <span className="text-[10px] text-slate-500">{b.label}</span>
+                            <div className="h-4 border-l border-slate-300 my-1"></div>
+                            <div className="w-2 h-2 rounded-full bg-blue-500 border-2 border-white"></div>
+                         </div>
+                         {/* Break End */}
+                         <div className="absolute top-0 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b) + 1).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translateX(-50%)' }}>
+                            <span className="text-[11px] font-bold text-slate-800">{b.endStr}</span>
+                            <span className="text-[10px] text-slate-500">Back to work</span>
+                            <div className="h-4 border-l border-slate-300 my-1"></div>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 border-2 border-white"></div>
+                         </div>
+                       </React.Fragment>
+                    ))}
+                    <div className="absolute right-0 translate-x-1/2 flex flex-col items-center">
+                      <span className="text-[11px] font-bold text-slate-800">{reportModal.data.clockOutStr}</span>
+                      <span className="text-[10px] text-slate-500">Logout</span>
+                      <div className="h-4 border-l border-slate-300 my-1"></div>
+                      <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                    </div>
+                  </div>
+
+                  {reportModal.data.lateMins > 0 && (
+                    <div className="absolute top-[48px] left-0 mt-3 text-rose-500 flex flex-col">
+                       <span className="text-[11px] font-bold flex items-center gap-1">↑ Late by {reportModal.data.lateMins} mins</span>
+                       <span className="text-[10px] text-slate-500">(expected 10:00 AM)</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* Productivity breakdown */}
+                 <div className="bg-white p-5 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                       <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2">
+                         <BarChart2 className="w-4 h-4 text-slate-400" /> Productivity breakdown
+                       </h3>
+                       <span className="text-[11px] text-slate-500">Total time: <span className="font-bold text-slate-800">{reportModal.data.grossStr}</span></span>
+                    </div>
+                    
+                    <div className="w-full h-3 bg-blue-100 rounded-full flex overflow-hidden mb-4">
+                       <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${reportModal.data.productivePercent}%` }}></div>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                       <div className="flex gap-2 items-center">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                          <div>
+                            <p className="text-[11px] text-slate-500">Productive time</p>
+                            <p className="text-[13px] font-bold text-slate-800">{reportModal.data.productiveStr} <span className="text-slate-400 font-normal">({reportModal.data.productivePercent}%)</span></p>
+                          </div>
+                       </div>
+                       <div className="flex gap-2 items-center text-right">
+                          <span className="w-2 h-2 rounded-full bg-blue-200"></span>
+                          <div className="text-left">
+                            <p className="text-[11px] text-slate-500">Non-productive time</p>
+                            <p className="text-[13px] font-bold text-slate-800">{reportModal.data.breakStr} <span className="text-slate-400 font-normal">({reportModal.data.nonProductivePercent}%)</span></p>
+                          </div>
+                       </div>
+                    </div>
+                 </div>
+
+                 {/* Breaks */}
+                 <div className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col">
+                    <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <Coffee className="w-4 h-4 text-slate-400" /> Breaks
+                    </h3>
+                    <div className="flex flex-col gap-3 flex-1 overflow-y-auto max-h-[150px] pr-2">
+                       {reportModal.data.breaksList.length > 0 ? (
+                         reportModal.data.breaksList.map((b, idx) => {
+                           const durationMins = b.eTime && b.sTime ? Math.floor((b.eTime - b.sTime) / 60000) : 0;
+                           const isWithin = durationMins <= 60;
+                           return (
+                             <div key={idx} className="p-3 border border-slate-100 rounded-lg flex items-center justify-between">
+                               <div>
+                                 <p className="text-[13px] font-bold text-slate-800 mb-0.5">{b.type || 'Break'}</p>
+                                 <p className="text-[15px] font-bold text-slate-900 mb-1">{durationMins}m</p>
+                                 <p className="text-[11px] text-slate-400">Target / Allowed: 45m – 60m</p>
+                               </div>
+                               <div className={`px-2 py-1 rounded-md text-[11px] font-bold border ${isWithin ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                 {isWithin ? '✓ Within target' : '⚠ Over target'}
+                               </div>
+                             </div>
+                           )
+                         })
+                       ) : (
+                         <div className="flex-1 flex items-center justify-center text-[13px] text-slate-400 italic bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                           No breaks recorded
+                         </div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+
+            </div>
           </div>
         </div>
       )}
