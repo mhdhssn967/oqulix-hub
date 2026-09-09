@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download } from 'lucide-react';
+import { toPng } from 'html-to-image';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
 
@@ -124,6 +125,86 @@ export default function ManageAttendance() {
   const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: getCurrentTimeStr() });
   const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
   const [reportModal, setReportModal] = useState({ isOpen: false, data: null });
+  const [fetchingReportId, setFetchingReportId] = useState(null);
+  const reportRef = useRef(null);
+  const [isGeneratingImg, setIsGeneratingImg] = useState(false);
+
+  const handleSendWhatsApp = async () => {
+    if (!reportRef.current) return;
+    if (!reportModal.data.phone) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'No Phone Number',
+        text: 'This employee does not have a phone number saved.'
+      });
+      return;
+    }
+    
+    setIsGeneratingImg(true);
+    try {
+      const bodyDiv = reportRef.current.querySelector('.overflow-y-auto');
+      const originalMaxHeight = bodyDiv ? bodyDiv.style.maxHeight : '';
+      const originalOverflow = bodyDiv ? bodyDiv.style.overflow : '';
+      
+      if (bodyDiv) {
+        bodyDiv.style.maxHeight = 'none';
+        bodyDiv.style.overflow = 'visible';
+      }
+      
+      const closeBtn = reportRef.current.querySelector('.close-modal-btn');
+      if (closeBtn) closeBtn.style.display = 'none';
+      
+      // Wait for DOM to apply styles
+      await new Promise(r => setTimeout(r, 50));
+      
+      const image = await toPng(reportRef.current, {
+        cacheBust: true,
+        backgroundColor: '#ffffff',
+        width: 896,
+        style: {
+          width: '896px',
+          maxWidth: '896px',
+        },
+        pixelRatio: 2
+      });
+      
+      // Revert styles
+      if (closeBtn) closeBtn.style.display = '';
+      if (bodyDiv) {
+        bodyDiv.style.maxHeight = originalMaxHeight;
+        bodyDiv.style.overflow = originalOverflow;
+      }
+      
+      const res = await fetch(image);
+      const blob = await res.blob();
+      
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        
+        const formattedPhone = reportModal.data.phone.replace(/[^0-9]/g, '');
+        const waUrl = `https://wa.me/${formattedPhone}`;
+        window.open(waUrl, '_blank');
+      } catch (clipboardErr) {
+        console.error('Clipboard error:', clipboardErr);
+        // Fallback
+        const link = document.createElement('a');
+        link.href = image;
+        link.download = `Report_${reportModal.data?.name}_${reportModal.data?.date}.png`;
+        link.click();
+        
+        const formattedPhone = reportModal.data.phone.replace(/[^0-9]/g, '');
+        const waUrl = `https://wa.me/${formattedPhone}`;
+        window.open(waUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Error generating image', err);
+      Swal.fire('Error', 'Failed to generate report image.', 'error');
+    } finally {
+      setIsGeneratingImg(false);
+    }
+  };
 
   const calculateReportData = (log) => {
     if (!log || !log.clockedInAt || !log.clockedOutAt) return null;
@@ -156,18 +237,7 @@ export default function ManageAttendance() {
     let lateMs = inDate - targetStart;
     if (lateMs < 0) lateMs = 0;
     
-    // Points logic
-    let score = 100;
-    const lateMins = Math.floor(lateMs / 60000);
-    if (lateMins > 0) score -= Math.floor(lateMins / 5) * 2;
-    
-    const productiveMins = Math.floor(productiveMs / 60000);
-    if (productiveMins < 390) score -= Math.floor((390 - productiveMins) / 30) * 5;
-    
-    const breakMins = Math.floor(totalBreakMs / 60000);
-    if (breakMins > 90) score -= Math.floor((breakMins - 90) / 5) * 2;
-    
-    if (score < 0) score = 0;
+
     
     const formatDurationDesign = (ms) => {
       const h = Math.floor(ms / 3600000);
@@ -194,6 +264,82 @@ export default function ManageAttendance() {
     const productivePercent = totalGrossMs > 0 ? (productiveMs / totalGrossMs) * 100 : 0;
     const nonProductivePercent = 100 - productivePercent;
 
+    const targetEnd = new Date(inDate);
+    targetEnd.setHours(18, 0, 0, 0);
+    
+    const barStart = new Date(Math.min(inDate.getTime(), targetStart.getTime()));
+    const barEnd = new Date(Math.max(outDate.getTime(), targetEnd.getTime()));
+    
+    const timePoints = [
+      barStart.getTime(),
+      inDate.getTime(),
+      targetStart.getTime(),
+      targetEnd.getTime(),
+      outDate.getTime(),
+      barEnd.getTime(),
+      ...sortedBreaks.map(b => b.sTime.getTime()),
+      ...sortedBreaks.map(b => b.eTime.getTime())
+    ].filter((t, i, arr) => t >= barStart.getTime() && t <= barEnd.getTime() && arr.indexOf(t) === i).sort((a, b) => a - b);
+    
+    let prodSegments = [];
+    for (let i = 0; i < timePoints.length - 1; i++) {
+      const pStart = timePoints[i];
+      const pEnd = timePoints[i+1];
+      if (pStart === pEnd) continue;
+      
+      const mid = pStart + (pEnd - pStart) / 2;
+      
+      let type = 'empty';
+      const isBeforeClockIn = mid < inDate.getTime();
+      const isAfterClockOut = mid > outDate.getTime();
+      const isCoreTime = mid >= targetStart.getTime() && mid < targetEnd.getTime();
+      const isBreak = sortedBreaks.some(b => mid >= b.sTime.getTime() && mid < b.eTime.getTime());
+      
+      if (isBeforeClockIn) {
+        if (isCoreTime) type = 'late';
+      } else if (isAfterClockOut) {
+        if (isCoreTime) type = 'missing';
+      } else {
+        if (isBreak) type = 'break';
+        else if (isCoreTime) type = 'productive';
+        else type = 'extra';
+      }
+      
+      if (type !== 'empty') {
+        prodSegments.push({ type, durationMs: pEnd - pStart });
+      }
+    }
+    
+    let mergedProdSegments = [];
+    prodSegments.forEach(seg => {
+      if (mergedProdSegments.length > 0 && mergedProdSegments[mergedProdSegments.length - 1].type === seg.type) {
+        mergedProdSegments[mergedProdSegments.length - 1].durationMs += seg.durationMs;
+      } else {
+        mergedProdSegments.push({ ...seg });
+      }
+    });
+    
+    const totalProdBarMs = barEnd.getTime() - barStart.getTime();
+    mergedProdSegments = mergedProdSegments.map(seg => ({ ...seg, durationPercent: totalProdBarMs > 0 ? (seg.durationMs / totalProdBarMs) * 100 : 0 }));
+
+    // Points logic
+    let score = 100;
+    const lateMins = Math.floor(lateMs / 60000);
+    if (lateMins > 0) score -= Math.floor(lateMins / 5) * 2;
+    
+    const productiveMins = Math.floor(productiveMs / 60000);
+    if (productiveMins < 390) score -= Math.floor((390 - productiveMins) / 30) * 5;
+    
+    const breakMins = Math.floor(totalBreakMs / 60000);
+    if (breakMins > 90) score -= Math.floor((breakMins - 90) / 5) * 2;
+    
+    const extraMs = mergedProdSegments.filter(s => s.type === 'extra').reduce((acc, s) => acc + s.durationMs, 0);
+    const extraMins = Math.floor(extraMs / 60000);
+    if (extraMins > 0) score += Math.floor(extraMins / 5) * 2;
+    
+    if (score > 100) score = 100;
+    if (score < 0) score = 0;
+
     return {
       name: log.employeeName,
       date: log.date,
@@ -209,17 +355,69 @@ export default function ManageAttendance() {
       nonProductivePercent: nonProductivePercent.toFixed(1),
       score,
       breaksList: sortedBreaks,
-      timeline
+      timeline,
+      productivityBreakdown: mergedProdSegments
     };
   };
 
-  const handleOpenReport = (log) => {
+  const handleOpenReport = async (log) => {
+    setFetchingReportId(log.id);
     const data = calculateReportData(log);
-    if (data) {
-      setReportModal({ isOpen: true, data });
-    } else {
+    if (!data) {
       Swal.fire('Error', 'Incomplete attendance data for report.', 'error');
+      setFetchingReportId(null);
+      return;
     }
+
+    const emp = employees.find(e => e.id === log.employeeId);
+    if (emp) {
+      data.phone = emp.phone || '';
+    }
+
+    if (emp && emp.position && emp.position.toLowerCase().replace(/\s/g, '') === 'salesassociate') {
+      try {
+        const segmentsSnap = await getDocs(collection(db, `userData/${companyId}/segments`));
+        let newLeadsCount = 0;
+        let contactedCount = 0;
+        let followUpsCount = 0;
+        
+        for (const segDoc of segmentsSnap.docs) {
+          const segName = segDoc.id;
+          const leadsRef = collection(db, `userData/${companyId}/segments/${segName}/crmData/leads/items`);
+          const adLeadsRef = collection(db, `userData/${companyId}/segments/${segName}/crmData/adLeads/items`);
+          
+          const [leadsSnap, adLeadsSnap] = await Promise.all([getDocs(leadsRef), getDocs(adLeadsRef)]);
+          const allLeads = [...leadsSnap.docs, ...adLeadsSnap.docs].map(d => d.data());
+          const empLeads = allLeads.filter(l => l.assignedToUid === log.employeeId || l.userId === log.employeeId);
+          
+          empLeads.forEach(lead => {
+            const createdAtStr = lead.createdAt?.toDate ? lead.createdAt.toDate().toISOString().split('T')[0] : lead.date;
+            let updatedAtStr = lead.updatedAt?.toDate ? lead.updatedAt.toDate().toISOString().split('T')[0] : createdAtStr;
+            
+            if (createdAtStr === log.date || lead.date === log.date) {
+               newLeadsCount++;
+            }
+            
+            if (updatedAtStr === log.date || lead.date === log.date) {
+               const status = lead.currentStatus?.toLowerCase() || '';
+               if (status.includes('contacted') || status.includes('called')) {
+                  contactedCount++;
+               }
+               if (status.includes('follow up') || status.includes('follow-up') || status.includes('followup')) {
+                  followUpsCount++;
+               }
+            }
+          });
+        }
+        
+        data.salesMetrics = { newLeads: newLeadsCount, contacted: contactedCount, followUps: followUpsCount };
+      } catch (err) {
+        console.error("Error fetching sales metrics", err);
+      }
+    }
+
+    setFetchingReportId(null);
+    setReportModal({ isOpen: true, data });
   };
 
   const getTimeStrFromDate = (d) => {
@@ -1369,26 +1567,37 @@ export default function ManageAttendance() {
       )}
       {reportModal.isOpen && reportModal.data && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setReportModal({ isOpen: false, data: null })}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()} style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-x-auto overflow-y-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()} style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}>
             
-            {/* Header */}
-            <div className="bg-slate-800 p-5 flex items-center justify-between relative overflow-hidden shrink-0">
-               <div className="flex items-center gap-3 relative z-10">
-                 <BarChart2 className="w-6 h-6 text-emerald-400" />
-                 <div>
-                   <h2 className="text-xl font-bold text-white tracking-tight leading-tight">Daily Report</h2>
-                   <p className="text-slate-300 text-[13px]">{reportModal.data.name} • {reportModal.data.date}</p>
+            <div ref={reportRef} className="flex flex-col bg-white min-w-[896px]">
+              {/* Header */}
+              <div className="bg-slate-800 p-5 flex items-center justify-between relative overflow-hidden shrink-0">
+                 <div className="flex items-center gap-3 relative z-10">
+                   <BarChart2 className="w-6 h-6 text-emerald-400" />
+                   <h2 className="text-xl font-bold text-white tracking-tight leading-tight">Daily Attendance Report</h2>
                  </div>
-               </div>
-               <button onClick={() => setReportModal({ isOpen: false, data: null })} className="text-slate-400 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full p-2 z-20">
-                 <X className="w-5 h-5" />
-               </button>
-            </div>
+                 <button onClick={() => setReportModal({ isOpen: false, data: null })} className="close-modal-btn text-slate-400 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-full p-2 z-20">
+                   <X className="w-5 h-5" />
+                 </button>
+              </div>
 
-            <div className="p-6 overflow-y-auto max-h-[85vh] bg-slate-50 flex flex-col gap-6">
+              <div className="p-6 overflow-y-auto max-h-[85vh] bg-slate-50 flex flex-col gap-6">
               
+              {/* Employee Info Header */}
+              <div className="flex items-center justify-between bg-white p-5 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
+                    {reportModal.data.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-800">{reportModal.data.name}</h2>
+                    <p className="text-[13px] text-slate-500 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {reportModal.data.date}</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Top Metrics Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-3 gap-6 bg-white p-6 rounded-xl border border-slate-200">
                 
                 {/* Score */}
                 <div className="flex items-center gap-4">
@@ -1432,58 +1641,30 @@ export default function ManageAttendance() {
               </div>
 
               {/* Today at a glance */}
-              <div>
-                <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2 mb-3">
-                  <BarChart2 className="w-4 h-4 text-slate-400" /> Today at a glance
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                        <Zap className="w-4 h-4 fill-current" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Productive</p>
-                        <p className="text-xl font-bold text-slate-800">{reportModal.data.productiveStr}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">({reportModal.data.productivePercent}% of total time)</p>
-                      </div>
-                    </div>
+              <div className="bg-white p-5 rounded-xl border border-slate-200">
+                <div className="flex flex-row items-center justify-between gap-3 mb-4">
+                  <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2 shrink-0">
+                    <BarChart2 className="w-4 h-4 text-slate-400" /> Today at a glance
+                  </h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Productive</span>
+                    <span className="text-[13px] font-black text-emerald-600">{reportModal.data.productiveStr}</span>
+                    <span className="text-[10px] text-emerald-500 font-bold bg-emerald-100/50 px-1.5 rounded-full">{reportModal.data.productivePercent}%</span>
                   </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Gross</p>
-                        <p className="text-xl font-bold text-slate-800">{reportModal.data.grossStr}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">(total logged in time)</p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gross Time</span>
+                    <span className="text-[13px] font-black text-blue-600">{reportModal.data.grossStr}</span>
                   </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-500 flex items-center justify-center shrink-0">
-                        <Coffee className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Breaks</p>
-                        <p className="text-xl font-bold text-slate-800">{reportModal.data.breakStr}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">({reportModal.data.breaksCount} break{reportModal.data.breaksCount !== 1 ? 's' : ''})</p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 border border-purple-100 rounded-full">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Breaks</span>
+                    <span className="text-[13px] font-black text-purple-600">{reportModal.data.breakStr}</span>
+                    <span className="text-[10px] text-purple-500 font-bold bg-purple-100/50 px-1.5 rounded-full">{reportModal.data.breaksCount}</span>
                   </div>
-                  <div className="bg-white p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-[12px] font-semibold text-slate-600 mb-0.5">Attendance</p>
-                        <p className="text-xl font-bold text-slate-800">{reportModal.data.lateMins > 0 ? 'Late' : 'On time'}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">{reportModal.data.lateMins > 0 ? `by ${reportModal.data.lateMins} mins` : 'Perfect timing'}</p>
-                      </div>
-                    </div>
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${reportModal.data.lateMins > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${reportModal.data.lateMins > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>Status</span>
+                    <span className="text-[13px] font-black">{reportModal.data.lateMins > 0 ? 'Late' : 'On time'}</span>
                   </div>
                 </div>
               </div>
@@ -1500,7 +1681,7 @@ export default function ManageAttendance() {
                   </div>
                 </div>
                 
-                <div className="relative pt-6 pb-2">
+                <div className="relative mt-16 mb-12">
                   <div className="w-full h-3 bg-slate-100 rounded-full flex overflow-hidden">
                     {reportModal.data.timeline.map((segment, idx) => (
                       <div 
@@ -1512,41 +1693,49 @@ export default function ManageAttendance() {
                   </div>
 
                   {/* Timeline Markers */}
-                  <div className="absolute top-0 left-0 w-full">
-                    <div className="absolute left-0 -translate-x-1/2 flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-slate-800">{reportModal.data.clockInStr}</span>
-                      <span className="text-[10px] text-slate-500">Login</span>
-                      <div className="h-4 border-l border-slate-300 my-1"></div>
-                      <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                  <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col items-start" style={{ transform: 'translate(-5px, -50%)' }}>
+                      <div className="absolute bottom-full mb-1 flex flex-col items-start">
+                        <span className="text-[11px] font-bold text-slate-800 whitespace-nowrap">{reportModal.data.clockInStr}</span>
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">Login</span>
+                        <div className="h-4 border-l border-slate-300 mt-1 ml-[4px]"></div>
+                      </div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-800 relative z-10"></div>
                     </div>
                     {reportModal.data.timeline.filter(t => t.type === 'break').map((b, idx) => (
                        <React.Fragment key={idx}>
                          {/* Break Start */}
-                         <div className="absolute top-0 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b)).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translateX(-50%)' }}>
-                            <span className="text-[11px] font-bold text-slate-800">{b.startStr}</span>
-                            <span className="text-[10px] text-slate-500">{b.label}</span>
-                            <div className="h-4 border-l border-slate-300 my-1"></div>
-                            <div className="w-2 h-2 rounded-full bg-blue-500 border-2 border-white"></div>
+                         <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b)).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translate(-50%, -50%)' }}>
+                            <div className="absolute bottom-full mb-1 flex flex-col items-center">
+                              <span className="text-[11px] font-bold text-slate-800 whitespace-nowrap">{b.startStr}</span>
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">{b.label}</span>
+                              <div className="h-4 border-l border-slate-300 mt-1"></div>
+                            </div>
+                            <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white relative z-10"></div>
                          </div>
                          {/* Break End */}
-                         <div className="absolute top-0 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b) + 1).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translateX(-50%)' }}>
-                            <span className="text-[11px] font-bold text-slate-800">{b.endStr}</span>
-                            <span className="text-[10px] text-slate-500">Back to work</span>
-                            <div className="h-4 border-l border-slate-300 my-1"></div>
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 border-2 border-white"></div>
+                         <div className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${reportModal.data.timeline.slice(0, reportModal.data.timeline.findIndex(x => x === b) + 1).reduce((acc, t) => acc + t.durationPercent, 0)}%`, transform: 'translate(-50%, -50%)' }}>
+                            <div className="absolute bottom-full mb-1 flex flex-col items-center">
+                              <span className="text-[11px] font-bold text-slate-800 whitespace-nowrap">{b.endStr}</span>
+                              <span className="text-[10px] text-slate-500 whitespace-nowrap">Back to work</span>
+                              <div className="h-10 border-l border-slate-300 mt-1"></div>
+                            </div>
+                            <div className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white relative z-10"></div>
                          </div>
                        </React.Fragment>
                     ))}
-                    <div className="absolute right-0 translate-x-1/2 flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-slate-800">{reportModal.data.clockOutStr}</span>
-                      <span className="text-[10px] text-slate-500">Logout</span>
-                      <div className="h-4 border-l border-slate-300 my-1"></div>
-                      <div className="w-2 h-2 rounded-full bg-slate-800"></div>
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col items-end" style={{ transform: 'translate(5px, -50%)' }}>
+                      <div className="absolute bottom-full mb-1 flex flex-col items-end">
+                        <span className="text-[11px] font-bold text-slate-800 whitespace-nowrap">{reportModal.data.clockOutStr}</span>
+                        <span className="text-[10px] text-slate-500 whitespace-nowrap">Logout</span>
+                        <div className="h-4 border-r border-slate-300 mt-1 mr-[4px]"></div>
+                      </div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-800 relative z-10"></div>
                     </div>
                   </div>
 
                   {reportModal.data.lateMins > 0 && (
-                    <div className="absolute top-[48px] left-0 mt-3 text-rose-500 flex flex-col">
+                    <div className="absolute top-full left-0 mt-3 text-rose-500 flex flex-col">
                        <span className="text-[11px] font-bold flex items-center gap-1">↑ Late by {reportModal.data.lateMins} mins</span>
                        <span className="text-[10px] text-slate-500">(expected 10:00 AM)</span>
                     </div>
@@ -1555,7 +1744,7 @@ export default function ManageAttendance() {
               </div>
 
               {/* Bottom Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-6">
                  {/* Productivity breakdown */}
                  <div className="bg-white p-5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-4">
@@ -1565,23 +1754,39 @@ export default function ManageAttendance() {
                        <span className="text-[11px] text-slate-500">Total time: <span className="font-bold text-slate-800">{reportModal.data.grossStr}</span></span>
                     </div>
                     
-                    <div className="w-full h-3 bg-blue-100 rounded-full flex overflow-hidden mb-4">
-                       <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${reportModal.data.productivePercent}%` }}></div>
+                    <div className="w-full h-3 bg-slate-100 rounded-full flex overflow-hidden mb-4">
+                       {reportModal.data.productivityBreakdown.map((seg, idx) => {
+                          let bgColor = 'bg-slate-200';
+                          if (seg.type === 'productive') bgColor = 'bg-emerald-400';
+                          else if (seg.type === 'break') bgColor = 'bg-blue-400';
+                          else if (seg.type === 'late' || seg.type === 'missing') bgColor = 'bg-rose-500';
+                          else if (seg.type === 'extra') bgColor = 'bg-purple-500';
+                          
+                          return <div key={idx} className={`h-full ${bgColor}`} style={{ width: `${seg.durationPercent}%` }}></div>;
+                       })}
                     </div>
 
-                    <div className="flex justify-between items-center">
-                       <div className="flex gap-2 items-center">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                          <div>
-                            <p className="text-[11px] text-slate-500">Productive time</p>
-                            <p className="text-[13px] font-bold text-slate-800">{reportModal.data.productiveStr} <span className="text-slate-400 font-normal">({reportModal.data.productivePercent}%)</span></p>
-                          </div>
+                    <div className="flex flex-col gap-3">
+                       <div className="flex flex-wrap items-center gap-4 text-[11px] font-medium text-slate-500">
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Core Work</span>
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Extra Time</span>
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Breaks</span>
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Late/Missing</span>
                        </div>
-                       <div className="flex gap-2 items-center text-right">
-                          <span className="w-2 h-2 rounded-full bg-blue-200"></span>
-                          <div className="text-left">
-                            <p className="text-[11px] text-slate-500">Non-productive time</p>
-                            <p className="text-[13px] font-bold text-slate-800">{reportModal.data.breakStr} <span className="text-slate-400 font-normal">({reportModal.data.nonProductivePercent}%)</span></p>
+                       <div className="flex justify-between items-center mt-2 pt-3 border-t border-slate-100">
+                          <div className="flex gap-2 items-center">
+                             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                             <div>
+                               <p className="text-[11px] text-slate-500">Productive time</p>
+                               <p className="text-[13px] font-bold text-slate-800">{reportModal.data.productiveStr} <span className="text-slate-400 font-normal">({reportModal.data.productivePercent}%)</span></p>
+                             </div>
+                          </div>
+                          <div className="flex gap-2 items-center text-right">
+                             <span className="w-2 h-2 rounded-full bg-blue-200"></span>
+                             <div className="text-left">
+                               <p className="text-[11px] text-slate-500">Non-productive time</p>
+                               <p className="text-[13px] font-bold text-slate-800">{reportModal.data.breakStr} <span className="text-slate-400 font-normal">({reportModal.data.nonProductivePercent}%)</span></p>
+                             </div>
                           </div>
                        </div>
                     </div>
@@ -1619,6 +1824,62 @@ export default function ManageAttendance() {
                  </div>
               </div>
 
+              {/* Sales Metrics (If Sales Associate) */}
+              {reportModal.data.salesMetrics && (() => {
+                const totalLeads = reportModal.data.salesMetrics.contacted + reportModal.data.salesMetrics.newLeads + reportModal.data.salesMetrics.followUps;
+                let badgeColor = 'bg-rose-100 text-rose-700 border-rose-200';
+                if (totalLeads >= 20) badgeColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                else if (totalLeads >= 10) badgeColor = 'bg-orange-100 text-orange-700 border-orange-200';
+
+                return (
+                  <div className="bg-white p-5 rounded-xl border border-slate-200 mt-6">
+                    <div className="flex flex-row items-center justify-between gap-3 mb-4">
+                      <h3 className="text-[14px] font-bold text-slate-800 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-slate-400" /> Sales Performance
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-slate-500">Total Leads/Day (Target: 20)</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold border ${badgeColor}`}>
+                          {totalLeads}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Contacted</span>
+                        <span className="text-[13px] font-black text-blue-600">{reportModal.data.salesMetrics.contacted}</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">New Leads</span>
+                        <span className="text-[13px] font-black text-emerald-600">{reportModal.data.salesMetrics.newLeads}</span>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-100 rounded-full">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Follow Ups</span>
+                        <span className="text-[13px] font-black text-amber-600">{reportModal.data.salesMetrics.followUps}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+            </div>
+            </div>
+            {/* Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 flex justify-end gap-3">
+              <button 
+                onClick={handleSendWhatsApp}
+                disabled={isGeneratingImg}
+                className="px-6 py-2 bg-green-50 text-green-700 border border-green-200 text-[13px] font-bold rounded-lg hover:bg-green-100 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isGeneratingImg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Send to WhatsApp
+              </button>
+              <button 
+                onClick={() => setReportModal({ isOpen: false, data: null })}
+                className="px-6 py-2 bg-slate-900 text-white text-[13px] font-bold rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                Close Report
+              </button>
             </div>
           </div>
         </div>
