@@ -337,6 +337,9 @@ export default function ManageAttendance() {
     const extraMins = Math.floor(extraMs / 60000);
     if (extraMins > 0) score += Math.floor(extraMins / 5) * 2;
     
+    const coreMs = mergedProdSegments.filter(s => s.type === 'productive').reduce((acc, s) => acc + s.durationMs, 0);
+    const lateMissingMs = mergedProdSegments.filter(s => s.type === 'late' || s.type === 'missing').reduce((acc, s) => acc + s.durationMs, 0);
+    
     if (score > 100) score = 100;
     if (score < 0) score = 0;
 
@@ -349,6 +352,9 @@ export default function ManageAttendance() {
       lateMins,
       grossStr: formatDurationDesign(totalGrossMs),
       breakStr: formatDurationDesign(totalBreakMs),
+      coreStr: formatDurationDesign(coreMs),
+      extraStr: formatDurationDesign(extraMs),
+      lateMissingStr: formatDurationDesign(lateMissingMs),
       breaksCount: sortedBreaks.length,
       productiveStr: formatDurationDesign(productiveMs),
       productivePercent: productivePercent.toFixed(1),
@@ -1767,11 +1773,23 @@ export default function ManageAttendance() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                       <div className="flex flex-wrap items-center gap-4 text-[11px] font-medium text-slate-500">
-                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Core Work</span>
-                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Extra Time</span>
-                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Breaks</span>
-                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Late/Missing</span>
+                       <div className="flex flex-wrap items-center justify-between gap-4 text-[11px] font-medium text-slate-500">
+                          <div className="flex flex-col gap-0.5">
+                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Core Work</span>
+                             <span className="font-bold text-slate-800 text-[12px] pl-4">{reportModal.data.coreStr}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Extra Time</span>
+                             <span className="font-bold text-slate-800 text-[12px] pl-4">{reportModal.data.extraStr}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400"></span> Breaks</span>
+                             <span className="font-bold text-slate-800 text-[12px] pl-4">{reportModal.data.breakStr}</span>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Late/Missing</span>
+                             <span className="font-bold text-slate-800 text-[12px] pl-4">{reportModal.data.lateMissingStr}</span>
+                          </div>
                        </div>
                        <div className="flex justify-between items-center mt-2 pt-3 border-t border-slate-100">
                           <div className="flex gap-2 items-center">
