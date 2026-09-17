@@ -68,10 +68,7 @@ export default function DocumentTextEditor({ initialTexts, onSave, onBack }) {
     slaPage3: `<ol start="10">
         <li><strong>Annual Maintenance Contract (AMC):</strong>
           <ul>
-            <li> After the completion of the initial three-year period, ongoing technical support will 
-continue to be provided. However, access to new integrations, major feature 
-additions, product enhancements, and future software updates will be covered under 
-an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
+            <li>After the completion of the initial three-year period, ongoing technical support will continue to be provided. However, access to new integrations, major feature additions, product enhancements, and future software updates will be covered under an optional Annual Maintenance Contract (AMC) of ₹45,000 per year.</li>
             <li>The AMC covers maintenance and support services, including bug fixes and technical assistance. However, it does not include software updates with new features, game additions, or major version upgrades. To access these updates, a separate subscription renewal or upgrade fee will be applicable.</li>
           </ul>
         </li>
@@ -93,7 +90,7 @@ an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
           </ul>
         </li>
       </ol>
-      <p style="font-size: 12px; text-align: center; margin-top: 20px;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`,
+      <p style="font-size: 11px; text-align: center; margin-top: 10px; line-height: 1.35;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`,
     bankDetails: `<ul>
         <li>Bank Name: HDFC BANK</li>
         <li>Account Holder: OQULIX PVT. LTD</li>

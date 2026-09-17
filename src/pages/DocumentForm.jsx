@@ -316,6 +316,19 @@ export default function DocumentForm() {
     );
   }
 
+  // Real-time pricing calculations for quotation
+  const items = formData.complementaryItems || [];
+  const discount = Number(formData.discount) || 0;
+  const packagePrice = Number(formData.packagePrice) || 0;
+  const packageQuantity = Number(formData.packageQuantity) || 0;
+  const packageTotal = packagePrice * packageQuantity;
+  const itemsSubtotal = items.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
+  const price = packageTotal + itemsSubtotal;
+  const discountedPrice = Math.max(0, price - discount);
+  const oneTimeGST = Math.round(discountedPrice * 0.18);
+  const oneTimeTotal = discountedPrice + oneTimeGST;
+  const hasPricing = formData.packagePrice !== undefined || formData.discount !== undefined || formData.price !== undefined;
+
   return (
     <div className="w-full px-4 sm:px-8 pb-20 pt-8">
       {renderStepper()}
@@ -354,6 +367,39 @@ export default function DocumentForm() {
             </div>
           </div>
         ))}
+
+        {/* Real-time Pricing Summary Card */}
+        {hasPricing && (
+          <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Live Quotation Summary</span>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mt-1 text-sm text-zinc-600">
+                  <div>
+                    <span className="text-zinc-400">Subtotal:</span>{' '}
+                    <span className="font-semibold text-zinc-800">₹{price.toLocaleString('en-IN')}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div>
+                      <span className="text-zinc-400">Discount:</span>{' '}
+                      <span className="font-semibold text-red-500">-₹{discount.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-zinc-400">GST (18%):</span>{' '}
+                    <span className="font-semibold text-zinc-800">₹{oneTimeGST.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="sm:text-right border-t sm:border-t-0 pt-3 sm:pt-0 w-full sm:w-auto flex sm:flex-col justify-between items-center sm:items-end">
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Final Total</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
+                  ₹{oneTimeTotal.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="flex justify-end pt-4">
           <button 

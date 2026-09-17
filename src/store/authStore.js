@@ -107,17 +107,18 @@ export const useAuthStore = create((set) => ({
     await signOut(auth);
   },
 
-  updateProfile: async (name, photoURL) => {
+  updateProfile: async (name, photoURL, crmPreferences) => {
     const { user, isAdmin, isEmployee, employeeData } = useAuthStore.getState();
     if (!user) return false;
     
-    const collectionName = isAdmin ? 'admins' : (isEmployee ? 'employees' : null);
+    const collectionName = isAdmin ? 'admins' : (isEmployee ? 'employees' : 'users');
     if (!collectionName) return false;
 
     try {
       const updates = {};
       if (name !== undefined) updates.name = name;
       if (photoURL !== undefined) updates.photoURL = photoURL;
+      if (crmPreferences !== undefined) updates.crmPreferences = crmPreferences;
       
       await updateDoc(doc(db, collectionName, user.uid), updates);
       

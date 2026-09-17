@@ -1,23 +1,55 @@
-import React, { useRef } from 'react';
-import { ArrowLeft, Printer, Download } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
+import React, { useRef, useState } from 'react';
+import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import OQ from '../assets/OQ.png';
 import seal from '../assets/seal.png';
 import '../styles/Document.css';
 
 export default function DocumentPreview({ config, formData, textData, onBack }) {
   const pageRefs = useRef([]);
+  const [downloading, setDownloading] = useState(false);
 
-  const handleDownload = () => {
-    const element = document.getElementById('document-container');
-    const opt = {
-      margin:       0,
-      filename:     `${formData.client || 'Document'}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'px', format: [794, 1123], orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
+  const handleDownload = async () => {
+    const container = document.getElementById('document-container');
+    if (!container) return;
+
+    try {
+      setDownloading(true);
+      const pages = container.querySelectorAll('.page');
+      if (!pages || pages.length === 0) return;
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff'
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        if (i > 0) {
+          pdf.addPage('a4', 'portrait');
+        }
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+      }
+
+      pdf.save(`${formData.client || 'HappyMoves_Quotation'}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -79,10 +111,11 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
         <div className="flex items-center gap-3">
           <button 
             onClick={handleDownload}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-zinc-700 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm font-medium shadow-sm"
+            disabled={downloading}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-zinc-700 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Download className="w-4 h-4" />
-            Download PDF
+            {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {downloading ? 'Downloading...' : 'Download PDF'}
           </button>
           <button 
             onClick={handlePrint}
@@ -102,15 +135,13 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
             <div className="main-page-heading">
               <div className="left">
                 <h1>Quotation</h1>
-                <p>Valid until {formData.validUntil}</p>
+                <p style={{ fontSize: '13px', color: '#555', marginTop: '2px' }}>Valid until {formData.validUntil}</p>
               </div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <p style={{ marginTop: "6px", fontWeight: 600, fontSize: '28px' }}>
-              Special Quotation - {formData.recipient || "Client"}
-            </p>
-            <div className="to-adress">
+           
+            <div className="to-adress" style={{ marginTop: '8px' }}>
               <p>
                 To, <br />
                 <strong>{formData.recipient || "Recipient Name"}</strong> <br /> 
@@ -119,7 +150,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                 {formData.addressLine2 || "Address Line 2"}
               </p>
             </div>
-            <div className="to-adress" style={{ marginTop: '20px' }}>
+            <div className="to-adress" style={{ marginTop: '14px' }}>
               <p>
                 From, <br />
                 <strong> OQULIX PVT. LTD</strong> <br />
@@ -129,18 +160,18 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
               </p>
             </div>
 
-            <div className="mail-content" style={{ marginTop: '40px' }}>
+            <div className="mail-content" style={{ marginTop: '16px' }}>
               <p>Dear Team, </p>
               <div 
                 className="mail-content-dynamic" 
-                style={{ textAlign: "justify", lineHeight: 1.6, marginTop: '10px' }}
+                style={{ textAlign: "justify", lineHeight: 1.5, marginTop: '6px' }}
                 dangerouslySetInnerHTML={{
                   __html: textData?.coverLetter || `<p>It was a pleasure demonstrating our flagship product, <strong>Happy Moves</strong>, to you. We appreciate the opportunity to showcase how our innovative physiotherapy VR tool can enhance the rehabilitation experience for your patients, making their journey towards recovery more engaging and effective.</p>`
                 }}
               />
             </div>
             
-            <div className="regards" style={{ marginTop: '40px' }}>
+            <div className="regards" style={{ marginTop: '16px' }}>
               <p>
                 Regards <br />
                 Team <strong>OQULIX</strong>
@@ -161,10 +192,10 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
               <div className="left">
                 <h1>Item Description</h1>
               </div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <div className="quotation-table-div" style={{ marginTop: '20px' }}>
+            <div className="quotation-table-div" style={{ marginTop: '14px' }}>
               <table className="quotation-table">
                 <thead>
                   <tr>
@@ -184,8 +215,8 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
             </div>
 
             {items.length > 0 && (
-              <div className="quotation-table-div" style={{ marginTop: '30px' }}>
-                <h3 style={{ textDecoration: "underline", marginBottom: '10px' }}>
+              <div className="quotation-table-div" style={{ marginTop: '20px' }}>
+                <h3 style={{ textDecoration: "underline", marginBottom: '8px', fontSize: '14px', fontWeight: 600 }}>
                   COMPLEMENTARY PRODUCTS
                 </h3>
                 <table className="quotation-table">
@@ -239,17 +270,17 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
           <Footer />
         </div>
 
-        {/* Page 4 */}
+        {/* Page 3: SLA Page 1 */}
         <div className="page">
           <Header />
           <div className="main-page">
             <div className="main-page-heading">
               <div className="left"></div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <div className="license-agreement" style={{ marginTop: '20px' }}>
-              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '20px' }}>
+            <div className="license-agreement" style={{ marginTop: '4px' }}>
+              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '10px' }}>
                 SOFTWARE LICENSE AGREEMENT
               </h2>
               <div 
@@ -290,17 +321,17 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
           <Footer />
         </div>
 
-        {/* Page 5 */}
+        {/* Page 4: SLA Page 2 */}
         <div className="page">
           <Header />
           <div className="main-page">
             <div className="main-page-heading">
               <div className="left"></div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <div className="license-agreement" style={{ marginTop: '20px' }}>
-              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '20px' }}>
+            <div className="license-agreement" style={{ marginTop: '4px' }}>
+              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '10px' }}>
                 SOFTWARE LICENSE AGREEMENT
               </h2>
               <div 
@@ -344,17 +375,17 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
           <Footer />
         </div>
 
-        {/* Page 6 */}
+        {/* Page 5: SLA Page 3 */}
         <div className="page">
           <Header />
           <div className="main-page">
             <div className="main-page-heading">
               <div className="left"></div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <div className="license-agreement" style={{ marginTop: '20px' }}>
-              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '20px' }}>
+            <div className="license-agreement" style={{ marginTop: '4px' }}>
+              <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '10px' }}>
                 SOFTWARE LICENSE AGREEMENT
               </h2>
               <div 
@@ -363,10 +394,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                   __html: textData?.slaPage3 || `<ol start="10">
                       <li><strong>Annual Maintenance Contract (AMC):</strong>
                         <ul>
-                          <li>After the completion of the initial three-year period, ongoing technical support will 
-continue to be provided. However, access to new integrations, major feature 
-additions, product enhancements, and future software updates will be covered under 
-an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
+                          <li>After the completion of the initial three-year period, ongoing technical support will continue to be provided. However, access to new integrations, major feature additions, product enhancements, and future software updates will be covered under an optional Annual Maintenance Contract (AMC) of ₹45,000 per year.</li>
                           <li>The AMC covers maintenance and support services, including bug fixes and technical assistance. However, it does not include software updates with new features, game additions, or major version upgrades. To access these updates, a separate subscription renewal or upgrade fee will be applicable.</li>
                         </ul>
                       </li>
@@ -388,7 +416,7 @@ an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
                         </ul>
                       </li>
                     </ol>
-                    <p style="font-size: 12px; text-align: center; margin-top: 20px;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`
+                    <p style="font-size: 11px; text-align: center; margin-top: 10px; line-height: 1.35;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`
                 }}
               />
             </div>
@@ -400,24 +428,24 @@ an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
           <Footer />
         </div>
 
-        {/* Page 7 */}
+        {/* Page 6: Bank & Payment Terms */}
         <div className="page">
           <Header />
           <div className="main-page">
             <div className="main-page-heading">
               <div className="left"></div>
-              <p>{formData.date || "Date"}</p>
+              <p style={{ fontSize: '13.5px' }}>{formData.date || "Date"}</p>
             </div>
 
-            <div className="end-statement-div" style={{ marginTop: '20px' }}>
+            <div className="end-statement-div" style={{ marginTop: '10px' }}>
               <div>
-                <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '20px' }}>
+                <h2 style={{ textDecoration: "underline", textAlign: "center", marginBottom: '14px', fontSize: '18px' }}>
                   BANK ACCOUNT DETAILS
                 </h2>
-                <h3>Please find our bank details below for the payment:</h3>
+                <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Please find our bank details below for the payment:</h3>
                 <div 
                   className="bank-details-dynamic" 
-                  style={{ marginTop: '10px' }}
+                  style={{ marginTop: '6px' }}
                   dangerouslySetInnerHTML={{
                     __html: textData?.bankDetails || `<ul>
                       <li>Bank Name: HDFC BANK</li>
@@ -430,8 +458,8 @@ an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
               </div>
 
               <div className="end-statement">
-                <div style={{ marginBottom: "12px" }}>
-                  <h3 style={{ textDecoration: "underline", marginBottom: "6px" }}>
+                <div style={{ marginBottom: "10px" }}>
+                  <h3 style={{ textDecoration: "underline", marginBottom: "6px", fontSize: '16px' }}>
                     PAYMENT TERMS
                   </h3>
                 </div>
@@ -439,7 +467,7 @@ an optional Annual Maintenance Contract (AMC) of ₹45,000 per year</li>
                   className="payment-terms-dynamic"
                   dangerouslySetInnerHTML={{
                     __html: textData?.paymentTerms || `<p><strong>Thank you for choosing Happy Moves for your therapeutic needs. We are excited about the prospect of contributing to the success of your firm. We kindly request an advance payment 50% of TOTAL PRICE for your confirmation and a balance payment 50% of TOTAL PRICE before the day of implementation.</strong></p>
-                      <p style="margin-top: 10px;">Please make the payments within the specified timelines mentioned in the payment terms.</p>`
+                      <p style="margin-top: 8px;">Please make the payments within the specified timelines mentioned in the payment terms.</p>`
                   }}
                 />
               </div>

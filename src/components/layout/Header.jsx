@@ -15,6 +15,8 @@ export function Header() {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editName, setEditName] = useState('');
+  const [defaultSegment, setDefaultSegment] = useState('happymoves');
+  const [defaultTab, setDefaultTab] = useState('ads');
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -69,6 +71,8 @@ export function Header() {
 
   const handleProfileClick = () => {
     setEditName(displayName);
+    setDefaultSegment(employeeData?.crmPreferences?.defaultSegment || 'happymoves');
+    setDefaultTab(employeeData?.crmPreferences?.defaultTab || 'ads');
     setIsProfileOpen(true);
   };
 
@@ -93,14 +97,14 @@ export function Header() {
   };
 
   const handleSaveName = async () => {
-    if (!editName.trim() || editName.trim() === displayName) {
-      setIsProfileOpen(false);
-      return;
-    }
     setIsSaving(true);
     try {
-      await updateProfile(editName.trim(), undefined);
-      Swal.fire({ icon: 'success', title: 'Name updated!', timer: 2000, showConfirmButton: false });
+      await updateProfile(
+        editName.trim() !== displayName ? editName.trim() : undefined, 
+        undefined,
+        { defaultSegment, defaultTab }
+      );
+      Swal.fire({ icon: 'success', title: 'Profile updated!', timer: 2000, showConfirmButton: false });
       setIsProfileOpen(false);
     } catch (error) {
       console.error(error);
@@ -253,6 +257,29 @@ export function Header() {
                     disabled
                     className="w-full px-4 py-2.5 bg-zinc-100 border border-zinc-200 rounded-xl text-sm text-zinc-500 cursor-not-allowed"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Default CRM Segment</label>
+                  <select 
+                    value={defaultSegment}
+                    onChange={(e) => setDefaultSegment(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:bg-white transition-all"
+                  >
+                    <option value="happymoves">Happy Moves</option>
+                    <option value="gamefaktory">Game Faktory</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Default CRM View</label>
+                  <select 
+                    value={defaultTab}
+                    onChange={(e) => setDefaultTab(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 focus:bg-white transition-all"
+                  >
+                    <option value="regular">Regular Leads</option>
+                    <option value="ads">Ad Leads</option>
+                    <option value="distributors">Distributors</option>
+                  </select>
                 </div>
               </div>
             </div>

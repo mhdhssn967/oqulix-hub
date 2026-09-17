@@ -38,8 +38,10 @@ const DISTRIBUTOR_STATUS_OPTIONS = [
 export default function CRM() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeSegment, setActiveSegment] = useState('happymoves');
-  const [activeTab, setActiveTab] = useState('ads');
+  const { user, isAdmin, isManager, companyId, employeeData, isAdLeadManager, isHR } = useAuthStore();
+  
+  const [activeSegment, setActiveSegment] = useState(employeeData?.crmPreferences?.defaultSegment || 'happymoves');
+  const [activeTab, setActiveTab] = useState(employeeData?.crmPreferences?.defaultTab || 'ads');
   const [regularLeads, setRegularLeads] = useState([]);
   const [adLeads, setAdLeads] = useState([]);
   const [distributors, setDistributors] = useState([]);
@@ -52,7 +54,6 @@ export default function CRM() {
   const [quickUpdateLead, setQuickUpdateLead] = useState(null);
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateRemarks, setUpdateRemarks] = useState('');
-  const { user, isAdmin, isManager, companyId, employeeData, isAdLeadManager, isHR } = useAuthStore();
   const isDigitalMarketing = employeeData?.position?.trim().toLowerCase() === 'digital marketing';
   const canManageAdLeads = isDigitalMarketing || isAdLeadManager;
   
@@ -811,6 +812,85 @@ export default function CRM() {
       });
     }
   };
+  const handleConvertToRegularLead = async (lead) => {
+    const result = await Swal.fire({
+      title: 'Transfer to Regular Lead?',
+      text: "This will move the current record to Regular Leads.",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#000000',
+      cancelButtonColor: '#3f3f46',
+      confirmButtonText: 'Yes, Transfer'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({
+      title: 'Transferring...',
+      text: 'Please wait while the lead is being transferred.',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+    
+    try {
+      const sourceDocRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items', lead.id);
+      await deleteDoc(sourceDocRef);
+      
+      setAdLeads(prev => prev.filter(item => item.id !== lead.id));
+      
+      const leadsDocRef = doc(collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads', 'items'));
+      
+      const newRegularLead = {
+        id: leadsDocRef.id,
+        name: lead.institutionName || lead.name || '',
+        clientName: lead.institutionName || lead.name || '',
+        personOfContact: lead.name || '',
+        contactNo: lead.contactNumber || lead.contactNo || '',
+        place: lead.region || '',
+        region: lead.region || '',
+        country: lead.country || '',
+        leadType: lead.leadType || 'Other',
+        priority: lead.priority || 'Medium',
+        remarks: lead.remarks || '',
+        nextFollowUp: lead.followUpDate || lead.nextFollowUp || '',
+        assignedToUid: lead.assignedToUid || lead.userId || user?.uid || '',
+        assignedToName: lead.assignedToName || lead.employeeName || employeeData?.name || '',
+        message: lead.message || 'Transferred from Ad Lead',
+        updatedAt: serverTimestamp(),
+        currentStatus: lead.currentStatus || 'New Lead',
+        newLead: true,
+        employeeName: lead.employeeName || employeeData?.name || '',
+        addedByName: lead.addedByName || employeeData?.name || '',
+        userId: lead.userId || user?.uid || '',
+        date: new Date().toISOString().slice(0, 10),
+        createdAt: serverTimestamp(),
+      };
+      
+      await setDoc(leadsDocRef, newRegularLead, { merge: true });
+      
+      setRegularLeads(prev => [{ ...newRegularLead }, ...prev]);
+      
+      setSelectedLead(null);
+      setQuickUpdateLead(null);
+      Swal.fire({
+        title: 'Transferred!',
+        text: 'The lead has been successfully moved to Regular Leads.',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error transferring lead:", err);
+      Swal.fire({
+        title: 'Error!',
+        text: 'Failed to transfer the lead.',
+        icon: 'error'
+      });
+    }
+  };
+
   const handleConvertToActiveDistributor = async (e) => {
     e.preventDefault();
     if (!companyId || !convertingDistributorId) return;
@@ -2069,6 +2149,15 @@ export default function CRM() {
                       className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200 flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <Megaphone className="w-3.5 h-3.5" /> Convert to Ad
+                    </button>
+                  )}
+                  {activeTab === 'ads' && (
+                    <button 
+                      type="button"
+                      onClick={() => handleConvertToRegularLead(quickUpdateLead)} 
+                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-200 flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer to Regular
                     </button>
                   )}
                   {activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor && (
