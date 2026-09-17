@@ -99,7 +99,27 @@ export default function EmployeeAttendanceDetail() {
         offDaysPassed++;
       }
     }
-    const workingDaysPassed = Math.max(0, daysPassed - offDaysPassed);
+    let workingDaysPassed = Math.max(0, daysPassed - offDaysPassed);
+
+    if (employee && employee.dateOfJoining) {
+      const joinDate = new Date(employee.dateOfJoining);
+      if (!isNaN(joinDate.getTime()) && joinDate.getFullYear() === yearNum && joinDate.getMonth() === monthNum) {
+        const joinDay = joinDate.getDate();
+        if (joinDay > 1) {
+          let empOffDaysPassed = 0;
+          if (joinDay <= daysPassed) {
+            for (let i = joinDay; i <= daysPassed; i++) {
+              if (isLeaveDay(yearNum, monthNum, i)) {
+                empOffDaysPassed++;
+              }
+            }
+            workingDaysPassed = Math.max(0, (daysPassed - joinDay + 1) - empOffDaysPassed);
+          } else {
+            workingDaysPassed = 0;
+          }
+        }
+      }
+    }
 
     const mLogs = attendanceLogs.filter(log => log.date && log.date.startsWith(selectedMonth));
     const calculatedMetrics = calculateEmployeeAttendanceMetrics(employee, mLogs, workingDaysPassed);

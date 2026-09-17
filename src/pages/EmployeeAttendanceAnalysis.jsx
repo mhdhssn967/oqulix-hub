@@ -100,7 +100,28 @@ export default function EmployeeAttendanceAnalysis() {
 
     return employees.map(emp => {
       const empLogs = monthLogs.filter(log => log.employeeId === emp.id);
-      return calculateEmployeeAttendanceMetrics(emp, empLogs, workingDaysPassed);
+      
+      let empWorkingDaysPassed = workingDaysPassed;
+      if (emp.dateOfJoining) {
+        const joinDate = new Date(emp.dateOfJoining);
+        if (!isNaN(joinDate.getTime()) && joinDate.getFullYear() === year && joinDate.getMonth() === month) {
+          const joinDay = joinDate.getDate();
+          if (joinDay > 1) {
+            let empOffDaysPassed = 0;
+            if (joinDay <= daysPassed) {
+              for (let i = joinDay; i <= daysPassed; i++) {
+                if (isLeaveDay(year, month, i)) {
+                  empOffDaysPassed++;
+                }
+              }
+              empWorkingDaysPassed = Math.max(0, (daysPassed - joinDay + 1) - empOffDaysPassed);
+            } else {
+              empWorkingDaysPassed = 0;
+            }
+          }
+        }
+      }
+      return calculateEmployeeAttendanceMetrics(emp, empLogs, empWorkingDaysPassed);
     }).sort((a, b) => a.name.localeCompare(b.name));
 
   }, [employees, attendanceLogs, customHolidays, selectedMonth, loading]);

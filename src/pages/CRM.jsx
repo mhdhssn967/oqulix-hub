@@ -138,6 +138,7 @@ export default function CRM() {
     region: '',
     leadType: 'Hospital',
     customLeadType: '',
+    currentStatus: 'New Lead',
     priority: 'Medium',
     remarks: '',
     followUpDate: '',
@@ -514,7 +515,7 @@ export default function CRM() {
       
       setIsAdLeadModalOpen(false);
       setEditingLeadId(null);
-      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+      setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', currentStatus: 'New Lead', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
       
       Swal.fire({
         title: editingLeadId ? 'Updated!' : 'Added!',
@@ -608,6 +609,7 @@ export default function CRM() {
         region: lead.region || lead.place || '',
         leadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? lead.leadType : 'Other',
         customLeadType: ['Hospital', 'Distributor', 'Physiotherapist', 'Clinic', 'Pharmacy', 'Nursing Home'].includes(lead.leadType) ? '' : (lead.leadType || ''),
+        currentStatus: lead.currentStatus || 'New Lead',
         priority: lead.priority || 'Medium',
         remarks: lead.remarks || '',
         followUpDate: lead.followUpDate || lead.nextFollowUp || '',
@@ -1471,7 +1473,7 @@ export default function CRM() {
             onClick={() => {
               setEditingLeadId(null);
               if (activeTab === 'ads') {
-                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+                setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', currentStatus: 'New Lead', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 setIsAdLeadModalOpen(true);
               } else if (activeTab === 'distributors') {
                 setDistributorFormData({ distributorName: '', state: '', region: '', exclusive: '', teamSize: '', contactPersonName: '', contactNumber: '', email: '', address: '', gstNumber: '', establishedYear: '', currentStatus: 'Contacted', lastMeetingDate: new Date().toISOString().split('T')[0], nextFollowUp: '', productLinesHandled: '', territoryDescription: '', remarks: '' });
@@ -2634,7 +2636,7 @@ export default function CRM() {
                 if (!isSubmitting) {
                   setIsAdLeadModalOpen(false);
                   setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: 'Hospital', customLeadType: '', currentStatus: 'New Lead', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 }
               }} className="text-zinc-400 hover:text-black transition-colors p-1 bg-white rounded-full shadow-sm border border-zinc-200">
                 <X className="w-4 h-4" />
@@ -2713,6 +2715,23 @@ export default function CRM() {
                         ))}
                       </select>
                     </div>
+
+                    <div className="flex items-center py-2.5 border-b border-zinc-100 focus-within:border-black transition-colors group">
+                      <label className="w-2/5 text-[12px] font-semibold text-zinc-500 group-focus-within:text-black transition-colors">Status</label>
+                      <select name="currentStatus" value={adLeadFormData.currentStatus || 'New Lead'} onChange={handleAdLeadInputChange} className="w-3/5 bg-transparent text-[14px] font-medium text-zinc-900 focus:outline-none cursor-pointer">
+                        <option value="New Lead">New Lead</option>
+                        <option value="Called, no response">Called, No Response</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Connected via whatsapp">Connected via whatsapp</option>
+                        <option value="Interested">Interested</option>
+                        <option value="Follow up needed">Follow-Up Needed</option>
+                        <option value="Quotation Sent">Quotation Sent</option>
+                        <option value="Awaiting Decision">Awaiting Decision</option>
+                        <option value="Token Recieved">Token Recieved</option>
+                        <option value="Deal Closed">Converted (Deal Won)</option>
+                        <option value="Deal Lost">Not Interested (Deal Lost)</option>
+                      </select>
+                    </div>
                   </div>
 
                   {/* Right Column */}
@@ -2777,7 +2796,7 @@ export default function CRM() {
                 <button type="button" onClick={() => {
                   setIsAdLeadModalOpen(false);
                   setEditingLeadId(null);
-                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
+                  setAdLeadFormData({ name: '', institutionName: '', contactNumber: '', region: '', leadType: '', customLeadType: '', currentStatus: 'New Lead', priority: 'Medium', remarks: '', followUpDate: '', assignedToUid: '', assignedToName: '', message: '', campaign: '' });
                 }} disabled={isSubmitting} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-600 hover:bg-zinc-200/80 transition-colors">
                   Discard
                 </button>
