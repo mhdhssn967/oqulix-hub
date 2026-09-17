@@ -1856,7 +1856,7 @@ export default function ManageAttendance() {
                         <Target className="w-4 h-4 text-slate-400" /> Sales Performance
                       </h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-medium text-slate-500">Total Leads/Day (Target: 20)</span>
+                        <span className="text-[11px] font-medium text-slate-500">Total Leads/Day</span>
                         <span className={`px-2 py-0.5 rounded-full text-[12px] font-bold border ${badgeColor}`}>
                           {totalLeads}
                         </span>
