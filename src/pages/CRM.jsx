@@ -11,6 +11,7 @@ const LEAD_STATUS_OPTIONS = [
   { value: 'New Lead', label: 'New Lead' },
   { value: 'Called, no response', label: 'Called, No Response' },
   { value: 'Contacted', label: 'Contacted' },
+  { value: 'Connected via whatsapp', label: 'Connected via whatsapp' },
   { value: 'Interested', label: 'Interested' },
   { value: 'Follow up needed', label: 'Follow-Up Needed' },
   { value: 'Quotation Sent', label: 'Quotation Sent' },
@@ -1238,6 +1239,7 @@ export default function CRM() {
     // Regular Leads & Ad Leads
     if (s === 'new lead') return 'bg-sky-50 text-sky-700 ring-sky-600/20 border-sky-200';
     if (s === 'contacted') return 'bg-blue-50 text-blue-700 ring-blue-600/20 border-blue-200';
+    if (s === 'connected via whatsapp') return 'bg-teal-50 text-teal-700 ring-teal-600/20 border-teal-200';
     if (s === 'interested') return 'bg-indigo-50 text-indigo-700 ring-indigo-600/20 border-indigo-200';
     if (s === 'follow up needed' || s === 'follow-up needed') return 'bg-amber-50 text-amber-700 ring-amber-600/20 border-amber-200';
     if (s === 'quotation sent') return 'bg-orange-50 text-orange-700 ring-orange-600/20 border-orange-200';
@@ -2065,6 +2067,7 @@ export default function CRM() {
                       <option value="New Lead">New Lead</option>
                       <option value="Called, no response">Called, No Response</option>
                       <option value="Contacted">Contacted</option>
+                      <option value="Connected via whatsapp">Connected via whatsapp</option>
                       <option value="Interested">Interested</option>
                       <option value="Follow up needed">Follow-Up Needed</option>
                       <option value="Quotation Sent">Quotation Sent</option>
@@ -2494,6 +2497,7 @@ export default function CRM() {
                         <option value="New Lead">New Lead</option>
                         <option value="Called, no response">Called, No Response</option>
                         <option value="Contacted">Contacted</option>
+                        <option value="Connected via whatsapp">Connected via whatsapp</option>
                         <option value="Interested">Interested</option>
                         <option value="Follow up needed">Follow-Up Needed</option>
                         <option value="Quotation Sent">Quotation Sent</option>
