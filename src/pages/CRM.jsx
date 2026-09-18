@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp } from 'lucide-react';
+import { ArrowUp, Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -55,6 +55,26 @@ export default function CRM() {
   const [quickUpdateLead, setQuickUpdateLead] = useState(null);
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateRemarks, setUpdateRemarks] = useState('');
+  const [updateStatusDate, setUpdateStatusDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  useEffect(() => {
+    if (quickUpdateLead) {
+      let lastDate = new Date().toISOString().split('T')[0];
+      if (quickUpdateLead.statusHistory && quickUpdateLead.statusHistory.length > 0) {
+        const lastEntry = quickUpdateLead.statusHistory[quickUpdateLead.statusHistory.length - 1];
+        if (lastEntry.date) {
+          lastDate = new Date(lastEntry.date).toISOString().split('T')[0];
+        }
+      } else if (quickUpdateLead.date) {
+        lastDate = new Date(quickUpdateLead.date).toISOString().split('T')[0];
+      } else if (quickUpdateLead.createdAt) {
+        const dateVal = quickUpdateLead.createdAt.seconds ? quickUpdateLead.createdAt.seconds * 1000 : quickUpdateLead.createdAt;
+        lastDate = new Date(dateVal).toISOString().split('T')[0];
+      }
+      setUpdateStatusDate(lastDate);
+    }
+  }, [quickUpdateLead]);
+
   const isDigitalMarketing = employeeData?.position?.trim().toLowerCase() === 'digital marketing';
   const canManageAdLeads = isDigitalMarketing || isAdLeadManager;
   
@@ -971,7 +991,8 @@ export default function CRM() {
       if (snap.exists()) {
         const item = snap.data();
         
-        const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const effectiveDate = (isAdmin || isHR) && updateStatusDate ? new Date(updateStatusDate) : new Date();
+        const dateStr = effectiveDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
         const newRemarks = remarkAddition 
           ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
@@ -993,7 +1014,7 @@ export default function CRM() {
         }
 
         const historyEntry = {
-          date: new Date().toISOString(),
+          date: effectiveDate.toISOString(),
           status: updateStatus,
           remarks: updateRemarks.trim()
         };
@@ -1003,8 +1024,8 @@ export default function CRM() {
           currentStatus: updateStatus,
           remarks: newRemarks,
           statusHistory,
-          lastContacted: new Date().toISOString().split('T')[0],
-          lastFollowedUp: new Date().toISOString().split('T')[0],
+          lastContacted: effectiveDate.toISOString().split('T')[0],
+          lastFollowedUp: effectiveDate.toISOString().split('T')[0],
           updatedAt: serverTimestamp()
         };
         
@@ -1733,7 +1754,19 @@ export default function CRM() {
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500">{dateString}</td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500">
+                      <div className="flex flex-col items-start sm:items-center gap-0.5">
+                        <span className="font-medium">{dateString}</span>
+                        {lead.lastContacted && (
+                          <>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                              {new Date(lead.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-4">
                       <div className="text-[13px] font-medium text-zinc-900 flex flex-col gap-1 items-start">
                         {lead.clientName || lead.name || 'N/A'}
@@ -1834,10 +1867,22 @@ export default function CRM() {
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="p-3 sm:p-4 text-[11px] sm:text-[12px] text-zinc-500 font-medium whitespace-nowrap">
-                      {(() => {
-                        const d = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
-                        return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                      })()}
+                      <div className="flex flex-col items-start sm:items-center gap-0.5">
+                        <span>
+                          {(() => {
+                            const d = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
+                            return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                          })()}
+                        </span>
+                        {lead.lastContacted && (
+                          <>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[10px] sm:text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                              {new Date(lead.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 sm:p-4">
                       <div className="font-semibold text-black text-[12px] sm:text-[14px] flex items-center gap-1 sm:gap-2 truncate">
@@ -1961,10 +2006,22 @@ export default function CRM() {
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium whitespace-nowrap">
-                      {(() => {
-                        const d = new Date(dist.date || (dist.createdAt?.seconds ? dist.createdAt.seconds * 1000 : dist.createdAt));
-                        return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                      })()}
+                      <div className="flex flex-col items-start sm:items-center gap-0.5">
+                        <span>
+                          {(() => {
+                            const d = new Date(dist.date || (dist.createdAt?.seconds ? dist.createdAt.seconds * 1000 : dist.createdAt));
+                            return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                          })()}
+                        </span>
+                        {dist.lastContacted && (
+                          <>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                              {new Date(dist.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
@@ -2096,6 +2153,18 @@ export default function CRM() {
                   )}
                 </select>
               </div>
+
+              {(isAdmin || isHR) && (
+                <div>
+                  <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Status Date</label>
+                  <input
+                    type="date"
+                    value={updateStatusDate}
+                    onChange={(e) => setUpdateStatusDate(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Add Remarks (Optional)</label>
