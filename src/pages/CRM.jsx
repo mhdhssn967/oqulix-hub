@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
+import QuickUpdateModal from '../components/QuickUpdateModal';
 
 const LEAD_STATUS_OPTIONS = [
   { value: 'New Lead', label: 'New Lead' },
@@ -976,74 +977,7 @@ export default function CRM() {
     }
   };
 
-  const handleQuickUpdate = async (e) => {
-    e.preventDefault();
-    if (!companyId || !quickUpdateLead) return;
-    setIsSubmitting(true);
-    
-    let collectionName = 'leads';
-    if (activeTab === 'ads') collectionName = 'adLeads';
-    if (activeTab === 'distributors') collectionName = 'distributors';
 
-    try {
-      const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', quickUpdateLead.id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const item = snap.data();
-        
-        const effectiveDate = (isAdmin || isHR) && updateStatusDate ? new Date(updateStatusDate) : new Date();
-        const dateStr = effectiveDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const remarkAddition = updateRemarks.trim() ? `[${dateStr}] ${updateRemarks}` : '';
-        const newRemarks = remarkAddition 
-          ? (item.remarks ? `${item.remarks}\n${remarkAddition}` : remarkAddition)
-          : item.remarks;
-          
-        let currentHistory = item.statusHistory || [];
-        if (currentHistory.length === 0) {
-          let initialDate = new Date().toISOString();
-          const oldDateRaw = item.date || item.lastContacted || item.createdAt;
-          if (oldDateRaw) {
-            if (oldDateRaw.seconds) initialDate = new Date(oldDateRaw.seconds * 1000).toISOString();
-            else if (!isNaN(new Date(oldDateRaw))) initialDate = new Date(oldDateRaw).toISOString();
-          }
-          currentHistory.push({
-            date: initialDate,
-            status: item.currentStatus || 'New Lead',
-            remarks: item.remarks || ''
-          });
-        }
-
-        const historyEntry = {
-          date: effectiveDate.toISOString(),
-          status: updateStatus,
-          remarks: updateRemarks.trim()
-        };
-        const statusHistory = [...currentHistory, historyEntry];
-
-        const updatedData = {
-          currentStatus: updateStatus,
-          remarks: newRemarks,
-          statusHistory,
-          lastContacted: effectiveDate.toISOString().split('T')[0],
-          lastFollowedUp: effectiveDate.toISOString().split('T')[0],
-          updatedAt: serverTimestamp()
-        };
-        
-        await updateDoc(docRef, updatedData);
-        
-        // Update local state
-        const updateLocalState = (itemsList) => itemsList.map(it => it.id === item.id ? { ...it, ...updatedData } : it);
-        if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
-        if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
-        if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
-      }
-      setQuickUpdateLead(null);
-    } catch (err) {
-      console.error("Error updating status:", err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleTransferLead = async (e) => {
     e.preventDefault();
@@ -1527,7 +1461,7 @@ export default function CRM() {
             {todaysGlobalFollowUps.map(lead => (
               <div 
                 key={lead.id} 
-                onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
+                onClick={() => { setQuickUpdateLead(lead);  }}
                 className="flex-shrink-0 w-64 bg-white border border-red-100 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-red-300 transition-all group relative overflow-hidden"
               >
                 <div className="absolute top-0 left-0 w-1 h-full bg-red-400 group-hover:bg-red-600 transition-colors" />
@@ -1735,7 +1669,7 @@ export default function CRM() {
                   <tr 
                     key={lead.id} 
                     className={`transition-colors cursor-pointer group ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
-                    onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}
+                    onClick={() => { setQuickUpdateLead(lead);  }}
                   >
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(lead) && (
@@ -1756,14 +1690,18 @@ export default function CRM() {
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500">
                       <div className="flex flex-col items-start sm:items-center gap-0.5">
-                        <span className="font-medium">{dateString}</span>
-                        {lead.lastContacted && (
+                        {lead.lastContacted ? (
                           <>
-                            <ArrowUp className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                            <span className="font-medium" title="Last Contacted">
                               {new Date(lead.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </span>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[11px] text-zinc-400 font-normal" title="Added Date">
+                              {dateString}
+                            </span>
                           </>
+                        ) : (
+                          <span className="font-medium" title="Added Date">{dateString}</span>
                         )}
                       </div>
                     </td>
@@ -1848,7 +1786,7 @@ export default function CRM() {
                     isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 
                     (!(lead.statusHistory?.length > 1) && !(lead.history?.length > 1)) ? 'bg-blue-50/80 hover:bg-blue-100/80' : 
                     'hover:bg-zinc-50/50'
-                  }`} onClick={() => { setQuickUpdateLead(lead); setUpdateStatus(lead.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
+                  }`} onClick={() => { setQuickUpdateLead(lead);  }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(lead) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
@@ -1868,19 +1806,22 @@ export default function CRM() {
                     </td>
                     <td className="p-3 sm:p-4 text-[11px] sm:text-[12px] text-zinc-500 font-medium whitespace-nowrap">
                       <div className="flex flex-col items-start sm:items-center gap-0.5">
-                        <span>
-                          {(() => {
-                            const d = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
-                            return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                          })()}
-                        </span>
-                        {lead.lastContacted && (
+                        {lead.lastContacted ? (
                           <>
-                            <ArrowUp className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[10px] sm:text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                            <span className="font-medium" title="Last Contacted">
                               {new Date(lead.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </span>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[10px] sm:text-[11px] text-zinc-400 font-normal" title="Added Date">
+                              {lead.date ? new Date(lead.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+                               lead.createdAt?.seconds ? new Date(lead.createdAt.seconds * 1000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                            </span>
                           </>
+                        ) : (
+                          <span className="font-medium" title="Added Date">
+                            {lead.date ? new Date(lead.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+                             lead.createdAt?.seconds ? new Date(lead.createdAt.seconds * 1000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                          </span>
                         )}
                       </div>
                     </td>
@@ -1987,7 +1928,7 @@ export default function CRM() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
-                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist); setUpdateStatus(dist.currentStatus || 'New Lead'); setUpdateRemarks(''); }}>
+                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist);  }}>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(dist) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
@@ -2007,19 +1948,20 @@ export default function CRM() {
                     </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium whitespace-nowrap">
                       <div className="flex flex-col items-start sm:items-center gap-0.5">
-                        <span>
-                          {(() => {
-                            const d = new Date(dist.date || (dist.createdAt?.seconds ? dist.createdAt.seconds * 1000 : dist.createdAt));
-                            return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
-                          })()}
-                        </span>
-                        {dist.lastContacted && (
+                        {dist.lastContacted ? (
                           <>
-                            <ArrowUp className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[11px] text-zinc-400 font-normal" title="Last Contacted">
+                            <span className="font-medium" title="Last Contacted">
                               {new Date(dist.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </span>
+                            <ArrowUp className="w-3 h-3 text-zinc-400" />
+                            <span className="text-[11px] text-zinc-400 font-normal" title="Added Date">
+                              {dist.createdAt?.seconds ? new Date(dist.createdAt.seconds * 1000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                            </span>
                           </>
+                        ) : (
+                          <span className="font-medium" title="Added Date">
+                            {dist.createdAt?.seconds ? new Date(dist.createdAt.seconds * 1000).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                          </span>
                         )}
                       </div>
                     </td>
@@ -2100,225 +2042,8 @@ export default function CRM() {
       </div>
         </>
       )}
-      {quickUpdateLead && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setQuickUpdateLead(null)}>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden shrink-0">
-               <div className="relative z-10">
-                 <h2 className="text-xl font-bold text-white tracking-tight">Quick Update</h2>
-                 <p className="text-zinc-400 text-sm mt-1">{quickUpdateLead.clientName || quickUpdateLead.name || quickUpdateLead.distributorName || 'Lead'}</p>
-               </div>
-               <button onClick={() => setQuickUpdateLead(null)} className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 z-20">
-                 <X className="w-5 h-5" />
-               </button>
-            </div>
-            
-            <form onSubmit={handleQuickUpdate} className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-4">
-              <div>
-                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Update Status</label>
-                <select 
-                  value={updateStatus} 
-                  onChange={(e) => setUpdateStatus(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
-                >
-                  {activeTab === 'distributors' ? (
-                    <>
-                      <option value="Haven't yet contacted">Haven't yet contacted</option>
-                      <option value="Called, no response">Called, no response</option>
-                      <option value="Contacted and discussed via phone">Contacted and discussed via phone</option>
-                      <option value="Online demo done">Online demo done</option>
-                      <option value="Live demo done">Live demo done</option>
-                      <option value="Hospital presentation done">Hospital presentation done</option>
-                      <option value="Agreement Sent & awaiting response">Agreement Sent & waiting</option>
-                      <option value="Agreement Signed">Agreement Signed</option>
-                      <option value="Purchased Demo Piece">Purchased Demo Piece</option>
-                      <option value="Doing Sales">Doing Sales</option>
-                      <option value="Inactive">Inactive</option>
-                      <option value="Terminated">Terminated</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="New Lead">New Lead</option>
-                      <option value="Called, no response">Called, No Response</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Connected via whatsapp">Connected via whatsapp</option>
-                      <option value="Interested">Interested</option>
-                      <option value="Follow up needed">Follow-Up Needed</option>
-                      <option value="Quotation Sent">Quotation Sent</option>
-                      <option value="Awaiting Decision">Awaiting Decision</option>
-                      <option value="Token Recieved">Token Recieved</option>
-                      <option value="Deal Closed">Converted (Deal Won)</option>
-                      <option value="Deal Lost">Not Interested (Deal Lost)</option>
-                    </>
-                  )}
-                </select>
-              </div>
+      
 
-              {(isAdmin || isHR) && (
-                <div>
-                  <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Status Date</label>
-                  <input
-                    type="date"
-                    value={updateStatusDate}
-                    onChange={(e) => setUpdateStatusDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Add Remarks (Optional)</label>
-                <textarea 
-                  value={updateRemarks} 
-                  onChange={(e) => setUpdateRemarks(e.target.value)}
-                  rows="3"
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
-                  placeholder="Note down what was discussed..."
-                ></textarea>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <a 
-                  href={`tel:${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9+]/g, '')}`} 
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Phone className="w-3.5 h-3.5" /> Call
-                </a>
-                <a 
-                  href={`https://wa.me/${(quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '').replace(/[^0-9]/g, '')}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-                </a>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    const phone = quickUpdateLead?.contactNo || quickUpdateLead?.contactNumber || quickUpdateLead?.phone || '';
-                    if (phone) {
-                      navigator.clipboard.writeText(phone);
-                      Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                    } else {
-                      Swal.fire({ title: 'No Phone', text: 'This lead does not have a phone number.', icon: 'warning', timer: 1500, showConfirmButton: false });
-                    }
-                  }} 
-                  className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Copy className="w-3.5 h-3.5" /> Copy
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2 mt-2">
-                <button type="submit" disabled={isSubmitting} className="w-full py-2.5 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <><CheckCircle className="w-4 h-4" /> Update Status</>}
-                </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setSelectedLead(quickUpdateLead);
-                      setQuickUpdateLead(null);
-                    }} 
-                    className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <User className="w-3.5 h-3.5" /> Full Profile
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsTransferModalOpen(true)} 
-                    className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer
-                  </button>
-                  {(activeTab === 'regular' || activeTab === 'distributors') && (
-                    <button 
-                      type="button"
-                      onClick={() => handleConvertToAdLead(quickUpdateLead)} 
-                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200 flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <Megaphone className="w-3.5 h-3.5" /> Convert to Ad
-                    </button>
-                  )}
-                  {activeTab === 'ads' && (
-                    <button 
-                      type="button"
-                      onClick={() => handleConvertToRegularLead(quickUpdateLead)} 
-                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-200 flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer to Regular
-                    </button>
-                  )}
-                  {activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor && (
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setConvertingDistributorId(quickUpdateLead.id);
-                        setActiveDistributorFormData({
-                          agreementDate: new Date().toISOString().split('T')[0],
-                          agreementDurationMonths: '',
-                          territoryExclusivity: 'Non-Exclusive',
-                          distributorPrice: '',
-                          minimumTarget: '',
-                          remarks: ''
-                        });
-                        setQuickUpdateLead(null);
-                        setIsActiveDistributorModalOpen(true);
-                      }} 
-                      className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200 flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <TrendingUp className="w-3.5 h-3.5" /> Promote Dist.
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {quickUpdateLead.statusHistory && quickUpdateLead.statusHistory.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-zinc-100">
-                  <h3 className="text-[11px] font-bold text-zinc-500 mb-3 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3 h-3 text-zinc-400" />
-                    Recent History
-                  </h3>
-                  <div className="space-y-4 max-h-[160px] overflow-y-auto pr-1 no-scrollbar">
-                    {[...quickUpdateLead.statusHistory].reverse().map((history, idx, arr) => {
-                      const colorClass = getStatusColor(history.status);
-                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
-                      const dotColor = textClass.replace('text-', 'bg-');
-                      
-                      return (
-                        <div key={idx} className="flex gap-2 items-stretch relative">
-                          <div className="w-[3.5rem] shrink-0 text-right pt-0.5">
-                            <div className="text-[10px] font-bold text-zinc-700">
-                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric' })}
-                            </div>
-                            <div className="text-[9px] font-medium text-zinc-400 mt-0.5">
-                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                          </div>
-
-                          <div className="relative flex flex-col items-center shrink-0 w-3 pt-1">
-                            {idx !== arr.length - 1 && (
-                              <div className="absolute top-3 bottom-[-16px] w-[1px] bg-zinc-200"></div>
-                            )}
-                            <div className={`w-2.5 h-2.5 rounded-full z-10 border border-black ${dotColor} ring-2 ring-white`}></div>
-                          </div>
-
-                          <div className={`flex-1 rounded-lg p-2.5 border ${colorClass}`}>
-                            <div className="font-bold text-[11px] mb-0.5">{history.status}</div>
-                            {history.remarks && (
-                              <p className="text-[10px] leading-relaxed opacity-90 mt-1 whitespace-pre-wrap">{history.remarks}</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </form>
-          </div>
-        </div>
-      )}
 
       {selectedLead && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
@@ -3149,6 +2874,46 @@ export default function CRM() {
           </div>
         </div>
       )}
+      
+      {quickUpdateLead && (
+        <QuickUpdateModal 
+          lead={quickUpdateLead}
+          companyId={companyId}
+          activeSegment={activeSegment}
+          isAdmin={isAdmin}
+          isHR={isHR}
+          activeTab={activeTab}
+          onFullProfile={(lead) => {
+            setSelectedLead(lead);
+            setQuickUpdateLead(null);
+          }}
+          onTransfer={(lead) => setIsTransferModalOpen(true)}
+          onConvertToAd={(activeTab === 'regular' || activeTab === 'distributors') ? (lead) => handleConvertToAdLead(lead) : undefined}
+          onTransferToRegular={(activeTab === 'ads') ? (lead) => handleConvertToRegularLead(lead) : undefined}
+          onPromoteDistributor={(activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor) ? (lead) => {
+            setConvertingDistributorId(lead.id);
+            setActiveDistributorFormData({
+              agreementDate: new Date().toISOString().split('T')[0],
+              agreementDurationMonths: '',
+              territoryExclusivity: 'Non-Exclusive',
+              distributorPrice: '',
+              minimumTarget: '',
+              remarks: ''
+            });
+            setQuickUpdateLead(null);
+            setIsActiveDistributorModalOpen(true);
+          } : undefined}
+          onClose={() => setQuickUpdateLead(null)}
+          onSuccess={(updatedData) => {
+            const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
+            if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
+            if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
+            if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
+          }}
+        />
+      )}
     </div>
   );
 }
+
+

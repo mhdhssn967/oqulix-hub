@@ -6,6 +6,7 @@ import {
   BarChart2, Target, Megaphone, Activity, Layers, TrendingUp, Zap, X, Download
 } from 'lucide-react';
 import ReportGenerator from '../components/crm/ReportGenerator';
+import QuickUpdateModal from '../components/QuickUpdateModal';
 import { useAuthStore } from '../store/authStore';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
@@ -37,6 +38,7 @@ export default function Analysis() {
   const [showDistributors, setShowDistributors] = useState(true);
   const [employeeFilter, setEmployeeFilter] = useState('');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [quickUpdateLead, setQuickUpdateLead] = useState(null);
 
   // Calendar
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -586,7 +588,7 @@ export default function Analysis() {
                   </h3>
                   <div className="space-y-2">
                     {selectedDayData.itemsList.followUps.map((item, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-amber-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-amber-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-zinc-50 transition-colors" onClick={() => setQuickUpdateLead(item)}>
                         <div>
                           <div className="font-semibold text-[13px] text-zinc-900">{item.name || item.clientName || item.distributorName || 'N/A'}</div>
                           <div className="text-[11px] text-zinc-500 mt-0.5">Assigned to: {item.assignedToName || item.employeeName || 'N/A'}</div>
@@ -609,7 +611,7 @@ export default function Analysis() {
                   </h3>
                   <div className="space-y-2">
                     {selectedDayData.itemsList.leads.map((item, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-blue-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-blue-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-zinc-50 transition-colors" onClick={() => setQuickUpdateLead(item)}>
                         <div>
                           <div className="font-semibold text-[13px] text-zinc-900">{item.name || item.clientName || 'N/A'}</div>
                           <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
@@ -632,7 +634,7 @@ export default function Analysis() {
                   </h3>
                   <div className="space-y-2">
                     {selectedDayData.itemsList.adLeads.map((item, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-purple-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-purple-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-zinc-50 transition-colors" onClick={() => setQuickUpdateLead(item)}>
                         <div>
                           <div className="font-semibold text-[13px] text-zinc-900">{item.name || 'N/A'}</div>
                           <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
@@ -655,7 +657,7 @@ export default function Analysis() {
                   </h3>
                   <div className="space-y-2">
                     {selectedDayData.itemsList.distributors.map((item, i) => (
-                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-emerald-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                      <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white border border-emerald-100/50 rounded-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] cursor-pointer hover:bg-zinc-50 transition-colors" onClick={() => setQuickUpdateLead(item)}>
                         <div>
                           <div className="font-semibold text-[13px] text-zinc-900">{item.distributorName || 'N/A'}</div>
                           <div className="text-[11px] text-zinc-500 mt-0.5">Added by: {item.addedByName || item.employeeName || 'N/A'}</div>
@@ -680,6 +682,25 @@ export default function Analysis() {
         allData={{ leads: regularLeads, adLeads: adLeads, distributors: distributors }} 
         allEmployees={allEmployees} 
       />
+
+      {quickUpdateLead && (
+        <QuickUpdateModal 
+          lead={quickUpdateLead}
+          companyId={companyId}
+          activeSegment={activeSegment}
+          isAdmin={isAdmin}
+          isHR={isHR}
+          onClose={() => setQuickUpdateLead(null)}
+          onSuccess={(updatedData) => {
+            const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
+            if (quickUpdateLead._type === 'lead') setRegularLeads(prev => updateLocalState(prev));
+            if (quickUpdateLead._type === 'adLead') setAdLeads(prev => updateLocalState(prev));
+            if (quickUpdateLead._type === 'distributor') setDistributors(prev => updateLocalState(prev));
+            // Close the day data modal so it refreshes when opened again
+            setSelectedDayData(null);
+          }}
+        />
+      )}
     </div>
   );
 }
