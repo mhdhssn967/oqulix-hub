@@ -474,6 +474,7 @@ export default function CRM() {
         region: adLeadFormData.region,
         leadType: finalLeadType,
         priority: adLeadFormData.priority,
+        currentStatus: adLeadFormData.currentStatus,
         remarks: adLeadFormData.remarks,
         followUpDate: adLeadFormData.followUpDate,
         assignedToUid: (isAdmin || isManager || canManageAdLeads) ? adLeadFormData.assignedToUid : user.uid,
@@ -1800,6 +1801,7 @@ export default function CRM() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px]">Added Date</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[220px]">Lead Info</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[180px]">Status</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] sm:w-[120px]">Associate</th>
@@ -1830,6 +1832,12 @@ export default function CRM() {
                         </span>
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
+                    <td className="p-3 sm:p-4 text-[11px] sm:text-[12px] text-zinc-500 font-medium whitespace-nowrap">
+                      {(() => {
+                        const d = new Date(lead.date || (lead.createdAt?.seconds ? lead.createdAt.seconds * 1000 : lead.createdAt));
+                        return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                      })()}
                     </td>
                     <td className="p-3 sm:p-4">
                       <div className="font-semibold text-black text-[12px] sm:text-[14px] flex items-center gap-1 sm:gap-2 truncate">
@@ -1924,6 +1932,7 @@ export default function CRM() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
+                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Added Date</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Distributor</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact Person</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Performance</th>
@@ -1950,6 +1959,12 @@ export default function CRM() {
                         </span>
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
+                    <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium whitespace-nowrap">
+                      {(() => {
+                        const d = new Date(dist.date || (dist.createdAt?.seconds ? dist.createdAt.seconds * 1000 : dist.createdAt));
+                        return isNaN(d) ? 'N/A' : d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                      })()}
                     </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-black text-[14px] flex items-center gap-2">
