@@ -90,6 +90,8 @@ export default function CRM() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
+  const [exactDateFilter, setExactDateFilter] = useState('');
+  const [exactDateFilterType, setExactDateFilterType] = useState('added');
 
   const getFilteredItemsForUser = (items, type = 'leads') => {
     if (isAdmin || isManager || isHR || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
@@ -1333,6 +1335,25 @@ export default function CRM() {
         if (priority !== priorityFilter) return false;
       }
 
+      if (exactDateFilter !== '') {
+        let itemDateObj;
+        if (exactDateFilterType === 'added') {
+          itemDateObj = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
+        } else {
+          itemDateObj = new Date(item.updatedAt?.seconds ? item.updatedAt.seconds * 1000 : item.updatedAt || item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
+        }
+        
+        if (!isNaN(itemDateObj)) {
+          const year = itemDateObj.getFullYear();
+          const month = String(itemDateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(itemDateObj.getDate()).padStart(2, '0');
+          const itemDateStr = `${year}-${month}-${day}`;
+          if (itemDateStr !== exactDateFilter) return false;
+        } else {
+          return false;
+        }
+      }
+
       if (monthFilter !== '') {
         const itemDate = new Date(item.date || (item.createdAt?.seconds ? item.createdAt.seconds * 1000 : item.createdAt));
         const monthStr = isNaN(itemDate) ? 'N/A' : itemDate.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -1601,6 +1622,34 @@ export default function CRM() {
                   <option key={month} value={month}>{month}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0 bg-zinc-50 border border-zinc-200 rounded-lg p-1.5 focus-within:bg-white focus-within:border-zinc-300 focus-within:ring-2 focus-within:ring-zinc-100 transition-all">
+              <select
+                value={exactDateFilterType}
+                onChange={(e) => { setExactDateFilterType(e.target.value); setCurrentPage(1); }}
+                className="bg-transparent border-none text-[12px] font-medium text-zinc-600 outline-none cursor-pointer pr-1"
+                title="Select which date to filter by"
+              >
+                <option value="added">Added Date</option>
+                <option value="updated">Last Updated</option>
+              </select>
+              <input
+                type="date"
+                value={exactDateFilter}
+                onChange={(e) => { setExactDateFilter(e.target.value); setCurrentPage(1); }}
+                className="bg-transparent border-none text-[13px] text-zinc-700 outline-none cursor-pointer w-[110px]"
+                title={`Select ${exactDateFilterType === 'added' ? 'Added Date' : 'Last Updated Date'}`}
+              />
+              {exactDateFilter && (
+                <button 
+                  onClick={() => { setExactDateFilter(''); setCurrentPage(1); }}
+                  className="p-1 hover:bg-zinc-200 rounded-md text-zinc-400 hover:text-red-500 transition-colors"
+                  title="Clear date filter"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             <div className="relative w-40 sm:w-48 shrink-0">

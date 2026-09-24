@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import Swal from 'sweetalert2';
 import OQ from '../assets/OQ.png';
 import seal from '../assets/seal.png';
 import '../styles/Document.css';
@@ -16,8 +17,30 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
 
     try {
       setDownloading(true);
+
+      // Apply pdf-mode styling to strip gap/shadows during html2canvas render
+      container.classList.add('pdf-mode');
+
       const pages = container.querySelectorAll('.page');
-      if (!pages || pages.length === 0) return;
+      if (!pages || pages.length === 0) {
+        throw new Error('No pages found in document container.');
+      }
+
+      // Pre-load images inside container to prevent canvas rendering errors
+      const images = container.querySelectorAll('img');
+      await Promise.all(
+        Array.from(images).map(
+          (img) =>
+            new Promise((resolve) => {
+              if (img.complete && img.naturalWidth !== 0) {
+                resolve();
+              } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -33,8 +56,105 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
         const canvas = await html2canvas(page, {
           scale: 2,
           useCORS: true,
+          allowTaint: true,
           logging: false,
-          backgroundColor: '#ffffff'
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: 0,
+          onclone: (clonedDoc) => {
+            const tempCanvas = clonedDoc.createElement('canvas');
+            const ctx = tempCanvas.getContext('2d');
+
+            const convertColorToRgb = (colorStr) => {
+              if (!colorStr || !colorStr.includes('oklch')) return colorStr;
+              try {
+                ctx.fillStyle = '#000000';
+                ctx.fillStyle = colorStr;
+                const res = ctx.fillStyle;
+                return res && !res.includes('oklch') ? res : 'transparent';
+              } catch (e) {
+                return 'transparent';
+              }
+            };
+
+            const replaceOklch = (text) => {
+              if (!text || !text.includes('oklch')) return text;
+              return text.replace(/oklch\([^)]+\)/gi, (match) => convertColorToRgb(match));
+            };
+
+            // 1. Extract rules from all document.styleSheets (including <link> stylesheets) and inline sanitized versions
+            try {
+              const styleSheets = Array.from(document.styleSheets);
+              styleSheets.forEach((sheet) => {
+                try {
+                  const rules = Array.from(sheet.cssRules || []);
+                  const cssText = rules.map((r) => r.cssText).join('\n');
+                  if (cssText) {
+                    const newStyle = clonedDoc.createElement('style');
+                    newStyle.textContent = replaceOklch(cssText);
+                    clonedDoc.head.appendChild(newStyle);
+                  }
+                } catch (e) {
+                  // cross-origin security fallback
+                }
+              });
+            } catch (e) {}
+
+            // 2. Process all existing <style> tags in cloned document
+            clonedDoc.querySelectorAll('style').forEach((styleEl) => {
+              if (styleEl.textContent && styleEl.textContent.includes('oklch')) {
+                styleEl.textContent = replaceOklch(styleEl.textContent);
+              }
+            });
+
+            // 3. Remove all <link rel="stylesheet"> tags so html2canvas doesn't fetch raw oklch files
+            clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((linkEl) => {
+              linkEl.remove();
+            });
+
+            // 4. Clean up inline styles and computed styles for html, body, container, and all children
+            const container = clonedDoc.getElementById('document-container') || clonedDoc.body;
+            const targetElements = [
+              clonedDoc.documentElement,
+              clonedDoc.body,
+              container,
+              ...Array.from(container.querySelectorAll('*'))
+            ];
+
+            targetElements.forEach((el) => {
+              if (!el) return;
+
+              if (el.hasAttribute('style')) {
+                const inlineStyle = el.getAttribute('style');
+                if (inlineStyle && inlineStyle.includes('oklch')) {
+                  el.setAttribute('style', replaceOklch(inlineStyle));
+                }
+              }
+
+              const computed = clonedDoc.defaultView ? clonedDoc.defaultView.getComputedStyle(el) : null;
+              if (computed) {
+                [
+                  'color',
+                  'background-color',
+                  'border-color',
+                  'border-top-color',
+                  'border-right-color',
+                  'border-bottom-color',
+                  'border-left-color',
+                  'outline-color',
+                  'fill',
+                  'stroke',
+                  'box-shadow'
+                ].forEach((prop) => {
+                  const val = computed.getPropertyValue(prop);
+                  if (val && val.includes('oklch')) {
+                    const rgbVal = replaceOklch(val);
+                    el.style.setProperty(prop, rgbVal, 'important');
+                  }
+                });
+              }
+            });
+          }
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.98);
@@ -44,10 +164,26 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       }
 
-      pdf.save(`${formData.client || 'HappyMoves_Quotation'}.pdf`);
+      // Sanitize filename to avoid invalid characters breaking browser download
+      const rawClient = formData.client || formData.recipient || 'HappyMoves_Quotation';
+      const safeFileName =
+        rawClient
+          .toString()
+          .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+          .trim()
+          .replace(/\s+/g, '_') || 'HappyMoves_Quotation';
+
+      pdf.save(`${safeFileName}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
+      Swal.fire({
+        title: 'Download Failed',
+        text: 'An error occurred while generating the PDF. Please try again.',
+        icon: 'error',
+        confirmButtonColor: '#000000'
+      });
     } finally {
+      container.classList.remove('pdf-mode');
       setDownloading(false);
     }
   };

@@ -239,9 +239,11 @@ export default function Finance() {
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       // Search term
-      const matchesSearch = (t.remarks && t.remarks.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      const matchesSearch = !searchTerm ||
+        (t.remarks && t.remarks.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (t.service && t.service.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase()));
+        (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.amount !== undefined && t.amount !== null && String(t.amount).includes(searchTerm));
       
       if (!matchesSearch) return false;
 
