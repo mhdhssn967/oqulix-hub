@@ -511,19 +511,6 @@ export default function Finance() {
             <p className="text-[15px] text-zinc-500 mt-1.5">Manage your financial transactions here.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 sm:flex-none">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-zinc-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search transactions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-full sm:w-64"
-              />
-            </div>
-            
             <select
               name="transactionType"
               value={filters.transactionType}
@@ -837,6 +824,20 @@ export default function Finance() {
       </header>
 
       <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-zinc-200/80">
+          <div className="relative w-full sm:w-80">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-zinc-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search transactions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-black/5 bg-white w-full"
+            />
+          </div>
+        </div>
         {loading ? (
           <div className="py-20 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
