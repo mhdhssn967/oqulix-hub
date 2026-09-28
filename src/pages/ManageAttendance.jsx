@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download } from 'lucide-react';
@@ -715,6 +715,33 @@ export default function ManageAttendance() {
     }
   };
 
+  const handleDeleteLog = async (logId) => {
+    if (!companyId) return;
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: "You won't be able to revert this! This log will be deleted.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#e4e4e7',
+      confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+      setIsSubmitting(true);
+      try {
+        await deleteDoc(doc(db, `userData/${companyId}/attendanceLogs`, logId));
+        Swal.fire({ title: 'Deleted!', text: 'The log has been deleted.', icon: 'success', timer: 1500, showConfirmButton: false });
+        fetchData();
+      } catch (err) {
+        console.error("Error deleting log:", err);
+        Swal.fire({ title: 'Error', text: 'Failed to delete the log.', icon: 'error' });
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  };
+
   const handleAction = async (logId, actionType, customTimeStr = null) => {
     if (!companyId) return;
     try {
@@ -1020,6 +1047,9 @@ export default function ManageAttendance() {
                               }))
                             })} className="p-1.5 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Log">
                             <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteLog(log.id)} className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete Log">
+                            <Trash2 className="w-4 h-4" />
                           </button>
                           {log.status === 'Present' && log.workType !== 'Field' && (
                             <>
