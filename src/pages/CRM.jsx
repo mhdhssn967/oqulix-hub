@@ -1696,18 +1696,16 @@ export default function CRM() {
         {/* Regular Leads View */}
         {activeTab === 'regular' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            <table className="w-full text-left border-collapse min-w-[500px] sm:min-w-[700px]">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Added Date</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Client</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Place</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Person of Contact</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact No</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Associate</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Next Follow Up</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px]">Added Date</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[220px]">Lead Info</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[180px]">Status</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] sm:w-[120px]">Associate</th>
+                  <th className="hidden md:table-cell p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider max-w-[150px]">Next Follow Up</th>
+                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider text-right w-16 sm:w-24">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -1737,7 +1735,7 @@ export default function CRM() {
                       )}
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-500">
+                    <td className="p-3 sm:p-4 text-[11px] sm:text-[12px] text-zinc-500 font-medium whitespace-nowrap">
                       <div className="flex flex-col items-start sm:items-center gap-0.5">
                         {lead.lastContacted ? (
                           <>
@@ -1745,7 +1743,7 @@ export default function CRM() {
                               {new Date(lead.lastContacted).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </span>
                             <ArrowUp className="w-3 h-3 text-zinc-400" />
-                            <span className="text-[11px] text-zinc-400 font-normal" title="Added Date">
+                            <span className="text-[10px] sm:text-[11px] text-zinc-400 font-normal" title="Added Date">
                               {dateString}
                             </span>
                           </>
@@ -1754,19 +1752,17 @@ export default function CRM() {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="text-[13px] font-medium text-zinc-900 flex flex-col gap-1 items-start">
-                        {lead.clientName || lead.name || 'N/A'}
-                        {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">Transferred from {lead.transferredFromName}</span>}
+                    <td className="p-3 sm:p-4">
+                      <div className="font-semibold text-black text-[12px] sm:text-[14px] flex items-center gap-1 sm:gap-2 truncate">
+                        <User className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 shrink-0" />
+                        <span className="truncate">{lead.clientName || lead.name || 'N/A'}</span>
+                        {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ml-2 hidden sm:inline-block">Transferred from {lead.transferredFromName}</span>}
                       </div>
-                    </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.place || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.personOfContact || 'N/A'}</td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">
-                      <div className="flex items-center gap-2">
-                        <span>{lead.contactNo || 'N/A'}</span>
+                      <div className="text-[11px] sm:text-[12px] text-zinc-500 mt-1 flex items-center gap-1 truncate">
+                        <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> 
+                        <span className="truncate">{lead.contactNo || 'N/A'}</span>
                         {lead.contactNo && (
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-0.5 ml-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1776,7 +1772,7 @@ export default function CRM() {
                               className="p-1 hover:bg-zinc-200 rounded text-zinc-400 hover:text-black transition-colors"
                               title="Copy Number"
                             >
-                              <Copy className="w-3.5 h-3.5" />
+                              <Copy className="w-3 h-3" />
                             </button>
                             <a
                               href={`https://wa.me/${(lead.contactNo || '').replace(/[^0-9]/g, '')}`}
@@ -1786,25 +1782,56 @@ export default function CRM() {
                               className="p-1 hover:bg-green-100 rounded text-zinc-400 hover:text-[#25D366] transition-colors"
                               title="Chat on WhatsApp"
                             >
-                              <MessageSquare className="w-3.5 h-3.5" />
+                              <MessageSquare className="w-3 h-3" />
                             </a>
                           </div>
                         )}
                       </div>
+                      {lead.personOfContact && (
+                        <div className="mt-1 text-[10px] sm:text-[11px] text-zinc-500 truncate max-w-[130px] sm:max-w-[200px]">
+                          POC: {lead.personOfContact}
+                        </div>
+                      )}
                       {lead.remarks && (
-                        <div className="mt-1.5 text-[11px] text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-100 max-w-[200px] line-clamp-2" title={lead.remarks}>
+                        <div className="mt-1.5 text-[10px] sm:text-[11px] text-zinc-500 bg-zinc-50 px-1.5 py-1 rounded border border-zinc-100 max-w-[130px] sm:max-w-[200px] line-clamp-2" title={lead.remarks}>
                           {lead.remarks}
                         </div>
                       )}
+                      {isMissedFollowUp(lead) && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="text-[9px] sm:text-[10px] text-red-600 font-bold uppercase tracking-wider">Missed Follow-up</span>
+                        </div>
+                      )}
                     </td>
-                    <td className="px-5 py-4 text-[13px] text-zinc-600">{lead.employeeName || 'N/A'}</td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
+                    <td className="p-3 sm:p-4">
+                      <span className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-[12px] font-medium ring-1 ring-inset ${getStatusColor(lead.currentStatus)}`}>
                         {lead.currentStatus || 'N/A'}
                       </span>
-                      {isMissedFollowUp(lead) && <div className="text-[10px] text-red-600 font-bold mt-1 uppercase tracking-wider">Missed Follow-up</div>}
+                      <div className="text-[11px] sm:text-[12px] font-medium text-zinc-900 mt-1.5 truncate max-w-[130px] sm:max-w-[180px]">
+                        {lead.place || lead.institutionName || 'N/A'}
+                      </div>
+                      <div className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1 truncate max-w-[130px] sm:max-w-[180px]">
+                        <Tag className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.leadType === 'Custom' ? lead.customLeadType : (lead.leadType || 'No Lead Type')}</span>
+                      </div>
                     </td>
-                    <td className={`px-5 py-4 text-[13px] text-right ${isMissedFollowUp(lead) ? 'text-red-600 font-semibold' : 'text-zinc-600'}`}>{lead.nextFollowUp || 'N/A'}</td>
+                    <td className="p-3 sm:p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center shrink-0">
+                          <User className="w-3 h-3 text-zinc-500" />
+                        </div>
+                        <div className="text-[12px] font-medium text-zinc-700 truncate max-w-[100px]">
+                          {lead.employeeName || 'Unassigned'}
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`hidden md:table-cell p-3 sm:p-4 text-[12px] font-medium ${isMissedFollowUp(lead) ? 'text-red-600' : 'text-zinc-600'}`}>
+                      {lead.nextFollowUp || 'N/A'}
+                    </td>
+                    <td className="p-3 sm:p-4 text-right">
+                      <button className="p-1 sm:p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-md transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                   );
                 })}
