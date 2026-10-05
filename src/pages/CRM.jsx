@@ -1930,6 +1930,9 @@ export default function CRM() {
                       <div className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1 truncate max-w-[130px] sm:max-w-[180px]">
                         <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.region || 'No Region'}</span>
                       </div>
+                      <div className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1 truncate max-w-[130px] sm:max-w-[180px]">
+                        <Tag className="w-3 h-3 shrink-0" /> <span className="truncate">{lead.leadType === 'Custom' ? lead.customLeadType : (lead.leadType || 'No Lead Type')}</span>
+                      </div>
                     </td>
                     <td className="p-3 sm:p-4">
                       <div className="flex items-center gap-2">
