@@ -340,7 +340,7 @@ export default function ManageAttendance() {
     const coreMs = mergedProdSegments.filter(s => s.type === 'productive').reduce((acc, s) => acc + s.durationMs, 0);
     const lateMissingMs = mergedProdSegments.filter(s => s.type === 'late' || s.type === 'missing').reduce((acc, s) => acc + s.durationMs, 0);
     
-    if (score > 100) score = 100;
+    // if (score > 100) score = 100; // Allow scores to exceed 100 to offset underperforming days
     if (score < 0) score = 0;
 
     return {
@@ -436,8 +436,11 @@ export default function ManageAttendance() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { log, clockInTime, clockOutTime, workType, breaks } = editLogPrompt;
+      const { log, clockInTime, clockOutTime, workType, fieldLocation, breaks } = editLogPrompt;
       let updateData = { workType };
+      if (workType === 'Field' && fieldLocation) {
+        updateData.fieldLocation = fieldLocation;
+      }
       
       const [year, month, day] = log.date.split('-');
       
@@ -470,7 +473,7 @@ export default function ManageAttendance() {
       await setDoc(doc(db, `userData/${companyId}/attendanceLogs`, log.id), updateData, { merge: true });
       
       Swal.fire({ title: 'Success', text: 'Attendance updated successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
-      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
+      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [] });
       fetchData();
     } catch (err) {
       console.error(err);
@@ -627,6 +630,27 @@ export default function ManageAttendance() {
 
   const handleClockIn = async (workType = 'Office') => {
     if (!companyId || selectedEmployeeIds.length === 0) return;
+
+    let fieldLocation = '';
+    if (workType === 'Field') {
+      const { value: location } = await Swal.fire({
+        title: 'Enter Field Location',
+        input: 'text',
+        inputPlaceholder: 'e.g. City Hospital, Client Meeting...',
+        showCancelButton: true,
+        inputValidator: (value) => {
+          if (!value) {
+            return 'You need to write something!'
+          }
+        }
+      });
+      if (location) {
+        fieldLocation = location;
+      } else {
+        return; // Cancelled
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const batch = writeBatch(db);
@@ -661,6 +685,7 @@ export default function ManageAttendance() {
           clockedInAt: finalClockInTime,
           status: 'Present',
           workType: workType,
+          ...(workType === 'Field' && { fieldLocation }),
           breaks: []
         }, { merge: true }); // merge in case they were already clocked in
       });
@@ -1068,7 +1093,7 @@ export default function ManageAttendance() {
                             </>
                           )}
                           {log.status === 'Present' && log.workType === 'Field' && (
-                            <span className="text-[12px] text-zinc-400 font-medium italic">On Field</span>
+                            <span className="text-[12px] text-zinc-400 font-medium italic">On Field{log.fieldLocation ? ` - ${log.fieldLocation}` : ''}</span>
                           )}
                           {log.status.startsWith('On ') && (
                             <button onClick={() => handleAction(log.id, 'Resume')} className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors border border-emerald-200">
@@ -1485,12 +1510,12 @@ export default function ManageAttendance() {
       {/* Edit Log Modal */}
       {editLogPrompt.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] })}></div>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [] })}></div>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200 flex flex-col">
             <form onSubmit={handleEditSubmit}>
               <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
                 <h2 className="text-[15px] font-semibold text-zinc-900">Edit Attendance</h2>
-                <button type="button" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] })} className="text-zinc-400 hover:text-black transition-colors">
+                <button type="button" onClick={() => !isSubmitting && setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [] })} className="text-zinc-400 hover:text-black transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1522,6 +1547,19 @@ export default function ManageAttendance() {
                     <option value="Field">Field</option>
                   </select>
                 </div>
+                {editLogPrompt.workType === 'Field' && (
+                  <div>
+                    <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Field Location</label>
+                    <input 
+                      type="text"
+                      value={editLogPrompt.fieldLocation}
+                      onChange={(e) => setEditLogPrompt(p => ({ ...p, fieldLocation: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                      placeholder="e.g. Client Office"
+                    />
+                  </div>
+                )}
 
                 <div className="pt-2 border-t border-zinc-200/50 mt-1">
                   <div className="flex items-center justify-between mb-3">

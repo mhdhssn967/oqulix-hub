@@ -537,8 +537,10 @@ export default function Dashboard() {
                               myLog.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
                               myLog.status.startsWith('On ') ? 'bg-orange-100 text-orange-700' :
                               'bg-emerald-100 text-emerald-700'
-                            }`} title={myLog.status}>
-                              {myLog.status === 'Clocked Out' ? 'Present' : myLog.status}
+                            }`} title={myLog.workType === 'Field' && myLog.fieldLocation ? `Field: ${myLog.fieldLocation}` : myLog.status}>
+                              {myLog.workType === 'Field' && myLog.fieldLocation 
+                                ? `Field: ${myLog.fieldLocation}` 
+                                : (myLog.status === 'Clocked Out' ? 'Present' : myLog.status)}
                             </span>
                           </div>
                         )}
