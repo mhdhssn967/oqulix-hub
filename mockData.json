@@ -1,0 +1,206 @@
+{
+  "users": [
+    {
+      "id": "HR",
+      "permissions": [
+        "CRM",
+        "CRM Analysis",
+        "Clients",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Performance",
+        "Documents",
+        "Assets"
+      ],
+      "userIds": [
+        ""
+      ]
+    },
+    {
+      "id": "admin",
+      "userIds": [
+        "SbHx5KAgBiXpEYIFyT4ht53alFz1"
+      ],
+      "permissions": [
+        "CRM",
+        "CRM Analysis",
+        "Finance",
+        "Clients",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Employees",
+        "Performance",
+        "Documents",
+        "Settings"
+      ]
+    },
+    {
+      "id": "ceo",
+      "userIds": [
+        "B8GdJQyFeJU5ZufxINprqgUWrqY2"
+      ],
+      "permissions": [
+        "CRM",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Performance"
+      ]
+    },
+    {
+      "id": "cfo",
+      "permissions": [
+        "CRM",
+        "Reimbursements",
+        "Tasks",
+        "Performance"
+      ],
+      "userIds": [
+        "BYiNJMnMNVSvHQDCEVKPnaCn36D3"
+      ]
+    },
+    {
+      "id": "coo",
+      "userIds": [
+        "pcJShU1hIjUrQlAhDwr5GcGReIr1"
+      ],
+      "permissions": [
+        "CRM",
+        "Reimbursements",
+        "Tasks",
+        "Performance"
+      ]
+    },
+    {
+      "id": "cto",
+      "permissions": [
+        "CRM",
+        "CRM Analysis",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Performance"
+      ],
+      "userIds": [
+        "pG7q6woyZENF0M8Om54oZOXcuLB2"
+      ]
+    },
+    {
+      "id": "digitalmarketing",
+      "permissions": [],
+      "userIds": [
+        "2K5X44krNabacvlJFgpvsVpDQHi1"
+      ]
+    },
+    {
+      "id": "hr",
+      "permissions": [
+        "Tasks",
+        "Attendance",
+        "Documents",
+        "Performance"
+      ],
+      "userIds": [
+        "CpuK4rKFvaevObpjW8xfUARFK2D2",
+        "wM0lYIfrqPg3seDGTcKOs0B8x492"
+      ]
+    },
+    {
+      "id": "hr&operationsmanager",
+      "permissions": [
+        "Tasks",
+        "Attendance",
+        "Documents",
+        "Performance"
+      ],
+      "userIds": [
+        "wM0lYIfrqPg3seDGTcKOs0B8x492"
+      ]
+    },
+    {
+      "id": "iot&embeddedengineer",
+      "permissions": [],
+      "userIds": [
+        "KPEsmroGgLhBbBQEEfdeoNwOpLc2",
+        "O5qG8U6Mcnhh4vZd7e93IMper0G3"
+      ]
+    },
+    {
+      "id": "marketinghead",
+      "permissions": [],
+      "userIds": [
+        "TGCUg8xyPlSWiXKML8M5A7xwuB82"
+      ]
+    },
+    {
+      "id": "operations",
+      "permissions": [],
+      "userIds": [
+        "Zxluskb6vEQE6vM4Hq9l7YkrSie2",
+        "vFq0n4G6VHQVD4JpbZoEvk97i6D3"
+      ]
+    },
+    {
+      "id": "salesassociate",
+      "userIds": [
+        "6dJMJHOtJpQflLbPi4aYPyEWmft1",
+        "TGCUg8xyPlSWiXKML8M5A7xwuB82",
+        "pG7q6woyZENF0M8Om54oZOXcuLB2",
+        "G4yKsV6uFtVL4O1Rpchd9SOvWJ63",
+        "cX2adkhPRndyZEJFxYcJ3GQB84f1",
+        "SaZt24sliNTu3xH0hXLuVuY3FG42",
+        "q5wTkJcM1ceqJHlKb6zXQYYeuHv2"
+      ],
+      "permissions": [
+        "CRM",
+        "Clients",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Documents",
+        "CRM Analysis"
+      ]
+    },
+    {
+      "id": "saleshead",
+      "userIds": [
+        "6dJMJHOtJpQflLbPi4aYPyEWmft1"
+      ],
+      "permissions": [
+        "CRM",
+        "CRM Analysis",
+        "Reimbursements",
+        "Tasks",
+        "Attendance",
+        "Performance"
+      ]
+    },
+    {
+      "id": "socialmediamanager",
+      "userIds": [
+        "2K5X44krNabacvlJFgpvsVpDQHi1"
+      ],
+      "permissions": [
+        "CRM",
+        "CRM Analysis",
+        "Tasks",
+        "Performance",
+        "Attendance"
+      ]
+    },
+    {
+      "id": "videoeditor",
+      "permissions": [
+        "Tasks",
+        "Attendance",
+        "Reimbursements",
+        "Performance"
+      ],
+      "userIds": [
+        "oVAhHdnSbiWQmwmJFXGiT8ih9Uh1"
+      ]
+    }
+  ]
+}

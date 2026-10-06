@@ -198,12 +198,30 @@ export default function Analysis() {
         dayMap[day].total++;
       }
       
-      if (followupDate && followupDate.startsWith(prefix)) {
-        const fDay = parseInt(followupDate.slice(8, 10), 10);
+      const followUpDates = new Set();
+      const historyArr = item.statusHistory || item.history || [];
+      if (historyArr.length > 0) {
+        historyArr.forEach(h => {
+          if (h.date) {
+            const hDateStr = typeof h.date === 'string' ? h.date : (h.date.seconds ? new Date(h.date.seconds * 1000).toISOString() : null);
+            if (hDateStr) {
+              const hDate = hDateStr.split('T')[0];
+              if (hDate.startsWith(prefix)) followUpDates.add(hDate);
+            }
+          }
+        });
+      } else {
+        if (followupDate && followupDate.startsWith(prefix)) {
+          followUpDates.add(followupDate.split('T')[0]);
+        }
+      }
+
+      followUpDates.forEach(fDate => {
+        const fDay = parseInt(fDate.slice(8, 10), 10);
         if (!dayMap[fDay]) dayMap[fDay] = { leads: 0, adLeads: 0, distributors: 0, followUps: 0, total: 0, itemsList: { leads: [], adLeads: [], distributors: [], followUps: [] } };
         dayMap[fDay].followUps++;
         dayMap[fDay].itemsList.followUps.push(item);
-      }
+      });
     });
     return dayMap;
   }, [filtered, calendarDate]);
