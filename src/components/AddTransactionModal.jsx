@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Check } from 'lucide-react';
 import { addDoc, collection, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getDirectorsFromPreferences } from './MapDirectorLoanModal';
 
 export default function AddTransactionModal({ isOpen, onClose, preferences, onSuccess, transactionToEdit }) {
   const [tab, setTab] = useState('debit'); // 'debit' | 'credit'
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const directorList = useMemo(() => getDirectorsFromPreferences(preferences), [preferences]);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     source: '',
@@ -32,7 +34,8 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
         category: transactionToEdit.category || '',
         amount: transactionToEdit.amount || '',
         remarks: transactionToEdit.remarks || '',
-        creditType: transactionToEdit.creditType || (isRevenue ? 'revenue' : 'credit')
+        creditType: transactionToEdit.creditType || (isRevenue ? 'revenue' : 'credit'),
+        directorLoan: transactionToEdit.directorLoan || ''
       });
     } else {
       setTab('debit');
@@ -44,7 +47,8 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
         category: '',
         amount: '',
         remarks: '',
-        creditType: 'revenue'
+        creditType: 'revenue',
+        directorLoan: ''
       });
     }
   }, [transactionToEdit, isOpen]);
@@ -85,7 +89,9 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
           date: formData.date,
           service: formData.service,
           amount: Number(formData.amount),
-          remarks: formData.remarks
+          remarks: formData.remarks,
+          directorLoan: formData.directorLoan || null,
+          isDirectorLoan: Boolean(formData.directorLoan)
         };
       }
 
@@ -235,6 +241,20 @@ export default function AddTransactionModal({ isOpen, onClose, preferences, onSu
                     >
                       <option value="revenue">Revenue</option>
                       <option value="credit">Credit (Funds)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">Director Loan (Optional)</label>
+                    <select
+                      name="directorLoan"
+                      value={formData.directorLoan}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/5 sm:text-sm bg-white"
+                    >
+                      <option value="">None / Not a Director Loan</option>
+                      {directorList.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

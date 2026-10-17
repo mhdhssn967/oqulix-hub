@@ -1,20 +1,26 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X, Calculator, Download } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Search, FileText, ArrowUpDown, TrendingDown, TrendingUp, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Filter, X, Calculator, Download, BarChart3, Landmark, Users } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, Label } from 'recharts';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import AddTransactionModal from '../components/AddTransactionModal';
+import MapDirectorLoanModal, { getDirectorsFromPreferences } from '../components/MapDirectorLoanModal';
 
 export default function Finance() {
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [directorModalTx, setDirectorModalTx] = useState(null);
+  const [directorFilter, setDirectorFilter] = useState('all');
   const [preferences, setPreferences] = useState(null);
+  const directorNames = useMemo(() => getDirectorsFromPreferences(preferences), [preferences]);
   const [transactionToEdit, setTransactionToEdit] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -89,14 +95,14 @@ export default function Finance() {
     const worksheet = workbook.addWorksheet('Financial_Data');
 
     // Add Main Heading
-    worksheet.mergeCells('A1:H1');
+    worksheet.mergeCells('A1:I1');
     const titleRow = worksheet.getCell('A1');
     titleRow.value = 'Financial Report';
     titleRow.font = { size: 16, bold: true };
     titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
     // Add Date Sub-heading
-    worksheet.mergeCells('A2:H2');
+    worksheet.mergeCells('A2:I2');
     const dateRow = worksheet.getCell('A2');
     const dateStr = new Date().toLocaleDateString();
     dateRow.value = `Generated on: ${dateStr}`;
@@ -110,6 +116,7 @@ export default function Finance() {
       { header: 'S.No', key: 'sno', width: 8 },
       { header: 'Date', key: 'date', width: 15 },
       { header: 'Source', key: 'source', width: 25 },
+      { header: 'Director Loan', key: 'directorLoan', width: 20 },
       { header: 'Type', key: 'type', width: 15 },
       { header: 'Credit', key: 'credit', width: 20 },
       { header: 'Debit', key: 'debit', width: 20 },
@@ -158,6 +165,7 @@ export default function Finance() {
         sno: index + 1,
         date: tx.date ? new Date(tx.date).toLocaleDateString() : 'N/A',
         source: tx.source || 'N/A',
+        directorLoan: tx.directorLoan || 'N/A',
         type: tx.type || 'N/A',
         credit: creditVal,
         debit: debitVal,
@@ -278,9 +286,16 @@ export default function Finance() {
       // Type
       if (filters.type !== 'all' && t.type !== filters.type) return false;
 
+      // Director Loan Filter
+      if (directorFilter === 'only_directors') {
+        if (!t.directorLoan && t.service !== "Director's Loan Deposit") return false;
+      } else if (directorFilter !== 'all') {
+        if (t.directorLoan !== directorFilter) return false;
+      }
+
       return true;
     });
-  }, [transactions, searchTerm, filters, selectedMonth]);
+  }, [transactions, searchTerm, filters, selectedMonth, directorFilter]);
 
   const uniqueTypes = useMemo(() => {
     return [...new Set(transactions.map(t => t.type).filter(Boolean))].sort();
@@ -315,9 +330,37 @@ export default function Finance() {
     return (tx.isRevenue && tx.creditType !== "revenue") || tx.typeOfTransaction === "Income" ? acc + Number(tx.amount || 0) : acc;
   }, 0);
   
-  const directorLoanDepositSum = filteredTransactions.reduce((acc, tx) => {
-    return (tx.service === "Director's Loan Deposit") ? acc + Number(tx.amount || 0) : acc;
-  }, 0);
+  // Breakdown of Director Loans by individual Director (sourced dynamically from preferences.source, excluding Oqulix HDFC)
+  const directorLoanStats = useMemo(() => {
+    const stats = {
+      Unmapped: 0,
+      TotalMapped: 0,
+      TotalDeposits: 0
+    };
+    directorNames.forEach(name => {
+      stats[name] = 0;
+    });
+
+    filteredTransactions.forEach(tx => {
+      const amt = Number(tx.amount || 0);
+      if (tx.directorLoan) {
+        if (stats[tx.directorLoan] !== undefined) {
+          stats[tx.directorLoan] += amt;
+        } else {
+          stats[tx.directorLoan] = (stats[tx.directorLoan] || 0) + amt;
+        }
+        stats.TotalMapped += amt;
+        stats.TotalDeposits += amt;
+      } else if (tx.service === "Director's Loan Deposit") {
+        stats.Unmapped += amt;
+        stats.TotalDeposits += amt;
+      }
+    });
+
+    return stats;
+  }, [filteredTransactions, directorNames]);
+
+  const directorLoanDepositSum = directorLoanStats.TotalDeposits;
 
   const nonHDFCExpense = filteredTransactions.reduce((acc, tx) => {
     const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
@@ -500,6 +543,7 @@ export default function Finance() {
       service: 'all',
       source: 'all'
     });
+    setDirectorFilter('all');
   };
 
   return (
@@ -511,6 +555,14 @@ export default function Finance() {
             <p className="text-[15px] text-zinc-500 mt-1.5">Manage your financial transactions here.</p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+            <button
+              onClick={() => navigate('/finance/analysis')}
+              className="flex justify-center items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-colors shadow-sm whitespace-nowrap cursor-pointer"
+            >
+              <BarChart3 className="w-4 h-4 text-emerald-100" />
+              Financial Analysis
+            </button>
+
             <select
               name="transactionType"
               value={filters.transactionType}
@@ -568,7 +620,7 @@ export default function Finance() {
                 <X className="w-3.5 h-3.5" /> Clear All
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
               <div>
                 <label className="block text-xs font-medium text-zinc-500 mb-1.5">From Date</label>
                 <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="w-full px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-black/10 bg-white" />
@@ -584,6 +636,20 @@ export default function Finance() {
                   <option value="revenue">Revenue</option>
                   <option value="expense">Expense</option>
                   <option value="credit">Credit / Deposit</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-500 mb-1.5">Director Loan</label>
+                <select 
+                  value={directorFilter} 
+                  onChange={(e) => setDirectorFilter(e.target.value)} 
+                  className="w-full px-3 py-1.5 border border-purple-200 bg-purple-50/30 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-600 font-medium text-zinc-800"
+                >
+                  <option value="all">All Deposits</option>
+                  <option value="only_directors">Director Loans (All)</option>
+                  {directorNames.map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -620,7 +686,8 @@ export default function Finance() {
         )}
 
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {/* Total Revenue */}
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div>
@@ -642,44 +709,132 @@ export default function Finance() {
                </div>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-zinc-500">Total Credit (Funds)</p>
-              <h3 className="text-2xl font-bold text-blue-600 mt-1">₹{totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-          </div>
+
+          {/* Total Credit (Funds) */}
           <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-zinc-500">Director's Loan Deposit</p>
-                <h3 className="text-2xl font-bold text-purple-600 mt-1">₹{totalDirectorLoanCardValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+                <p className="text-sm font-medium text-zinc-500">Total Credit (Funds)</p>
+                <h3 className="text-2xl font-bold text-blue-600 mt-1">₹{totalCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
               </div>
-              <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
+              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
                 <TrendingUp className="w-6 h-6" />
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between text-xs border-t border-zinc-100 pt-3">
                <div>
-                 <span className="text-zinc-500 block mb-0.5">Loan Deposit</span>
-                 <span className="font-semibold text-zinc-700">₹{directorLoanDepositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                 <span className="text-zinc-500 block mb-0.5">Type</span>
+                 <span className="font-semibold text-zinc-700">Fund Deposits</span>
                </div>
                <div className="text-right">
-                 <span className="text-zinc-500 block mb-0.5">Non-HDFC Expenses</span>
-                 <span className="font-semibold text-zinc-700">₹{nonHDFCExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                 <span className="text-zinc-500 block mb-0.5">Nature</span>
+                 <span className="font-semibold text-blue-600">Capital & Non-Revenue</span>
                </div>
             </div>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-zinc-500">Total Expenses</p>
-              <h3 className="text-2xl font-bold text-red-600 mt-1">₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+
+          {/* Total Expenses */}
+          <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-500">Total Expenses</p>
+                <h3 className="text-2xl font-bold text-red-600 mt-1">₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600 flex-shrink-0">
+                <TrendingDown className="w-6 h-6" />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-600">
-              <TrendingDown className="w-6 h-6" />
+            <div className="mt-4 flex items-center justify-between text-xs border-t border-zinc-100 pt-3">
+               <div>
+                 <span className="text-zinc-500 block mb-0.5">Net Margin</span>
+                 <span className={`font-semibold ${totalRevenue - totalExpense >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                   ₹{(totalRevenue - totalExpense).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                 </span>
+               </div>
+               <div className="text-right">
+                 <span className="text-zinc-500 block mb-0.5">Expense Ratio</span>
+                 <span className="font-semibold text-zinc-700">
+                   {totalRevenue > 0 ? ((totalExpense / totalRevenue) * 100).toFixed(1) : 0}%
+                 </span>
+               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Director's Loan Deposit Section (Placed below the 3 cards) */}
+        <div className="bg-white p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            
+            {/* Left: Summary and Metrics */}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+                <Landmark className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-purple-700">Director's Loan Deposit</p>
+                  {directorFilter !== 'all' && (
+                    <button 
+                      onClick={() => setDirectorFilter('all')}
+                      className="inline-flex items-center gap-1 text-[11px] bg-purple-100 text-purple-700 hover:bg-purple-200 px-2 py-0.5 rounded-full font-semibold transition-colors cursor-pointer"
+                      title="Clear director filter"
+                    >
+                      <span>Filtered: {directorFilter}</span>
+                      <X className="w-3 h-3 stroke-[2.5]" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-3 mt-1 flex-wrap">
+                  <h3 className="text-2xl font-bold text-purple-600">
+                    ₹{totalDirectorLoanCardValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <span>Loan Deposit: <strong className="text-zinc-700 font-semibold">₹{directorLoanDepositSum.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                    <span className="text-zinc-300">•</span>
+                    <span>Non-HDFC Expenses: <strong className="text-zinc-700 font-semibold">₹{nonHDFCExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: By Director Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-zinc-100">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider whitespace-nowrap">
+                  By Director (Click to filter):
+                </span>
+                {directorFilter !== 'all' && (
+                  <button onClick={() => setDirectorFilter('all')} className="text-xs text-purple-600 hover:underline font-medium sm:hidden">
+                    Reset
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {directorNames.map(dirName => {
+                  const amt = directorLoanStats[dirName] || 0;
+                  const isActive = directorFilter === dirName;
+                  return (
+                    <button
+                      key={dirName}
+                      type="button"
+                      onClick={() => setDirectorFilter(prev => prev === dirName ? 'all' : dirName)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-purple-600 border-purple-600 text-white font-semibold shadow-sm'
+                          : 'bg-zinc-50 hover:bg-purple-50 hover:border-purple-200 border-zinc-200/80 text-zinc-700'
+                      }`}
+                      title={`Filter deposits for ${dirName}`}
+                    >
+                      <span className="font-medium text-[11px]">{dirName}:</span>
+                      <span className={`text-[11px] font-semibold ${isActive ? 'text-white' : 'text-purple-700'}`}>
+                        ₹{amt.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
         </div>
         
@@ -871,6 +1026,8 @@ export default function Finance() {
                 {paginatedTransactions.map((tx, index) => {
                   const isExpense = tx.isExpense || (!tx.isRevenue && tx.typeOfTransaction !== "Income" && tx.creditType !== "revenue");
                   const isRevenue = tx.isRevenue && tx.creditType === "revenue";
+                  const isCredit = (tx.isRevenue && tx.creditType !== "revenue") || tx.typeOfTransaction === "Income" || (!isExpense && !isRevenue);
+                  const isCreditTx = isCredit || (!isExpense && !isRevenue) || tx.creditType === 'credit' || Boolean(tx.directorLoan);
                   const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
                   
                   let txTypeStyle = { color: 'text-blue-600', bg: 'bg-blue-50', icon: <ArrowDownRight className="w-4 h-4" />, sign: '+ ₹' };
@@ -897,7 +1054,15 @@ export default function Finance() {
                         </div>
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm text-zinc-600">
-                        {tx.source || 'N/A'}
+                        <div className="flex flex-col items-start">
+                          <span>{tx.source || 'N/A'}</span>
+                          {tx.directorLoan && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-700 bg-purple-50 border border-purple-200/80 px-2 py-0.5 rounded-md mt-1">
+                              <Landmark className="w-3 h-3 text-purple-600 flex-shrink-0" />
+                              Loan: {tx.directorLoan}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm text-zinc-600">
                         {tx.type || 'N/A'}
@@ -920,16 +1085,30 @@ export default function Finance() {
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap text-sm font-medium text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {isCreditTx && (
+                            <button
+                              onClick={() => setDirectorModalTx(tx)}
+                              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap ${
+                                tx.directorLoan 
+                                  ? 'bg-purple-100 text-purple-800 border border-purple-300 hover:bg-purple-200 ring-1 ring-purple-400/30' 
+                                  : 'bg-zinc-100 text-zinc-700 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 border border-zinc-200'
+                              }`}
+                              title={tx.directorLoan ? `Director Loan: ${tx.directorLoan} (Click to change/unmap)` : `Map to Director Loan (${directorNames.join(', ')})`}
+                            >
+                              <Landmark className="w-3.5 h-3.5 flex-shrink-0 text-purple-600" />
+                              <span>{tx.directorLoan ? tx.directorLoan : 'Map Loan'}</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(tx)}
-                            className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
                             title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(tx.id)}
-                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -992,6 +1171,17 @@ export default function Finance() {
         transactionToEdit={transactionToEdit}
         onSuccess={() => {
           fetchTransactions();
+        }}
+      />
+
+      <MapDirectorLoanModal
+        isOpen={Boolean(directorModalTx)}
+        onClose={() => setDirectorModalTx(null)}
+        transaction={directorModalTx}
+        preferences={preferences}
+        directors={directorNames}
+        onSuccess={(updatedTx) => {
+          setTransactions(prev => prev.map(t => t.id === updatedTx.id ? { ...t, ...updatedTx } : t));
         }}
       />
     </div>

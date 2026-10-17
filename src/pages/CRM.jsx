@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 import QuickUpdateModal from '../components/QuickUpdateModal';
+import { crmCache, clearCRMCache } from '../store/crmCache';
 
 const LEAD_STATUS_OPTIONS = [
   { value: 'New Lead', label: 'New Lead' },
@@ -1033,6 +1034,23 @@ export default function CRM() {
   useEffect(() => {
     const fetchCRMData = async () => {
       if (!companyId) return;
+      
+      if (crmCache.data && crmCache.activeSegment === activeSegment && Date.now() - crmCache.timestamp < 5 * 60 * 1000) {
+        const c = crmCache.data;
+        setAdCampaignsList(c.campaigns);
+        setGlobalClients(c.globalClients);
+        setSegmentClients(c.segmentClients);
+        setAllEmployees(c.allEmployees);
+        setAllGlobalClients(c.allGlobalClients);
+        
+        setRegularLeads(getFilteredItemsForUser(c.fetchedLeads, 'leads'));
+        setAdLeads(getFilteredItemsForUser(c.fetchedAdLeads, 'adLeads'));
+        setDistributors(getFilteredItemsForUser(c.fetchedDistributors, 'distributors'));
+        
+        setLoading(false);
+        return;
+      }
+      
       try {
         const leadsColRef = collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'leads', 'items');
         const adLeadsColRef = collection(db, 'userData', companyId, 'segments', activeSegment, 'crmData', 'adLeads', 'items');
@@ -1053,40 +1071,42 @@ export default function CRM() {
         ]);
         
         const fetchedCampaigns = campaignsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setAdCampaignsList(fetchedCampaigns);
-        
-        if (globalClientsSnap.exists()) {
-          setGlobalClients(globalClientsSnap.data().clients || []);
-        } else {
-          setGlobalClients([]);
-        }
-        
-        if (segmentSnap.exists()) {
-          setSegmentClients(segmentSnap.data().clients || []);
-        } else {
-          setSegmentClients([]);
-        }
-        
+        const globClients = globalClientsSnap.exists() ? globalClientsSnap.data().clients || [] : [];
+        const segClients = segmentSnap.exists() ? segmentSnap.data().clients || [] : [];
         const empsList = empsSnap.docs.map(doc => ({ id: doc.id, uid: doc.id, ...doc.data() }));
-        setAllEmployees(empsList);
 
         let fetchedLeads = leadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         let fetchedAdLeads = adLeadsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         let fetchedDistributors = distributorsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        setAllGlobalClients([
+        const allGlobal = [
           ...fetchedLeads.map(l => ({...l, _sourceCollection: 'Regular Lead'})),
           ...fetchedAdLeads.map(l => ({...l, _sourceCollection: 'Ad Lead'})),
           ...fetchedDistributors.map(l => ({...l, _sourceCollection: 'Distributor'}))
-        ]);
-
-        fetchedLeads = getFilteredItemsForUser(fetchedLeads, 'leads');
-        fetchedAdLeads = getFilteredItemsForUser(fetchedAdLeads, 'adLeads');
-        fetchedDistributors = getFilteredItemsForUser(fetchedDistributors, 'distributors');
+        ];
         
-        setRegularLeads(fetchedLeads);
-        setAdLeads(fetchedAdLeads);
-        setDistributors(fetchedDistributors);
+        crmCache.data = {
+          campaigns: fetchedCampaigns,
+          globalClients: globClients,
+          segmentClients: segClients,
+          allEmployees: empsList,
+          fetchedLeads,
+          fetchedAdLeads,
+          fetchedDistributors,
+          allGlobalClients: allGlobal
+        };
+        crmCache.timestamp = Date.now();
+        crmCache.activeSegment = activeSegment;
+
+        setAdCampaignsList(fetchedCampaigns);
+        setGlobalClients(globClients);
+        setSegmentClients(segClients);
+        setAllEmployees(empsList);
+        setAllGlobalClients(allGlobal);
+
+        setRegularLeads(getFilteredItemsForUser(fetchedLeads, 'leads'));
+        setAdLeads(getFilteredItemsForUser(fetchedAdLeads, 'adLeads'));
+        setDistributors(getFilteredItemsForUser(fetchedDistributors, 'distributors'));
         
       } catch (error) {
         console.error("Error fetching CRM data:", error);

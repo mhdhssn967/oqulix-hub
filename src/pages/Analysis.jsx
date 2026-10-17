@@ -8,6 +8,7 @@ import {
 import ReportGenerator from '../components/crm/ReportGenerator';
 import QuickUpdateModal from '../components/QuickUpdateModal';
 import { useAuthStore } from '../store/authStore';
+import { crmCache } from '../store/crmCache';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
 const getItemDate = (item) => {
@@ -48,6 +49,26 @@ export default function Analysis() {
   useEffect(() => {
     const fetchData = async () => {
       if (!companyId) return;
+
+      const filterData = (items) => {
+        if (!items) return [];
+        if (isAdmin || isManager || isHR) return items;
+        return items.filter(i => 
+          i.userId === user?.uid || 
+          i.assignedToUid === user?.uid || 
+          i.employeeUid === user?.uid || 
+          i.addedBy === user?.uid
+        );
+      };
+
+      if (crmCache.data && crmCache.activeSegment === activeSegment && Date.now() - crmCache.timestamp < 5 * 60 * 1000) {
+        setRegularLeads(filterData(crmCache.data.fetchedLeads));
+        setAdLeads(filterData(crmCache.data.fetchedAdLeads));
+        setDistributors(filterData(crmCache.data.fetchedDistributors));
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       try {
         const [lSnap, aSnap, dSnap] = await Promise.all([

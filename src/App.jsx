@@ -12,6 +12,7 @@ import CRM from './pages/CRM';
 import ActiveDistributors from './pages/ActiveDistributors';
 import Finance from './pages/Finance';
 import GstAnalysis from './pages/GstAnalysis';
+import FinancialAnalysis from './pages/FinancialAnalysis';
 import Tasks from './pages/Tasks';
 import TaskManagement from './pages/TaskManagement';
 import CompletedTasks from './pages/CompletedTasks';
@@ -125,6 +126,8 @@ function App() {
           <Route path="active-distributors" element={<PermissionRoute permissionLabel="CRM"><ActiveDistributors /></PermissionRoute>} />
           <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
           <Route path="finance/gst-analysis" element={<PermissionRoute permissionLabel="Finance"><GstAnalysis /></PermissionRoute>} />
+          <Route path="finance/analysis" element={<PermissionRoute permissionLabel="Finance"><FinancialAnalysis /></PermissionRoute>} />
+          <Route path="financial-analysis" element={<PermissionRoute permissionLabel="Finance"><FinancialAnalysis /></PermissionRoute>} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="task-manager" element={<PermissionRoute permissionLabel="Task Manager"><TaskManagement /></PermissionRoute>} />
           <Route path="completed-tasks" element={<PermissionRoute permissionLabel="Task Manager"><CompletedTasks /></PermissionRoute>} />
