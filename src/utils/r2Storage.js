@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
  * Cloudflare R2 Configuration via Vite Environment Variables
@@ -53,7 +54,8 @@ const getR2Client = () => {
 };
 
 /**
- * Upload a resume file to Cloudflare R2
+ * Upload a resume file to Cloudflare R2 using a Presigned URL + native fetch
+ * (Avoids AWS SDK custom x-amz-* headers in browser requests)
  * @param {File} file - The browser File object
  * @param {string} positionId - The ID of the hiring position
  * @param {string} candidateName - Name of the candidate for clean file naming
@@ -72,18 +74,28 @@ export const uploadResumeToR2 = async (file, positionId, candidateName = 'candid
   const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const timestamp = Date.now();
   const key = `resumes/${positionId}/${timestamp}_${sanitizedName}_${sanitizedOriginalName}`;
-
-  const arrayBuffer = await file.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
+  const contentType = file.type || 'application/pdf';
 
   const command = new PutObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: key,
-    Body: uint8Array,
-    ContentType: file.type || 'application/pdf',
+    ContentType: contentType,
   });
 
-  await client.send(command);
+  const signedPutUrl = await getSignedUrl(client, command, { expiresIn: 600 });
+
+  const response = await fetch(signedPutUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`R2 upload failed (${response.status}): ${errText || response.statusText}`);
+  }
 
   const baseUrl = R2_PUBLIC_URL.replace(/\/+$/, '');
   const publicUrl = `${baseUrl}/${key}`;
@@ -93,12 +105,12 @@ export const uploadResumeToR2 = async (file, positionId, candidateName = 'candid
     key,
     fileName: file.name,
     fileSize: file.size,
-    fileType: file.type || 'application/octet-stream',
+    fileType: contentType,
   };
 };
 
 /**
- * Delete a resume file from Cloudflare R2
+ * Delete a resume file from Cloudflare R2 using a Presigned URL
  * @param {string} key - The object key stored in R2
  */
 export const deleteResumeFromR2 = async (key) => {
@@ -109,7 +121,8 @@ export const deleteResumeFromR2 = async (key) => {
       Bucket: R2_BUCKET_NAME,
       Key: key,
     });
-    await client.send(command);
+    const signedDeleteUrl = await getSignedUrl(client, command, { expiresIn: 300 });
+    await fetch(signedDeleteUrl, { method: 'DELETE' });
   } catch (error) {
     console.error('Error deleting file from Cloudflare R2:', error);
   }
