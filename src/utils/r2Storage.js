@@ -1,13 +1,20 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 /**
  * Cloudflare R2 Configuration via Vite Environment Variables
  */
-const R2_ACCOUNT_ID = import.meta.env.VITE_R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = import.meta.env.VITE_R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = import.meta.env.VITE_R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = import.meta.env.VITE_R2_BUCKET_NAME;
-const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL; // e.g., https://pub-xxxxxxxxxxxx.r2.dev
+const rawAccountId = (import.meta.env.VITE_R2_ACCOUNT_ID || '').trim();
+// Guard against accidental duplicate paste (e.g. 64 chars of the same 32-char hex string twice)
+const R2_ACCOUNT_ID =
+  rawAccountId.length === 64 &&
+  rawAccountId.slice(0, 32) === rawAccountId.slice(32)
+    ? rawAccountId.slice(0, 32)
+    : rawAccountId;
+
+const R2_ACCESS_KEY_ID = (import.meta.env.VITE_R2_ACCESS_KEY_ID || '').trim();
+const R2_SECRET_ACCESS_KEY = (import.meta.env.VITE_R2_SECRET_ACCESS_KEY || '').trim();
+const R2_BUCKET_NAME = (import.meta.env.VITE_R2_BUCKET_NAME || '').trim();
+const R2_PUBLIC_URL = (import.meta.env.VITE_R2_PUBLIC_URL || '').trim();
 
 export const isR2Configured = () => {
   return Boolean(
@@ -32,6 +39,7 @@ const getR2Client = () => {
     r2Client = new S3Client({
       region: 'auto',
       endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      forcePathStyle: true,
       credentials: {
         accessKeyId: R2_ACCESS_KEY_ID,
         secretAccessKey: R2_SECRET_ACCESS_KEY,
@@ -52,11 +60,12 @@ const getR2Client = () => {
 export const uploadResumeToR2 = async (file, positionId, candidateName = 'candidate') => {
   const client = getR2Client();
 
-  const sanitizedName = candidateName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'candidate';
+  const sanitizedName =
+    candidateName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'candidate';
 
   const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const timestamp = Date.now();
@@ -103,4 +112,3 @@ export const deleteResumeFromR2 = async (key) => {
     console.error('Error deleting file from Cloudflare R2:', error);
   }
 };
-

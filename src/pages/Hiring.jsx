@@ -48,6 +48,8 @@ import {
   Eye,
   MessageSquare,
   Award,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 const STATUS_BADGES = {
@@ -84,6 +86,7 @@ export default function Hiring() {
 
   // Active Folder (Position) state
   const [selectedPosition, setSelectedPosition] = useState(null);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
   // Search & Filter states for Positions
   const [posSearch, setPosSearch] = useState('');
@@ -115,6 +118,7 @@ export default function Hiring() {
     compensationType: 'Salary', // 'Salary' | 'Stipend' | 'Commission Only'
     payAmount: '',
     payFrequency: 'Per Month', // 'Per Month' | 'Per Annum'
+    noticePeriod: 'Immediate',
     openings: '1',
     status: 'Open', // 'Open' | 'On Hold' | 'Closed'
     skillsRequired: '',
@@ -201,8 +205,10 @@ export default function Hiring() {
     if (selectedPosition) {
       const updated = positions.find((p) => p.id === selectedPosition.id);
       if (updated) setSelectedPosition(updated);
+    } else {
+      setIsDescExpanded(false);
     }
-  }, [positions]);
+  }, [positions, selectedPosition?.id]);
 
   // ---------------- POSITION HANDLERS ----------------
   const openCreatePositionModal = () => {
@@ -232,6 +238,7 @@ export default function Hiring() {
       compensationType: pos.compensationType || 'Salary',
       payAmount: pos.payAmount || '',
       payFrequency: pos.payFrequency || 'Per Month',
+      noticePeriod: pos.noticePeriod || 'Immediate',
       openings: pos.openings || '1',
       status: pos.status || 'Open',
       skillsRequired: pos.skillsRequired || '',
@@ -337,8 +344,19 @@ export default function Hiring() {
   const openAddCandidateModal = () => {
     setEditingCandidate(null);
     setResumeFile(null);
+
+    const defaultExpectedPay = selectedPosition?.payAmount || '';
+    const defaultNoticePeriod = selectedPosition?.noticePeriod || '';
+    const defaultExperience =
+      selectedPosition?.experienceType === 'Fresher'
+        ? 'Fresher'
+        : selectedPosition?.yearsOfExperience || '';
+
     setCandForm({
       ...initialCandForm,
+      experienceYears: defaultExperience,
+      expectedPay: defaultExpectedPay,
+      noticePeriod: defaultNoticePeriod,
       appliedDate: new Date().toISOString().split('T')[0],
     });
     setIsCandModalOpen(true);
@@ -394,11 +412,7 @@ export default function Hiring() {
           );
         }
 
-        // Delete old resume from R2 if replacing
-        if (editingCandidate?.resumeKey) {
-          await deleteResumeFromR2(editingCandidate.resumeKey);
-        }
-
+        const oldKey = editingCandidate?.resumeKey;
         const uploaded = await uploadResumeToR2(
           resumeFile,
           selectedPosition.id,
@@ -410,6 +424,11 @@ export default function Hiring() {
           resumeFileName: uploaded.fileName,
           resumeFileSize: uploaded.fileSize,
         };
+
+        // Clean up previous resume in the background after the new upload succeeds
+        if (oldKey) {
+          deleteResumeFromR2(oldKey).catch(() => {});
+        }
       }
 
       const payload = {
@@ -739,11 +758,11 @@ export default function Hiring() {
                     {/* Top Folder Tab Bar */}
                     <div>
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
                           <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors shrink-0">
                             <Folder className="w-6 h-6 fill-amber-400/30" />
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span
                                 className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
@@ -758,7 +777,10 @@ export default function Hiring() {
                                 </span>
                               )}
                             </div>
-                            <h3 className="text-base font-bold text-zinc-900 mt-1 group-hover:text-black line-clamp-1">
+                            <h3
+                              className="text-sm font-bold text-zinc-900 mt-1 group-hover:text-black line-clamp-2 leading-snug"
+                              title={pos.title}
+                            >
                               {pos.title}
                             </h3>
                           </div>
@@ -938,9 +960,33 @@ export default function Hiring() {
                     {selectedPosition.title}
                   </h2>
                   {selectedPosition.description && (
-                    <p className="text-sm text-zinc-600 mt-1 max-w-3xl whitespace-pre-line">
-                      {selectedPosition.description}
-                    </p>
+                    <div className="mt-1.5 max-w-3xl">
+                      <p
+                        className={`text-sm text-zinc-600 whitespace-pre-line ${
+                          !isDescExpanded ? 'line-clamp-3' : ''
+                        }`}
+                      >
+                        {selectedPosition.description}
+                      </p>
+                      {(selectedPosition.description.split('\n').length > 3 ||
+                        selectedPosition.description.length > 180) && (
+                        <button
+                          type="button"
+                          onClick={() => setIsDescExpanded((prev) => !prev)}
+                          className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-zinc-900 hover:text-zinc-600 transition-colors cursor-pointer"
+                        >
+                          {isDescExpanded ? (
+                            <>
+                              Show Less <ChevronUp className="w-3.5 h-3.5" />
+                            </>
+                          ) : (
+                            <>
+                              Read More <ChevronDown className="w-3.5 h-3.5" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -966,7 +1012,7 @@ export default function Hiring() {
             </div>
 
             {/* Detailed Metadata Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 pt-5 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pt-5 text-sm">
               <div>
                 <div className="text-xs text-zinc-400 font-medium">Experience Level</div>
                 <div className="font-semibold text-zinc-900 mt-0.5">
@@ -1018,6 +1064,13 @@ export default function Hiring() {
                         selectedPosition.probationAmount || 'Same as regular'
                       }`
                     : 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs text-zinc-400 font-medium">Notice Period</div>
+                <div className="font-semibold text-zinc-900 mt-0.5">
+                  {selectedPosition.noticePeriod || 'Immediate'}
                 </div>
               </div>
             </div>
@@ -1454,7 +1507,7 @@ export default function Hiring() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
                       In Office or Work From Home? <span className="text-red-500">*</span>
@@ -1483,6 +1536,22 @@ export default function Hiring() {
                       value={posForm.officeLocation}
                       onChange={(e) =>
                         setPosForm({ ...posForm, officeLocation: e.target.value })
+                      }
+                      className="w-full px-3.5 py-2 bg-white border border-zinc-300 rounded-xl text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-700 mb-1">
+                      Notice Period / Availability <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Immediate, 15 Days, 30 Days"
+                      value={posForm.noticePeriod}
+                      onChange={(e) =>
+                        setPosForm({ ...posForm, noticePeriod: e.target.value })
                       }
                       className="w-full px-3.5 py-2 bg-white border border-zinc-300 rounded-xl text-sm focus:outline-none focus:border-black"
                     />
@@ -1842,10 +1911,11 @@ export default function Hiring() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Experience (Years)
+                    Experience (Years) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
+                    required
                     placeholder="e.g. Fresher, 1.5 Years"
                     value={candForm.experienceYears}
                     onChange={(e) =>
@@ -1890,7 +1960,11 @@ export default function Hiring() {
                   Resume Upload (Cloudflare R2 Storage)
                 </label>
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={(e) => {
+                    if (e.target !== fileInputRef.current) {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                   className="border-2 border-dashed border-zinc-300 hover:border-black rounded-xl p-4 text-center cursor-pointer transition-colors bg-zinc-50/60"
                 >
                   <input
@@ -1898,6 +1972,9 @@ export default function Hiring() {
                     type="file"
                     accept=".pdf,.doc,.docx"
                     className="hidden"
+                    onClick={(e) => {
+                      e.target.value = null;
+                    }}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setResumeFile(e.target.files[0]);
