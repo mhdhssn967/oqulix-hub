@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download, MessageSquare } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
@@ -123,7 +123,7 @@ export default function ManageAttendance() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [breakPrompt, setBreakPrompt] = useState({ isOpen: false, logId: null, type: '', reason: '', time: getCurrentTimeStr() });
-  const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', breaks: [] });
+  const [editLogPrompt, setEditLogPrompt] = useState({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [], remarks: '' });
   const [reportModal, setReportModal] = useState({ isOpen: false, data: null });
   const [fetchingReportId, setFetchingReportId] = useState(null);
   const reportRef = useRef(null);
@@ -360,6 +360,7 @@ export default function ManageAttendance() {
       productivePercent: productivePercent.toFixed(1),
       nonProductivePercent: nonProductivePercent.toFixed(1),
       score,
+      remarks: log.remarks || log.clockInRemark || '',
       breaksList: sortedBreaks,
       timeline,
       productivityBreakdown: mergedProdSegments
@@ -436,8 +437,12 @@ export default function ManageAttendance() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const { log, clockInTime, clockOutTime, workType, fieldLocation, breaks } = editLogPrompt;
-      let updateData = { workType };
+      const { log, clockInTime, clockOutTime, workType, fieldLocation, breaks, remarks } = editLogPrompt;
+      let updateData = { 
+        workType,
+        remarks: remarks ? remarks.trim() : '',
+        clockInRemark: remarks ? remarks.trim() : ''
+      };
       if (workType === 'Field' && fieldLocation) {
         updateData.fieldLocation = fieldLocation;
       }
@@ -473,7 +478,7 @@ export default function ManageAttendance() {
       await setDoc(doc(db, `userData/${companyId}/attendanceLogs`, log.id), updateData, { merge: true });
       
       Swal.fire({ title: 'Success', text: 'Attendance updated successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
-      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [] });
+      setEditLogPrompt({ isOpen: false, log: null, clockInTime: '', clockOutTime: '', workType: '', fieldLocation: '', breaks: [], remarks: '' });
       fetchData();
     } catch (err) {
       console.error(err);
@@ -483,6 +488,7 @@ export default function ManageAttendance() {
     }
   };
   const [clockInTime, setClockInTime] = useState('');
+  const [clockInRemark, setClockInRemark] = useState('');
 
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveSearchQuery, setLeaveSearchQuery] = useState('');
@@ -678,6 +684,7 @@ export default function ManageAttendance() {
         const docId = `${selectedDate}_${empId}`;
         const ref = doc(db, `userData/${companyId}/attendanceLogs`, docId);
         
+        const trimmedRemark = clockInRemark ? clockInRemark.trim() : '';
         batch.set(ref, {
           employeeId: empId,
           employeeName: emp.name,
@@ -685,6 +692,7 @@ export default function ManageAttendance() {
           clockedInAt: finalClockInTime,
           status: 'Present',
           workType: workType,
+          ...(trimmedRemark && { remarks: trimmedRemark, clockInRemark: trimmedRemark }),
           ...(workType === 'Field' && { fieldLocation }),
           breaks: []
         }, { merge: true }); // merge in case they were already clocked in
@@ -696,6 +704,7 @@ export default function ManageAttendance() {
       setSelectedEmployeeIds([]);
       setSearchQuery('');
       setClockInTime('');
+      setClockInRemark('');
       fetchData(); // refresh the list
     } catch (err) {
       console.error("Error clocking in employees:", err);
@@ -1014,10 +1023,18 @@ export default function ManageAttendance() {
                     <tr key={log.id} className="hover:bg-zinc-50/50 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px]">
+                          <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px] shrink-0">
                             {log.employeeName ? log.employeeName.charAt(0).toUpperCase() : '?'}
                           </div>
-                          <span className="text-[14px] font-semibold text-zinc-900">{log.employeeName}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[14px] font-semibold text-zinc-900 truncate">{log.employeeName}</span>
+                            {(log.remarks || log.clockInRemark) && (
+                              <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50/90 border border-amber-200/70 rounded px-1.5 py-0.5 w-fit font-medium" title={log.remarks || log.clockInRemark}>
+                                <MessageSquare className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span className="truncate max-w-[180px] sm:max-w-[240px]">{log.remarks || log.clockInRemark}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-5 py-4">
@@ -1065,6 +1082,8 @@ export default function ManageAttendance() {
                               clockInTime: getTimeStrFromDate(log.clockedInAt), 
                               clockOutTime: getTimeStrFromDate(log.clockedOutAt), 
                               workType: log.workType || 'Office',
+                              fieldLocation: log.fieldLocation || '',
+                              remarks: log.remarks || log.clockInRemark || '',
                               breaks: (log.breaks || []).map(b => ({
                                 ...b,
                                 startStr: getTimeStrFromDate(b.startTime),
@@ -1217,6 +1236,24 @@ export default function ManageAttendance() {
                   onChange={setClockInTime}
                 />
               </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-zinc-700 mb-1.5 flex items-center justify-between">
+                  <span>Remarks / Late Reason <span className="text-zinc-400 font-normal">(Optional)</span></span>
+                  <span className="text-[11px] text-zinc-400">e.g. Late due to traffic, doctor visit</span>
+                </label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                  <input 
+                    type="text"
+                    placeholder="Enter reason if late, special notes, etc..."
+                    value={clockInRemark}
+                    onChange={(e) => setClockInRemark(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all placeholder:text-zinc-400"
+                  />
+                </div>
+              </div>
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                 <input 
@@ -1560,6 +1597,19 @@ export default function ManageAttendance() {
                     />
                   </div>
                 )}
+                <div>
+                  <label className="block text-[12px] font-medium text-zinc-700 mb-1.5">Remarks / Reason (Optional)</label>
+                  <div className="relative">
+                    <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+                    <input 
+                      type="text"
+                      value={editLogPrompt.remarks || ''}
+                      onChange={(e) => setEditLogPrompt(p => ({ ...p, remarks: e.target.value }))}
+                      placeholder="e.g. Late due to traffic, doctor appointment"
+                      className="w-full pl-9 pr-4 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all placeholder:text-zinc-400"
+                    />
+                  </div>
+                </div>
 
                 <div className="pt-2 border-t border-zinc-200/50 mt-1">
                   <div className="flex items-center justify-between mb-3">
@@ -1710,6 +1760,11 @@ export default function ManageAttendance() {
                   </div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Late By</p>
                   <p className={`text-[15px] font-bold ${reportModal.data.lateMins > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{reportModal.data.lateMins > 0 ? `${reportModal.data.lateMins} mins` : 'On time'}</p>
+                  {reportModal.data.remarks && (
+                    <p className="text-[11px] font-medium text-amber-700 mt-1 truncate max-w-[200px]" title={reportModal.data.remarks}>
+                      Note: {reportModal.data.remarks}
+                    </p>
+                  )}
                 </div>
 
               </div>

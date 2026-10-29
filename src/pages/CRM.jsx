@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUp, Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp } from 'lucide-react';
+import { ArrowUp, ArrowUpDown, Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp, Flame } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -91,8 +91,10 @@ export default function CRM() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [showIrregularPhonesOnly, setShowIrregularPhonesOnly] = useState(false);
   const [showMissedFollowUpsOnly, setShowMissedFollowUpsOnly] = useState(false);
+  const [showFrequentlyContactedOnly, setShowFrequentlyContactedOnly] = useState(false);
   const [exactDateFilter, setExactDateFilter] = useState('');
   const [exactDateFilterType, setExactDateFilterType] = useState('added');
+  const [sortBy, setSortBy] = useState('added-desc');
 
   const getFilteredItemsForUser = (items, type = 'leads') => {
     if (isAdmin || isManager || isHR || !user?.uid || user.uid === '2K5X44krNabacvlJFgpvsVpDQHi1') return items;
@@ -1328,9 +1330,112 @@ export default function CRM() {
     return itemDate >= threeDaysAgo && itemDate <= today;
   };
 
+  const getContactTouchpoints = (item) => {
+    if (!item) return 0;
+    let count = 0;
+
+    // 1. Status history entries (from QuickUpdateModal or status changes)
+    if (Array.isArray(item.statusHistory) && item.statusHistory.length > 0) {
+      count = Math.max(count, item.statusHistory.length);
+    }
+
+    // 2. Dated bracket logs in remarks (e.g. [Sep 22], [Oct 14])
+    if (typeof item.remarks === 'string' && item.remarks.trim()) {
+      const bracketMatches = item.remarks.match(/\[[A-Za-z]{3,}\s+\d{1,2}\]/g);
+      if (bracketMatches && bracketMatches.length > 0) {
+        // Each bracket tag corresponds to a distinct dated followup log, plus initial contact
+        count = Math.max(count, bracketMatches.length + 1);
+      } else {
+        const lines = item.remarks.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        if (lines.length > 1) {
+          count = Math.max(count, lines.length);
+        }
+      }
+    }
+
+    // 3. Fallback: if lead has different added date and last contacted date
+    if (count <= 1 && item.lastContacted && (item.date || item.createdAt)) {
+      const createdStr = item.date || (item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toISOString().split('T')[0] : '');
+      if (createdStr && item.lastContacted !== createdStr) {
+        count = Math.max(count, 2);
+      }
+    }
+
+    return count;
+  };
+
+  // Rule: Frequently contacted if 3 or more logged interaction touchpoints (initial outreach + 2+ follow-up notes/status updates)
+  const isFrequentlyContacted = (item) => {
+    return getContactTouchpoints(item) >= 3;
+  };
+
+  const getAddedTime = (item) => {
+    if (!item) return 0;
+    if (item.createdAt) {
+      if (typeof item.createdAt.seconds === 'number') return item.createdAt.seconds * 1000;
+      if (typeof item.createdAt === 'string' || typeof item.createdAt === 'number') {
+        const t = new Date(item.createdAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+    }
+    if (item.date) {
+      const t = new Date(item.date).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (item.addedDate) {
+      const t = new Date(item.addedDate).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  };
+
+  const getUpdatedTime = (item) => {
+    if (!item) return 0;
+    if (item.updatedAt) {
+      if (typeof item.updatedAt.seconds === 'number') return item.updatedAt.seconds * 1000;
+      if (typeof item.updatedAt === 'string' || typeof item.updatedAt === 'number') {
+        const t = new Date(item.updatedAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+    }
+    if (Array.isArray(item.statusHistory) && item.statusHistory.length > 0) {
+      const lastEntry = item.statusHistory[item.statusHistory.length - 1];
+      if (lastEntry) {
+        if (lastEntry.date) {
+          const t = new Date(lastEntry.date).getTime();
+          if (!isNaN(t)) return t;
+        }
+        if (lastEntry.timestamp) {
+          const t = typeof lastEntry.timestamp.seconds === 'number'
+            ? lastEntry.timestamp.seconds * 1000 
+            : new Date(lastEntry.timestamp).getTime();
+          if (!isNaN(t)) return t;
+        }
+      }
+    }
+    const otherDate = item.lastFollowedUp || item.lastContacted || item.lastMeetingDate;
+    if (otherDate) {
+      const t = new Date(otherDate).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return getAddedTime(item);
+  };
+
+  const getFollowUpTime = (item) => {
+    if (!item) return null;
+    const raw = item.nextFollowUp || item.followUpDate || item.followUp;
+    if (!raw || (typeof raw === 'string' && raw.trim() === '')) return null;
+    if (typeof raw.seconds === 'number') return raw.seconds * 1000;
+    if (typeof raw === 'string' || typeof raw === 'number' || raw instanceof Date) {
+      const t = new Date(raw).getTime();
+      return isNaN(t) ? null : t;
+    }
+    return null;
+  };
+
   const getFilteredData = (data, ignoreStatus = false) => {
     const lowerQuery = searchQuery.toLowerCase();
-    return data.filter(item => {
+    const filtered = data.filter(item => {
       const status = item.currentStatus || 'N/A';
       if (!ignoreStatus && statusFilter !== '' && status !== statusFilter) return false;
       
@@ -1346,6 +1451,8 @@ export default function CRM() {
       if (showIrregularPhonesOnly && !isIrregularPhone(phone)) return false;
       
       if (showMissedFollowUpsOnly && !isMissedFollowUp(item)) return false;
+
+      if (showFrequentlyContactedOnly && !isFrequentlyContacted(item)) return false;
 
       const leadType = item.leadType || 'N/A';
       if (leadTypeFilter !== '' && leadType !== leadTypeFilter) return false;
@@ -1390,6 +1497,43 @@ export default function CRM() {
       
       return true;
     });
+
+    if (sortBy === 'added-desc') {
+      return [...filtered].sort((a, b) => getAddedTime(b) - getAddedTime(a));
+    } else if (sortBy === 'added-asc') {
+      return [...filtered].sort((a, b) => getAddedTime(a) - getAddedTime(b));
+    } else if (sortBy === 'updated-desc') {
+      return [...filtered].sort((a, b) => getUpdatedTime(b) - getUpdatedTime(a));
+    } else if (sortBy === 'updated-asc') {
+      return [...filtered].sort((a, b) => getUpdatedTime(a) - getUpdatedTime(b));
+    } else if (sortBy === 'followup-asc') {
+      return [...filtered].sort((a, b) => {
+        const timeA = getFollowUpTime(a);
+        const timeB = getFollowUpTime(b);
+        if (timeA !== null && timeB === null) return -1;
+        if (timeA === null && timeB !== null) return 1;
+        if (timeA !== null && timeB !== null) return timeA - timeB;
+        return getAddedTime(b) - getAddedTime(a);
+      });
+    } else if (sortBy === 'followup-desc') {
+      return [...filtered].sort((a, b) => {
+        const timeA = getFollowUpTime(a);
+        const timeB = getFollowUpTime(b);
+        if (timeA !== null && timeB === null) return -1;
+        if (timeA === null && timeB !== null) return 1;
+        if (timeA !== null && timeB !== null) return timeB - timeA;
+        return getAddedTime(b) - getAddedTime(a);
+      });
+    } else if (sortBy === 'touchpoints-desc') {
+      return [...filtered].sort((a, b) => {
+        const touchA = getContactTouchpoints(a);
+        const touchB = getContactTouchpoints(b);
+        if (touchB !== touchA) return touchB - touchA;
+        return getUpdatedTime(b) - getUpdatedTime(a);
+      });
+    }
+
+    return filtered;
   };
 
   const dataFilteredByOtherThanStatus = getFilteredData(currentData, true);
@@ -1601,6 +1745,25 @@ export default function CRM() {
           
           <div className="flex items-center gap-3 w-full overflow-x-auto no-scrollbar pb-1">
 
+            {/* Sort By Dropdown (Available for ALL employees) */}
+            <div className="relative w-48 sm:w-56 shrink-0">
+              <ArrowUpDown className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              <select 
+                value={sortBy}
+                onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100 outline-none rounded-lg text-[13px] transition-all appearance-none cursor-pointer text-zinc-700 font-medium"
+                title="Sort by Added Time, Last Updated Time, or Follow Up Date"
+              >
+                <option value="added-desc">Added Time: Newest First</option>
+                <option value="added-asc">Added Time: Oldest First</option>
+                <option value="updated-desc">Last Updated: Most Recent</option>
+                <option value="updated-asc">Last Updated: Oldest First</option>
+                <option value="followup-asc">Follow Up Date: Nearest First</option>
+                <option value="followup-desc">Follow Up Date: Furthest First</option>
+                <option value="touchpoints-desc">Frequently Contacted: Most First</option>
+              </select>
+            </div>
+
             <div className="relative w-36 sm:w-44 shrink-0">
               <AlertCircle className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <select 
@@ -1710,8 +1873,47 @@ export default function CRM() {
               <Calendar className="w-4 h-4" />
               Missed Follow Ups
             </button>
+
+            {/* Frequently Contacted Quick Filter Button */}
+            <button
+              onClick={() => { setShowFrequentlyContactedOnly(!showFrequentlyContactedOnly); setCurrentPage(1); }}
+              className={`px-3 py-2 shrink-0 rounded-lg text-[13px] font-medium transition-all border flex items-center gap-1.5 whitespace-nowrap select-none ${
+                showFrequentlyContactedOnly 
+                  ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-sm ring-2 ring-amber-400/20' 
+                  : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100'
+              }`}
+              title="Filter by Frequently Contacted (Rule: 3+ recorded interactions / status updates / dated logs)"
+            >
+              <Flame className={`w-4 h-4 ${showFrequentlyContactedOnly ? 'text-amber-600 fill-amber-500' : 'text-zinc-400'}`} />
+              <span>Frequently Contacted</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                showFrequentlyContactedOnly ? 'bg-amber-200 text-amber-900' : 'bg-zinc-200/80 text-zinc-600'
+              }`}>
+                {currentData.filter(isFrequentlyContacted).length}
+              </span>
+            </button>
           </div>
         </div>
+
+        {/* Frequently Contacted Active Banner with Rule Explanation */}
+        {showFrequentlyContactedOnly && (
+          <div className="px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/80 flex items-center justify-between text-[12px] text-amber-950">
+            <div className="flex items-center gap-2">
+              <span className="p-1 bg-amber-100 rounded-md text-amber-600">
+                <Flame className="w-3.5 h-3.5 fill-amber-500" />
+              </span>
+              <span>
+                <strong>Frequently Contacted Active:</strong> Showing leads with <strong>3+ contact touchpoints</strong> (multiple status updates, follow-up logs, or remarks).
+              </span>
+            </div>
+            <button
+              onClick={() => { setShowFrequentlyContactedOnly(false); setCurrentPage(1); }}
+              className="px-2.5 py-1 text-xs font-semibold bg-amber-100/80 hover:bg-amber-200 text-amber-900 rounded-md transition-colors"
+            >
+              Clear Filter
+            </button>
+          </div>
+        )}
 
         {/* Regular Leads View */}
         {activeTab === 'regular' && (
@@ -1720,11 +1922,35 @@ export default function CRM() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
-                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px]">Added Date</th>
+                  <th 
+                    onClick={() => {
+                      setSortBy(prev => prev === 'added-desc' ? 'added-asc' : 'added-desc');
+                      setCurrentPage(1);
+                    }}
+                    className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] cursor-pointer hover:bg-zinc-100/70 transition-colors select-none"
+                    title="Click to sort by Added Date"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Added Date</span>
+                      <ArrowUpDown className={`w-3 h-3 ${sortBy.startsWith('added') ? 'text-zinc-900' : 'text-zinc-300'}`} />
+                    </div>
+                  </th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[220px]">Lead Info</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[180px]">Status</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] sm:w-[120px]">Associate</th>
-                  <th className="hidden md:table-cell p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider max-w-[150px]">Next Follow Up</th>
+                  <th 
+                    onClick={() => {
+                      setSortBy(prev => prev === 'followup-asc' ? 'followup-desc' : 'followup-asc');
+                      setCurrentPage(1);
+                    }}
+                    className="hidden md:table-cell p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider max-w-[150px] cursor-pointer hover:bg-zinc-100/70 transition-colors select-none"
+                    title="Click to sort by Follow Up Date"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Next Follow Up</span>
+                      <ArrowUpDown className={`w-3 h-3 ${sortBy.startsWith('followup') ? 'text-zinc-900' : 'text-zinc-300'}`} />
+                    </div>
+                  </th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider text-right w-16 sm:w-24">Actions</th>
                 </tr>
               </thead>
@@ -1777,6 +2003,17 @@ export default function CRM() {
                         <User className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 shrink-0" />
                         <span className="truncate">{lead.clientName || lead.name || 'N/A'}</span>
                         {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ml-2 hidden sm:inline-block">Transferred from {lead.transferredFromName}</span>}
+                        {getContactTouchpoints(lead) >= 2 && (
+                          <span 
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ml-1.5 ${
+                              getContactTouchpoints(lead) >= 3 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+                            }`}
+                            title={`${getContactTouchpoints(lead)} contact interactions/updates recorded`}
+                          >
+                            <Flame className={`w-2.5 h-2.5 ${getContactTouchpoints(lead) >= 3 ? 'text-amber-600 fill-amber-500' : 'text-zinc-400'}`} />
+                            {getContactTouchpoints(lead)} contacts
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] sm:text-[12px] text-zinc-500 mt-1 flex items-center gap-1 truncate">
                         <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> 
@@ -1868,7 +2105,19 @@ export default function CRM() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
-                  <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px]">Added Date</th>
+                  <th 
+                    onClick={() => {
+                      setSortBy(prev => prev === 'added-desc' ? 'added-asc' : 'added-desc');
+                      setCurrentPage(1);
+                    }}
+                    className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] cursor-pointer hover:bg-zinc-100/70 transition-colors select-none"
+                    title="Click to sort by Added Date"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Added Date</span>
+                      <ArrowUpDown className={`w-3 h-3 ${sortBy.startsWith('added') ? 'text-zinc-900' : 'text-zinc-300'}`} />
+                    </div>
+                  </th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[220px]">Lead Info</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[120px] sm:w-[180px]">Status</th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-[100px] sm:w-[120px]">Associate</th>
@@ -1926,6 +2175,17 @@ export default function CRM() {
                         <User className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 shrink-0" />
                         <span className="truncate">{lead.name}</span>
                         {lead.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ml-2 hidden sm:inline-block">Transferred from {lead.transferredFromName}</span>}
+                        {getContactTouchpoints(lead) >= 2 && (
+                          <span 
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ml-1.5 ${
+                              getContactTouchpoints(lead) >= 3 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+                            }`}
+                            title={`${getContactTouchpoints(lead)} contact interactions/updates recorded`}
+                          >
+                            <Flame className={`w-2.5 h-2.5 ${getContactTouchpoints(lead) >= 3 ? 'text-amber-600 fill-amber-500' : 'text-zinc-400'}`} />
+                            {getContactTouchpoints(lead)} contacts
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] sm:text-[12px] text-zinc-500 mt-1 flex items-center gap-1 truncate">
                         <Phone className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" /> 
@@ -2017,7 +2277,19 @@ export default function CRM() {
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
-                  <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Added Date</th>
+                  <th 
+                    onClick={() => {
+                      setSortBy(prev => prev === 'added-desc' ? 'added-asc' : 'added-desc');
+                      setCurrentPage(1);
+                    }}
+                    className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider cursor-pointer hover:bg-zinc-100/70 transition-colors select-none"
+                    title="Click to sort by Added Date"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Added Date</span>
+                      <ArrowUpDown className={`w-3 h-3 ${sortBy.startsWith('added') ? 'text-zinc-900' : 'text-zinc-300'}`} />
+                    </div>
+                  </th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Distributor</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact Person</th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Performance</th>
@@ -2069,6 +2341,17 @@ export default function CRM() {
                         <Target className="w-4 h-4 text-zinc-400" />
                         {dist.distributorName || 'N/A'}
                         {dist.transferredFromName && <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">Transferred from {dist.transferredFromName}</span>}
+                        {getContactTouchpoints(dist) >= 2 && (
+                          <span 
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ml-1.5 ${
+                              getContactTouchpoints(dist) >= 3 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'
+                            }`}
+                            title={`${getContactTouchpoints(dist)} contact interactions/updates recorded`}
+                          >
+                            <Flame className={`w-2.5 h-2.5 ${getContactTouchpoints(dist) >= 3 ? 'text-amber-600 fill-amber-500' : 'text-zinc-400'}`} />
+                            {getContactTouchpoints(dist)} contacts
+                          </span>
+                        )}
                       </div>
                       <div className="text-[12px] text-zinc-500 mt-1 flex items-center gap-1">
                         <MapPin className="w-3 h-3" /> {dist.region || dist.state || 'N/A'}

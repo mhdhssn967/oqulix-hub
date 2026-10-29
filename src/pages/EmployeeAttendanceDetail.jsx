@@ -172,7 +172,8 @@ export default function EmployeeAttendanceDetail() {
         date: d,
         status,
         logHours,
-        fieldLocation: log?.fieldLocation || null
+        fieldLocation: log?.fieldLocation || null,
+        remarks: log?.remarks || log?.clockInRemark || null
       });
     }
 
@@ -300,12 +301,17 @@ export default function EmployeeAttendanceDetail() {
                       day.status === 'Present' ? 'bg-emerald-200/50 text-emerald-800' :
                       day.status === 'WFH' ? 'bg-indigo-200/50 text-indigo-800' :
                       'bg-fuchsia-200/50 text-fuchsia-800'
-                    }`} title={day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status}>
+                    }`} title={day.remarks ? `${day.status} (Note: ${day.remarks})` : (day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status)}>
                       <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" strokeWidth={3} /> <span className="hidden md:inline">{day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status}</span>
                     </span>
                     {day.logHours > 0 && day.status !== 'Field' && (
                       <span className="text-[10px] font-semibold opacity-75 hidden md:flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {day.logHours}h
+                      </span>
+                    )}
+                    {day.remarks && (
+                      <span className="text-[9px] text-amber-800 bg-amber-100/80 border border-amber-200/60 rounded px-1 truncate max-w-full hidden md:inline-block mt-0.5 font-medium" title={`Remark: ${day.remarks}`}>
+                        {day.remarks}
                       </span>
                     )}
                   </div>

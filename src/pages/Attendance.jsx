@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase';
 import RequestModal from '../components/RequestModal';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase, Activity } from 'lucide-react';
+import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase, Activity, MessageSquare } from 'lucide-react';
 import { calculateEmployeeAttendanceMetrics } from '../utils/attendanceUtils';
 
 export default function Attendance() {
@@ -344,6 +344,12 @@ export default function Attendance() {
                     <tr key={log.id} className="hover:bg-zinc-50/50 transition-colors">
                       <td className="px-5 py-4">
                         <span className="text-[13px] font-semibold text-zinc-900">{displayDate}</span>
+                        {(log.remarks || log.clockInRemark) && (
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200/60 rounded px-1.5 py-0.5 w-fit font-medium" title={log.remarks || log.clockInRemark}>
+                            <MessageSquare className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate max-w-[180px]">{log.remarks || log.clockInRemark}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-[12px] font-medium text-zinc-600 bg-zinc-100 border border-zinc-200 px-2 py-1 rounded-md">

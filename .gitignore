@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Analysis files and scripts
+Analysis/
+analyze_happymoves.mjs
+fetch_happymoves_full.mjs
+happymoves_analysis_summary.json
+happymoves_full_crm_dump.json
