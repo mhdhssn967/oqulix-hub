@@ -1338,7 +1338,7 @@ export default function Hiring() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Position Title *
+                    Position Title <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1369,7 +1369,7 @@ export default function Hiring() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Date Added *
+                    Date Added <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -1383,11 +1383,12 @@ export default function Hiring() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    No. of Openings
+                    No. of Openings <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
                     min="1"
+                    required
                     value={posForm.openings}
                     onChange={(e) => setPosForm({ ...posForm, openings: e.target.value })}
                     className="w-full px-3.5 py-2 border border-zinc-300 rounded-xl text-sm focus:outline-none focus:border-black"
@@ -1395,9 +1396,10 @@ export default function Hiring() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Hiring Status
+                    Hiring Status <span className="text-red-500">*</span>
                   </label>
                   <select
+                    required
                     value={posForm.status}
                     onChange={(e) => setPosForm({ ...posForm, status: e.target.value })}
                     className="w-full px-3.5 py-2 border border-zinc-300 rounded-xl text-sm focus:outline-none focus:border-black"
@@ -1417,9 +1419,10 @@ export default function Hiring() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Fresher or Experienced? *
+                      Fresher or Experienced? <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={posForm.experienceType}
                       onChange={(e) =>
                         setPosForm({ ...posForm, experienceType: e.target.value })
@@ -1435,7 +1438,7 @@ export default function Hiring() {
                   {posForm.experienceType !== 'Fresher' && (
                     <div>
                       <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                        Required Years of Experience *
+                        Required Years of Experience <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1454,9 +1457,10 @@ export default function Hiring() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      In Office or Work From Home? *
+                      In Office or Work From Home? <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={posForm.workMode}
                       onChange={(e) =>
                         setPosForm({ ...posForm, workMode: e.target.value })
@@ -1496,9 +1500,10 @@ export default function Hiring() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Has Probation Period?
+                      Has Probation Period? <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={posForm.hasProbation}
                       onChange={(e) =>
                         setPosForm({ ...posForm, hasProbation: e.target.value })
@@ -1514,10 +1519,11 @@ export default function Hiring() {
                     <>
                       <div>
                         <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                          Probation Duration
+                          Probation Duration <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
+                          required
                           placeholder="e.g. 3 Months, 6 Months"
                           value={posForm.probationDuration}
                           onChange={(e) =>
@@ -1529,10 +1535,11 @@ export default function Hiring() {
 
                       <div>
                         <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                          Probation Stipend / Pay Amount
+                          Probation Stipend / Pay Amount <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="text"
+                          required
                           placeholder="e.g. ₹8,000/mo stipend"
                           value={posForm.probationAmount}
                           onChange={(e) =>
@@ -1549,9 +1556,10 @@ export default function Hiring() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-zinc-200/60">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Payment Type *
+                      Payment Type <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={posForm.compensationType}
                       onChange={(e) =>
                         setPosForm({ ...posForm, compensationType: e.target.value })
@@ -1567,7 +1575,7 @@ export default function Hiring() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      How Much (Amount / Range) *
+                      How Much (Amount / Range) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1583,9 +1591,10 @@ export default function Hiring() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Payment Frequency
+                      Payment Frequency <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={posForm.payFrequency}
                       onChange={(e) =>
                         setPosForm({ ...posForm, payFrequency: e.target.value })
@@ -1681,7 +1690,7 @@ export default function Hiring() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Candidate Full Name *
+                    Candidate Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -1710,7 +1719,7 @@ export default function Hiring() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Phone / WhatsApp Number *
+                    Phone / WhatsApp Number <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -1740,7 +1749,7 @@ export default function Hiring() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-semibold text-zinc-700">
-                      Rate Candidate Out of 10 *
+                      Rate Candidate Out of 10 <span className="text-red-500">*</span>
                     </label>
                     <span
                       className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${getRatingBadgeStyle(
@@ -1771,9 +1780,10 @@ export default function Hiring() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-zinc-200/60">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Stage / Status
+                      Stage / Status <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={candForm.stage}
                       onChange={(e) =>
                         setCandForm({ ...candForm, stage: e.target.value })
@@ -1790,9 +1800,10 @@ export default function Hiring() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Source
+                      Source <span className="text-red-500">*</span>
                     </label>
                     <select
+                      required
                       value={candForm.source}
                       onChange={(e) =>
                         setCandForm({ ...candForm, source: e.target.value })
@@ -1812,10 +1823,11 @@ export default function Hiring() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Applied Date
+                      Applied Date <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="date"
+                      required
                       value={candForm.appliedDate}
                       onChange={(e) =>
                         setCandForm({ ...candForm, appliedDate: e.target.value })
