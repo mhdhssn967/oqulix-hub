@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield, Banknote, Calculator, Wallet } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield, Banknote, Calculator, Wallet, Briefcase } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { db } from '../../firebase';
@@ -47,6 +47,7 @@ export function Sidebar() {
     { icon: UserCheck, label: 'Attendance', path: '/attendance' },
     { icon: Users, label: 'Manage Attendance', path: '/manage-attendance' },
     { icon: UserCog, label: 'Employees', path: '/employees' },
+    { icon: Briefcase, label: 'Hiring', path: '/hiring' },
     { icon: MonitorSmartphone, label: 'Assets', path: '/assets' },
     { icon: Shield, label: 'Company Vault', path: '/company-vault' },
     { icon: TrendingUp, label: 'Performance', path: '/performance' },
@@ -64,13 +65,15 @@ export function Sidebar() {
       return false;
     }
     
+    if (label === 'Hiring' && (isAdmin || isHR)) return true;
+
     if (isAdmin || isManager) return true;
     
     if (permissions && permissions.length > 0) {
       return permissions.includes(label);
     }
     // Fallback if no permissions are loaded yet or for backwards compatibility
-    return !['Finance', 'Employees', 'Task Manager', 'Payroll Management'].includes(label);
+    return !['Finance', 'Employees', 'Hiring', 'Task Manager', 'Payroll Management'].includes(label);
   };
 
   const navItems = allNavItems.filter(item => hasPermission(item.label));

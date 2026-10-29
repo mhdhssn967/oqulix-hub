@@ -1,0 +1,106 @@
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+
+/**
+ * Cloudflare R2 Configuration via Vite Environment Variables
+ */
+const R2_ACCOUNT_ID = import.meta.env.VITE_R2_ACCOUNT_ID;
+const R2_ACCESS_KEY_ID = import.meta.env.VITE_R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = import.meta.env.VITE_R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = import.meta.env.VITE_R2_BUCKET_NAME;
+const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL; // e.g., https://pub-xxxxxxxxxxxx.r2.dev
+
+export const isR2Configured = () => {
+  return Boolean(
+    R2_ACCOUNT_ID &&
+    R2_ACCESS_KEY_ID &&
+    R2_SECRET_ACCESS_KEY &&
+    R2_BUCKET_NAME &&
+    R2_PUBLIC_URL
+  );
+};
+
+let r2Client = null;
+
+const getR2Client = () => {
+  if (!isR2Configured()) {
+    throw new Error(
+      'Cloudflare R2 is not configured. Please add VITE_R2_ACCOUNT_ID, VITE_R2_ACCESS_KEY_ID, VITE_R2_SECRET_ACCESS_KEY, VITE_R2_BUCKET_NAME, and VITE_R2_PUBLIC_URL to your .env file.'
+    );
+  }
+
+  if (!r2Client) {
+    r2Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    });
+  }
+
+  return r2Client;
+};
+
+/**
+ * Upload a resume file to Cloudflare R2
+ * @param {File} file - The browser File object
+ * @param {string} positionId - The ID of the hiring position
+ * @param {string} candidateName - Name of the candidate for clean file naming
+ * @returns {Promise<{ url: string, key: string, fileName: string, fileSize: number, fileType: string }>}
+ */
+export const uploadResumeToR2 = async (file, positionId, candidateName = 'candidate') => {
+  const client = getR2Client();
+
+  const sanitizedName = candidateName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'candidate';
+
+  const sanitizedOriginalName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const timestamp = Date.now();
+  const key = `resumes/${positionId}/${timestamp}_${sanitizedName}_${sanitizedOriginalName}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+    Body: uint8Array,
+    ContentType: file.type || 'application/pdf',
+  });
+
+  await client.send(command);
+
+  const baseUrl = R2_PUBLIC_URL.replace(/\/+$/, '');
+  const publicUrl = `${baseUrl}/${key}`;
+
+  return {
+    url: publicUrl,
+    key,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type || 'application/octet-stream',
+  };
+};
+
+/**
+ * Delete a resume file from Cloudflare R2
+ * @param {string} key - The object key stored in R2
+ */
+export const deleteResumeFromR2 = async (key) => {
+  if (!key || !isR2Configured()) return;
+  try {
+    const client = getR2Client();
+    const command = new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    });
+    await client.send(command);
+  } catch (error) {
+    console.error('Error deleting file from Cloudflare R2:', error);
+  }
+};
+

@@ -32,7 +32,7 @@ export default function Employees() {
 
   const availablePermissions = [
     "CRM", "CRM Analysis", "Finance", "Clients", "Reimbursements", "Tasks", 
-    "Attendance", "Employees", "Performance", "Documents", "Settings",
+    "Attendance", "Employees", "Hiring", "Performance", "Documents", "Settings",
     "Assets", "Company Info", "Vault", "Payroll Management"
   ];
 

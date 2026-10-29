@@ -29,6 +29,7 @@ import OtherData from './pages/OtherData';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Employees from './pages/Employees';
+import Hiring from './pages/Hiring';
 import Reimbursements from './pages/Reimbursements';
 import AdSettings from './pages/AdSettings';
 import Assets from './pages/Assets';
@@ -64,6 +65,10 @@ const PermissionRoute = ({ children, permissionLabel }) => {
   if (permissionLabel === 'Finance' && isHR && !isAdmin) {
     if (permissions && permissions.includes(permissionLabel)) return children;
     return <Navigate to="/" replace />;
+  }
+
+  if (permissionLabel === 'Hiring' && (isAdmin || isHR)) {
+    return children;
   }
   
   if (isAdmin || isManager) return children;
@@ -136,6 +141,7 @@ function App() {
           <Route path="attendance-analysis" element={<PermissionRoute permissionLabel="Attendance"><EmployeeAttendanceAnalysis /></PermissionRoute>} />
           <Route path="attendance-analysis/:employeeId" element={<PermissionRoute permissionLabel="Attendance"><EmployeeAttendanceDetail /></PermissionRoute>} />
           <Route path="employees" element={<PermissionRoute permissionLabel="Employees"><Employees /></PermissionRoute>} />
+          <Route path="hiring" element={<PermissionRoute permissionLabel="Hiring"><Hiring /></PermissionRoute>} />
           <Route path="performance" element={<Performance />} />
           <Route path="clients" element={<Clients />} />
           <Route path="analysis" element={<Analysis />} />
