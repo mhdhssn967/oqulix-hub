@@ -1,16 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield, Banknote, Calculator, Wallet, Briefcase } from 'lucide-react';
+import { LayoutDashboard, CreditCard, CheckSquare, ClipboardList, Users, TrendingUp, Settings, FileText, Database, UserCheck, BarChart2, X, UserCog, Receipt, Bell, Megaphone, Home, MonitorSmartphone, Shield, Banknote, Calculator, Wallet, Briefcase, UserCheck2 } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { db } from '../../firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 
 export function Sidebar() {
   const isOpen = useUIStore((s) => s.isMobileMenuOpen);
   const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
   const { user, isAdmin, isManager, companyId, permissions, isHR } = useAuthStore();
   const [pendingCount, setPendingCount] = useState(0);
+  const [hasSubordinates, setHasSubordinates] = useState(false);
+
+  useEffect(() => {
+    // Check if the current user has direct reports
+    if (!user?.uid) return;
+    const checkSubordinates = async () => {
+      try {
+        const empSnap = await getDocs(query(collection(db, 'employees'), where('managerId', '==', user.uid)));
+        if (!empSnap.empty) {
+          setHasSubordinates(true);
+        }
+      } catch (e) {
+        console.error("Error checking subordinates:", e);
+      }
+    };
+    checkSubordinates();
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -38,6 +55,7 @@ export function Sidebar() {
   const allNavItems = [
     { icon: Home, label: 'Dashboard', path: '/' },
     { icon: LayoutDashboard, label: 'CRM', path: '/crm' },
+    { icon: Users, label: 'Team CRM', path: '/crm/team' },
     { icon: BarChart2, label: 'CRM Analysis', path: '/analysis' },
     { icon: CreditCard, label: 'Finance', path: '/finance' },
     { icon: Users, label: 'Clients', path: '/clients' },
@@ -59,6 +77,10 @@ export function Sidebar() {
 
   const hasPermission = (label) => {
     if (label === 'Dashboard' || label === 'Payroll') return true; // Always visible
+    
+    if (label === 'Team CRM') {
+      return isAdmin || isManager || isHR || hasSubordinates;
+    }
     
     if (label === 'Finance' && isHR && !isAdmin) {
       if (permissions && permissions.includes(label)) return true;

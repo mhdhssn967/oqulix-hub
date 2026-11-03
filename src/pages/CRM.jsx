@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUp, ArrowUpDown, Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp, Flame } from 'lucide-react';
+import { ArrowUp, ArrowUpDown, Plus, Search, Filter, MoreHorizontal, Phone, Mail, Calendar, User, Building2, MapPin, Target, AlertCircle, X, DollarSign, Briefcase, Hash, Clock, FileText, CheckCircle, Tag, Globe, MessageSquare, ChevronLeft, ChevronRight, Loader2, Copy, Info, Download, Upload, ArrowRightLeft, Megaphone, TrendingUp, Flame, CheckSquare, Square, Users } from 'lucide-react';
 import { doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, collection, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
@@ -127,6 +127,11 @@ export default function CRM() {
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferTargetEmployee, setTransferTargetEmployee] = useState(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [isBulkTransferModalOpen, setIsBulkTransferModalOpen] = useState(false);
+  const [bulkTransferRemarks, setBulkTransferRemarks] = useState('');
+  const [bulkTransferTargetEmployee, setBulkTransferTargetEmployee] = useState(null);
+  const [hasSubordinates, setHasSubordinates] = useState(false);
   const [allEmployees, setAllEmployees] = useState([]);
   const [segmentClients, setSegmentClients] = useState([]);
   const [globalClients, setGlobalClients] = useState([]);
@@ -996,18 +1001,46 @@ export default function CRM() {
     try {
       const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', quickUpdateLead.id);
       
+      const prevAssociateName = quickUpdateLead.assignedToName || quickUpdateLead.employeeName || 'Unknown Associate';
+      const transferAuditEntry = {
+        date: new Date().toISOString(),
+        status: `Transferred: ${prevAssociateName} → ${transferTargetEmployee.name}`,
+        remarks: `Lead transferred from ${prevAssociateName} to ${transferTargetEmployee.name} by ${employeeData?.name || (isAdmin ? 'Admin' : 'Manager')}.`,
+        transferredFrom: prevAssociateName,
+        transferredFromUid: quickUpdateLead.assignedToUid || quickUpdateLead.userId || '',
+        transferredTo: transferTargetEmployee.name,
+        transferredToUid: transferTargetEmployee.uid,
+        transferredBy: employeeData?.name || (isAdmin ? 'Admin' : 'Manager')
+      };
+
       const updatedData = {
+        userId: transferTargetEmployee.uid,
         assignedToUid: transferTargetEmployee.uid,
         assignedToName: transferTargetEmployee.name,
-        transferredFromUid: user?.uid || 'Unknown UID',
-        transferredFromName: user?.name || 'Unknown User',
+        employeeName: transferTargetEmployee.name,
+        transferredFromUid: quickUpdateLead.assignedToUid || quickUpdateLead.userId || user?.uid || 'Unknown UID',
+        transferredFromName: prevAssociateName,
+        statusHistory: arrayUnion(transferAuditEntry),
+        transferHistory: arrayUnion(transferAuditEntry),
         updatedAt: serverTimestamp()
       };
       
       await updateDoc(docRef, updatedData);
+
+      // Also update global client list attribution
+      const clientTitle = quickUpdateLead.clientName || quickUpdateLead.name || quickUpdateLead.distributorName || quickUpdateLead.institutionName;
+      if (clientTitle) {
+        await updateGlobalClientList(clientTitle, transferTargetEmployee.name);
+      }
       
       // Update local state
-      const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
+      const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { 
+        ...it, 
+        ...updatedData,
+        statusHistory: [...(it.statusHistory || []), transferAuditEntry],
+        transferHistory: [...(it.transferHistory || []), transferAuditEntry]
+      } : it);
+
       if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
       if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
       if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
@@ -1016,11 +1049,145 @@ export default function CRM() {
       setTransferTargetEmployee(null);
       setQuickUpdateLead(null);
       
+      Swal.fire({
+        icon: 'success',
+        title: 'Lead Transferred',
+        text: `Transferred to ${transferTargetEmployee.name} successfully.`,
+        timer: 1500,
+        showConfirmButton: false
+      });
     } catch (err) {
       console.error("Error transferring lead:", err);
+      Swal.fire('Error', 'Failed to transfer lead', 'error');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleBulkTransferSubmit = async (e) => {
+    e.preventDefault();
+    if (!companyId || selectedLeadIds.length === 0 || !bulkTransferTargetEmployee) return;
+
+    let collectionName = 'leads';
+    if (activeTab === 'ads') collectionName = 'adLeads';
+    if (activeTab === 'distributors') collectionName = 'distributors';
+
+    setIsSubmitting(true);
+    Swal.fire({
+      title: 'Transferring leads...',
+      text: `Processing ${selectedLeadIds.length} items. Please wait.`,
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    try {
+      const selectedIdSet = new Set(selectedLeadIds);
+      const itemsToTransfer = currentData.filter(item => selectedIdSet.has(item.id));
+      const targetUid = bulkTransferTargetEmployee.uid;
+      const targetName = bulkTransferTargetEmployee.name;
+      const transferUser = employeeData?.name || (isAdmin ? 'Admin' : 'Manager');
+      const nowIso = new Date().toISOString();
+
+      // Chunk batch operations (max 400 writes per batch)
+      const chunkSize = 400;
+      for (let i = 0; i < itemsToTransfer.length; i += chunkSize) {
+        const chunk = itemsToTransfer.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+
+        chunk.forEach(item => {
+          const prevAssoc = item.assignedToName || item.employeeName || 'Unknown Associate';
+          const auditEntry = {
+            date: nowIso,
+            status: `Transferred: ${prevAssoc} → ${targetName}`,
+            remarks: bulkTransferRemarks ? `Bulk transfer: ${bulkTransferRemarks}` : `Bulk transferred from ${prevAssoc} to ${targetName} by ${transferUser}.`,
+            transferredFrom: prevAssoc,
+            transferredFromUid: item.assignedToUid || item.userId || '',
+            transferredTo: targetName,
+            transferredToUid: targetUid,
+            transferredBy: transferUser
+          };
+
+          const docRef = doc(db, 'userData', companyId, 'segments', activeSegment, 'crmData', collectionName, 'items', item.id);
+          batch.update(docRef, {
+            userId: targetUid,
+            assignedToUid: targetUid,
+            assignedToName: targetName,
+            employeeName: targetName,
+            transferredFromUid: item.assignedToUid || item.userId || '',
+            transferredFromName: prevAssoc,
+            statusHistory: arrayUnion(auditEntry),
+            transferHistory: arrayUnion(auditEntry),
+            updatedAt: serverTimestamp()
+          });
+        });
+
+        await batch.commit();
+      }
+
+      // Update local state
+      const updateList = (prevList) => prevList.map(item => {
+        if (!selectedIdSet.has(item.id)) return item;
+        const prevAssoc = item.assignedToName || item.employeeName || 'Unknown Associate';
+        const auditEntry = {
+          date: nowIso,
+          status: `Transferred: ${prevAssoc} → ${targetName}`,
+          remarks: bulkTransferRemarks ? `Bulk transfer: ${bulkTransferRemarks}` : `Bulk transferred from ${prevAssoc} to ${targetName} by ${transferUser}.`,
+          transferredFrom: prevAssoc,
+          transferredTo: targetName,
+          transferredBy: transferUser
+        };
+        return {
+          ...item,
+          userId: targetUid,
+          assignedToUid: targetUid,
+          assignedToName: targetName,
+          employeeName: targetName,
+          transferredFromName: prevAssoc,
+          statusHistory: [...(item.statusHistory || []), auditEntry],
+          transferHistory: [...(item.transferHistory || []), auditEntry]
+        };
+      });
+
+      if (activeTab === 'regular') setRegularLeads(updateList);
+      if (activeTab === 'ads') setAdLeads(updateList);
+      if (activeTab === 'distributors') setDistributors(updateList);
+
+      const transferredCount = selectedLeadIds.length;
+      setSelectedLeadIds([]);
+      setIsBulkTransferModalOpen(false);
+      setBulkTransferRemarks('');
+      setBulkTransferTargetEmployee(null);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Bulk Transfer Complete',
+        text: `Successfully transferred ${transferredCount} items to ${targetName}.`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error("Error bulk transferring leads:", err);
+      Swal.fire('Error', 'Failed to complete bulk transfer: ' + err.message, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleSelectAllCurrentPage = (pageItems) => {
+    const pageIds = pageItems.map(it => it.id);
+    const allSelected = pageIds.every(id => selectedLeadIds.includes(id));
+    if (allSelected) {
+      setSelectedLeadIds(prev => prev.filter(id => !pageIds.includes(id)));
+    } else {
+      setSelectedLeadIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const handleToggleSelectRow = (e, id) => {
+    e.stopPropagation();
+    setSelectedLeadIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
 
   useEffect(() => {
@@ -1031,7 +1198,8 @@ export default function CRM() {
     setMonthFilter('');
     setLeadTypeFilter('');
     setShowMissedFollowUpsOnly(false);
-  }, [activeTab]);
+    setSelectedLeadIds([]);
+  }, [activeTab, activeSegment]);
 
   useEffect(() => {
     const fetchCRMData = async () => {
@@ -1044,6 +1212,8 @@ export default function CRM() {
         setSegmentClients(c.segmentClients);
         setAllEmployees(c.allEmployees);
         setAllGlobalClients(c.allGlobalClients);
+        const hasDirectReports = (c.allEmployees || []).some(e => e.managerId === user?.uid);
+        setHasSubordinates(hasDirectReports);
         
         setRegularLeads(getFilteredItemsForUser(c.fetchedLeads, 'leads'));
         setAdLeads(getFilteredItemsForUser(c.fetchedAdLeads, 'adLeads'));
@@ -1105,6 +1275,10 @@ export default function CRM() {
         setSegmentClients(segClients);
         setAllEmployees(empsList);
         setAllGlobalClients(allGlobal);
+
+        // Check if current user has employees reporting to them
+        const hasDirectReports = empsList.some(e => e.managerId === user?.uid);
+        setHasSubordinates(hasDirectReports);
 
         setRegularLeads(getFilteredItemsForUser(fetchedLeads, 'leads'));
         setAdLeads(getFilteredItemsForUser(fetchedAdLeads, 'adLeads'));
@@ -1589,6 +1763,16 @@ export default function CRM() {
           <p className="text-[15px] text-zinc-500 mt-1.5">Manage your leads, ad campaigns, and distributors.</p>
         </div>
         <div className="flex items-center gap-3">
+          {(isAdmin || isManager || hasSubordinates) && (
+            <button 
+              onClick={() => navigate('/crm/team')}
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg font-medium text-[13px] transition-all shadow-sm flex items-center gap-2"
+              title="View and manage CRM performance for your team members"
+            >
+              <Users className="w-4 h-4 text-purple-600" />
+              Team CRM
+            </button>
+          )}
           {activeTab === 'ads' && (isAdmin || isManager || canManageAdLeads) && (
             <button 
               onClick={() => {
@@ -1915,12 +2099,62 @@ export default function CRM() {
           </div>
         )}
 
+        {/* Floating Bulk Transfer Actions Bar */}
+        {selectedLeadIds.length > 0 && (
+          <div className="sticky top-2 z-30 mx-4 my-2 p-3 bg-zinc-900 text-white rounded-xl shadow-xl flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-3">
+              <span className="px-2.5 py-1 bg-white/20 rounded-md text-[12px] font-bold">
+                {selectedLeadIds.length} Selected
+              </span>
+              <button
+                onClick={() => {
+                  const allFilteredIds = (activeTab === 'regular' ? filteredRegularLeads : activeTab === 'ads' ? filteredAdLeads : filteredDistributors).map(i => i.id);
+                  setSelectedLeadIds(allFilteredIds);
+                }}
+                className="text-[12px] text-zinc-300 hover:text-white underline font-medium"
+              >
+                Select all {dataFilteredByOtherThanStatus.length} filtered items
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedLeadIds([])}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                Deselect All
+              </button>
+              <button
+                onClick={() => {
+                  setBulkTransferTargetEmployee(null);
+                  setBulkTransferRemarks('');
+                  setIsBulkTransferModalOpen(true);
+                }}
+                className="px-4 py-1.5 bg-white text-black hover:bg-zinc-100 rounded-lg text-[12px] font-bold transition-all shadow-sm flex items-center gap-1.5"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                Transfer Selected
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Regular Leads View */}
         {activeTab === 'regular' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[500px] sm:min-w-[700px]">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                  <th className="p-3 sm:p-4 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).length > 0 &&
+                        filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).every(l => selectedLeadIds.includes(l.id))
+                      }
+                      onChange={() => handleToggleSelectAllCurrentPage(filteredRegularLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage))}
+                      className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                    />
+                  </th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
                   <th 
                     onClick={() => {
@@ -1961,9 +2195,17 @@ export default function CRM() {
                   return (
                   <tr 
                     key={lead.id} 
-                    className={`transition-colors cursor-pointer group ${isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
+                    className={`transition-colors cursor-pointer group ${selectedLeadIds.includes(lead.id) ? 'bg-zinc-100/80 hover:bg-zinc-100' : isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`}
                     onClick={() => { setQuickUpdateLead(lead);  }}
                   >
+                    <td className="p-3 sm:p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.includes(lead.id)}
+                        onChange={(e) => handleToggleSelectRow(e, lead.id)}
+                        className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                      />
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(lead) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
@@ -2104,6 +2346,17 @@ export default function CRM() {
             <table className="w-full text-left border-collapse min-w-[500px] sm:min-w-[700px]">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                  <th className="p-3 sm:p-4 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).length > 0 &&
+                        filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).every(l => selectedLeadIds.includes(l.id))
+                      }
+                      onChange={() => handleToggleSelectAllCurrentPage(filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage))}
+                      className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                    />
+                  </th>
                   <th className="p-3 sm:p-4 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider w-8 sm:w-12 text-center">#</th>
                   <th 
                     onClick={() => {
@@ -2128,10 +2381,19 @@ export default function CRM() {
               <tbody className="divide-y divide-zinc-100">
                 {filteredAdLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((lead, index) => (
                   <tr key={lead.id} className={`transition-colors group cursor-pointer ${
+                    selectedLeadIds.includes(lead.id) ? 'bg-zinc-100/80 hover:bg-zinc-100' :
                     isMissedFollowUp(lead) ? 'bg-red-50/40 hover:bg-red-100/50' : 
                     (!(lead.statusHistory?.length > 1) && !(lead.history?.length > 1)) ? 'bg-blue-50/80 hover:bg-blue-100/80' : 
                     'hover:bg-zinc-50/50'
                   }`} onClick={() => { setQuickUpdateLead(lead);  }}>
+                    <td className="p-3 sm:p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.includes(lead.id)}
+                        onChange={(e) => handleToggleSelectRow(e, lead.id)}
+                        className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                      />
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(lead) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
@@ -2276,6 +2538,17 @@ export default function CRM() {
             <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
                 <tr className="border-b border-zinc-100 bg-zinc-50/50">
+                  <th className="px-3 py-3 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).length > 0 &&
+                        filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).every(l => selectedLeadIds.includes(l.id))
+                      }
+                      onChange={() => handleToggleSelectAllCurrentPage(filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage))}
+                      className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                    />
+                  </th>
                   <th className="px-5 py-3 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider w-12">#</th>
                   <th 
                     onClick={() => {
@@ -2299,7 +2572,15 @@ export default function CRM() {
               </thead>
               <tbody className="divide-y divide-zinc-100">
                 {filteredDistributors.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((dist, index) => (
-                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist);  }}>
+                  <tr key={dist.id} className={`transition-colors group cursor-pointer ${selectedLeadIds.includes(dist.id) ? 'bg-zinc-100/80 hover:bg-zinc-100' : isMissedFollowUp(dist) ? 'bg-red-50/40 hover:bg-red-100/50' : 'hover:bg-zinc-50/50'}`} onClick={() => { setQuickUpdateLead(dist);  }}>
+                    <td className="px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.includes(dist.id)}
+                        onChange={(e) => handleToggleSelectRow(e, dist.id)}
+                        className="w-4 h-4 rounded text-black focus:ring-black cursor-pointer"
+                      />
+                    </td>
                     <td className="px-5 py-4 text-[13px] text-zinc-500 font-medium relative">
                       {isRecentLead(dist) && (
                         <span className="absolute top-0 left-0 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-br-md shadow-sm uppercase tracking-wider z-10 leading-none">
@@ -3208,6 +3489,85 @@ export default function CRM() {
         </div>
       )}
       
+      {/* Bulk Transfer Modal */}
+      {isBulkTransferModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => !isSubmitting && setIsBulkTransferModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-zinc-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-zinc-900 text-[16px] flex items-center gap-2">
+                  <ArrowRightLeft className="w-5 h-5 text-purple-600" />
+                  Bulk Transfer Leads ({selectedLeadIds.length})
+                </h3>
+                <p className="text-[12px] text-zinc-500 mt-0.5">
+                  Reassign selected {activeTab === 'regular' ? 'regular leads' : activeTab === 'ads' ? 'ad leads' : 'distributors'} to another team member.
+                </p>
+              </div>
+              <button onClick={() => !isSubmitting && setIsBulkTransferModalOpen(false)} className="text-zinc-400 hover:text-black">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-4">
+              {/* Transfer Summary Notice */}
+              <div className="p-3 bg-purple-50/70 border border-purple-200/80 rounded-xl text-[12px] text-purple-900">
+                <p className="font-semibold">Transfer Audit Trail:</p>
+                <p className="mt-0.5 text-purple-800">
+                  Each transferred record will have a clear entry logged in its history stating who it was transferred from and whom it was transferred to, along with the timestamp.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Select Target Associate</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1 border border-zinc-200 rounded-xl bg-zinc-50/50">
+                  {allEmployees.filter(e => e.isActive !== false).map(emp => (
+                    <button
+                      key={emp.uid || emp.id}
+                      type="button"
+                      onClick={() => setBulkTransferTargetEmployee(emp)}
+                      className={`text-left p-3 rounded-xl border transition-all flex flex-col gap-0.5 ${bulkTransferTargetEmployee?.uid === emp.uid ? 'border-purple-600 bg-purple-50 text-purple-950 font-semibold ring-2 ring-purple-500/20' : 'border-zinc-200 bg-white hover:border-zinc-300'}`}
+                    >
+                      <span className="text-[13px] font-bold truncate">{emp.name}</span>
+                      <span className="text-[11px] text-zinc-500 truncate">{emp.position || 'Associate'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Transfer Reason / Remarks (Optional)</label>
+                <textarea
+                  rows={2}
+                  value={bulkTransferRemarks}
+                  onChange={(e) => setBulkTransferRemarks(e.target.value)}
+                  placeholder="e.g. Territory handover, associate reassignment, leave coverage..."
+                  className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all resize-none"
+                />
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between">
+              <span className="text-[12px] text-zinc-500">
+                {bulkTransferTargetEmployee ? `Target: ${bulkTransferTargetEmployee.name}` : 'Select an associate'}
+              </span>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => !isSubmitting && setIsBulkTransferModalOpen(false)} className="px-4 py-2 rounded-xl text-[13px] font-medium text-zinc-600 hover:bg-zinc-200 transition-colors">
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleBulkTransferSubmit}
+                  disabled={!bulkTransferTargetEmployee || isSubmitting} 
+                  className="px-5 py-2 rounded-xl text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
+                >
+                  {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Transferring...</> : `Confirm Transfer (${selectedLeadIds.length})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Transfer Lead Modal */}
       {isTransferModalOpen && quickUpdateLead && (
         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => !isSubmitting && setIsTransferModalOpen(false)}>

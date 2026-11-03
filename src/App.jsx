@@ -34,6 +34,7 @@ import Reimbursements from './pages/Reimbursements';
 import AdSettings from './pages/AdSettings';
 import Assets from './pages/Assets';
 import CompanyVault from './pages/CompanyVault';
+import TeamCRM from './pages/TeamCRM';
 import PayrollManagement from './pages/Payroll/PayrollManagement';
 import EmployeePayrollAdminView from './pages/Payroll/EmployeePayrollAdminView';
 import EmployeePayroll from './pages/Payroll/EmployeePayroll';
@@ -128,6 +129,7 @@ function App() {
         <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           <Route index element={<Dashboard />} />
           <Route path="crm" element={<PermissionRoute permissionLabel="CRM"><CRM /></PermissionRoute>} />
+          <Route path="crm/team" element={<PermissionRoute permissionLabel="CRM"><TeamCRM /></PermissionRoute>} />
           <Route path="active-distributors" element={<PermissionRoute permissionLabel="CRM"><ActiveDistributors /></PermissionRoute>} />
           <Route path="finance" element={<PermissionRoute permissionLabel="Finance"><Finance /></PermissionRoute>} />
           <Route path="finance/gst-analysis" element={<PermissionRoute permissionLabel="Finance"><GstAnalysis /></PermissionRoute>} />

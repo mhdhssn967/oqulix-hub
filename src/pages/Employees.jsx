@@ -27,6 +27,8 @@ export default function Employees() {
     assignedRegions: '',
     permissions: [],
     dateOfJoining: '',
+    managerId: '',
+    managerName: '',
     isActive: true
   });
 
@@ -108,13 +110,17 @@ export default function Employees() {
           assignedRegions: formData.assignedRegions,
           permissions: formData.permissions,
           dateOfJoining: formData.dateOfJoining || '',
+          managerId: formData.managerId || '',
+          managerName: formData.managerName || '',
           isActive: formData.isActive !== false
         };
         await setDoc(doc(db, `userData/${companyId}/employees`, editingEmployeeId), updateData, { merge: true });
         
         await setDoc(doc(db, 'employees', editingEmployeeId), {
           name: formData.name,
-          permissions: formData.permissions
+          permissions: formData.permissions,
+          managerId: formData.managerId || '',
+          managerName: formData.managerName || ''
         }, { merge: true });
         
         if (formData.position) {
@@ -138,6 +144,8 @@ export default function Employees() {
           assignedRegions: formData.assignedRegions,
           permissions: formData.permissions,
           dateOfJoining: formData.dateOfJoining || '',
+          managerId: formData.managerId || '',
+          managerName: formData.managerName || '',
           isActive: formData.isActive !== false,
           createdAt: serverTimestamp(),
           userId: employeeId
@@ -149,7 +157,9 @@ export default function Employees() {
           email: formData.email,
           companyid: companyId,
           userId: employeeId,
-          permissions: formData.permissions
+          permissions: formData.permissions,
+          managerId: formData.managerId || '',
+          managerName: formData.managerName || ''
         });
 
         if (formData.position) {
@@ -165,7 +175,7 @@ export default function Employees() {
 
       setIsModalOpen(false);
       setEditingEmployeeId(null);
-      setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [] });
+      setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [], dateOfJoining: '', managerId: '', managerName: '', isActive: true });
       fetchData();
     } catch (err) {
       console.error("Error adding employee:", err);
@@ -185,7 +195,7 @@ export default function Employees() {
         <button
           onClick={() => {
             setEditingEmployeeId(null);
-            setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [] });
+            setFormData({ name: '', position: '', phone: '', email: '', password: '', assignedRegions: '', permissions: [], dateOfJoining: '', managerId: '', managerName: '', isActive: true });
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[14px] font-semibold hover:bg-zinc-800 transition-colors shadow-sm"
@@ -217,6 +227,7 @@ export default function Employees() {
                 <tr className="bg-zinc-50/50 border-b border-zinc-100">
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Position & Regions</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Reporting Manager</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Password</th>
                 </tr>
@@ -233,6 +244,8 @@ export default function Employees() {
                       assignedRegions: emp.assignedRegions || '',
                       permissions: emp.permissions || [],
                       dateOfJoining: emp.dateOfJoining || '',
+                      managerId: emp.managerId || '',
+                      managerName: emp.managerName || '',
                       isActive: emp.isActive !== false
                     });
                     setEditingEmployeeId(emp.id);
@@ -263,6 +276,15 @@ export default function Employees() {
                           </div>
                         )}
                       </div>
+                    </td>
+                    <td className="px-5 py-4">
+                      {emp.managerName ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                          {emp.managerName}
+                        </span>
+                      ) : (
+                        <span className="text-[12px] text-zinc-400 italic">None</span>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex flex-col gap-1">
@@ -310,6 +332,7 @@ export default function Employees() {
                     <tr className="bg-zinc-50/50 border-b border-zinc-100">
                       <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Name</th>
                       <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Position & Regions</th>
+                      <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Reporting Manager</th>
                       <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Contact</th>
                       <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Password</th>
                     </tr>
@@ -326,6 +349,8 @@ export default function Employees() {
                           assignedRegions: emp.assignedRegions || '',
                           permissions: emp.permissions || [],
                           dateOfJoining: emp.dateOfJoining || '',
+                          managerId: emp.managerId || '',
+                          managerName: emp.managerName || '',
                           isActive: emp.isActive !== false
                         });
                         setEditingEmployeeId(emp.id);
@@ -356,6 +381,15 @@ export default function Employees() {
                               </div>
                             )}
                           </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          {emp.managerName ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-zinc-100 text-zinc-600 border border-zinc-200/60">
+                              {emp.managerName}
+                            </span>
+                          ) : (
+                            <span className="text-[12px] text-zinc-400 italic">None</span>
+                          )}
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex flex-col gap-1">
@@ -471,6 +505,34 @@ export default function Employees() {
                         type="date" name="dateOfJoining" value={formData.dateOfJoining || ''} onChange={handleInputChange}
                         className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all"
                       />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Reporting Manager</label>
+                      <select
+                        name="managerId"
+                        value={formData.managerId || ''}
+                        onChange={(e) => {
+                          const mId = e.target.value;
+                          const mObj = employees.find(emp => emp.id === mId);
+                          setFormData(p => ({
+                            ...p,
+                            managerId: mId,
+                            managerName: mObj ? mObj.name : ''
+                          }));
+                        }}
+                        className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all cursor-pointer"
+                      >
+                        <option value="">No Manager Assigned</option>
+                        {employees
+                          .filter(emp => emp.id !== editingEmployeeId && emp.isActive !== false)
+                          .map(emp => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} {emp.position ? `(${emp.position})` : ''}
+                            </option>
+                          ))
+                        }
+                      </select>
                     </div>
                   </div>
 
