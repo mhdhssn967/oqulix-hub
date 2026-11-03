@@ -240,9 +240,13 @@
 .mail-content-dynamic,
 .payment-terms-dynamic,
 .bank-details-dynamic {
+  width: 100%;
+  max-width: 100%;
   overflow-wrap: break-word;
   word-wrap: break-word;
-  word-break: break-word;
+  word-break: normal;
+  white-space: normal;
+  hyphens: none;
 }
 
 .license-agreement-dynamic p,
@@ -252,7 +256,9 @@
   line-height: 1.35;
   white-space: normal;
   overflow-wrap: break-word;
-  word-break: break-word;
+  word-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
 }
 
 .license-agreement-dynamic ul,
@@ -266,7 +272,9 @@
   line-height: 1.35;
   white-space: normal;
   overflow-wrap: break-word;
-  word-break: break-word;
+  word-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
 }
 
 .license-agreement-dynamic strong {

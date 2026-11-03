@@ -23,9 +23,10 @@ const svgUser = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" 
 const svgBriefcase = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
 const svgCalendar = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`;
 const svgId = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 10h2"/><path d="M16 14h2"/><path d="M6.17 15a3 3 0 0 1 5.66 0"/><circle cx="9" cy="11" r="2"/><rect x="2" y="5" width="20" height="14" rx="2"/></svg>`;
+const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>`;
 
 export const generatePayslipPDF = async (employeeName, payrollData, companyName = 'Oqulix') => {
-  const { month, baseSalary, bonus, incentives, deductions, netSalary, processedDate } = payrollData;
+  const { month, baseSalary, expectedPay, bonus, incentives, deductions, netSalary, processedDate, totalWorkingDays, actualWorkingDays } = payrollData;
   const processDateStr = processedDate && processedDate.toDate 
     ? processedDate.toDate().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) 
     : (processedDate ? new Date(processedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A');
@@ -43,8 +44,8 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
   let y = 0;
 
   // Render Icons to PNG
-  const [iconUser, iconBriefcase, iconCalendar, iconId] = await Promise.all([
-    svgToPng(svgUser), svgToPng(svgBriefcase), svgToPng(svgCalendar), svgToPng(svgId)
+  const [iconUser, iconBriefcase, iconCalendar, iconId, iconCheck] = await Promise.all([
+    svgToPng(svgUser), svgToPng(svgBriefcase), svgToPng(svgCalendar), svgToPng(svgId), svgToPng(svgCheck)
   ]);
 
   // Header Background Box (INK)
@@ -76,12 +77,17 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
   pdf.text(`PAYSLIP  ·  ${formattedMonth.toUpperCase()}`, pageWidth - margin, 58, { align: 'right' });
 
   // Employee Details - Table Grid
+  const hasWorkingDays = totalWorkingDays !== undefined || actualWorkingDays !== undefined;
+  const gridHeight = hasWorkingDays ? 135 : 90;
   y = 145;
   pdf.setDrawColor(210, 210, 210);
   pdf.setLineWidth(1);
-  pdf.rect(margin, y, pageWidth - 2 * margin, 90, 'S'); // Outer box
-  pdf.line(pageWidth / 2, y, pageWidth / 2, y + 90); // Vertical divider
-  pdf.line(margin, y + 45, pageWidth - margin, y + 45); // Horizontal divider
+  pdf.rect(margin, y, pageWidth - 2 * margin, gridHeight, 'S'); // Outer box
+  pdf.line(pageWidth / 2, y, pageWidth / 2, y + gridHeight); // Vertical divider
+  pdf.line(margin, y + 45, pageWidth - margin, y + 45); // Horizontal divider 1
+  if (hasWorkingDays) {
+    pdf.line(margin, y + 90, pageWidth - margin, y + 90); // Horizontal divider 2
+  }
   
   const drawIconDetail = (icon, label, value, x, yPos) => {
     if (icon) pdf.addImage(icon, 'PNG', x + 12, yPos + 12, 20, 20);
@@ -93,17 +99,21 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(11);
     pdf.setTextColor(30, 30, 30);
-    pdf.text(value, x + 42, yPos + 35);
+    pdf.text(String(value ?? '—'), x + 42, yPos + 35);
   };
   
   drawIconDetail(iconUser, 'Employee Name', employeeName || 'Employee', margin, y);
   drawIconDetail(iconId, 'Employee ID', payrollData.employeeId || '—', pageWidth / 2, y);
   drawIconDetail(iconBriefcase, 'Designation', payrollData.role || '—', margin, y + 45);
   drawIconDetail(iconCalendar, 'Date Processed', processDateStr, pageWidth / 2, y + 45);
+  if (hasWorkingDays) {
+    drawIconDetail(iconCalendar, 'Total Working Days', totalWorkingDays !== undefined && totalWorkingDays !== '' ? `${totalWorkingDays} Days` : '—', margin, y + 90);
+    drawIconDetail(iconCheck, 'Actual Working Days', actualWorkingDays !== undefined && actualWorkingDays !== '' ? `${actualWorkingDays} Days` : '—', pageWidth / 2, y + 90);
+  }
 
-  y += 120; // 90 height + 30 spacing
+  y += gridHeight + 30; // grid height + 30 spacing
 
-  const currency = (amount) => `Rs. ${(amount || 0).toLocaleString('en-IN')}`;
+  const currency = (amount) => `Rs. ${(Number(amount) || 0).toLocaleString('en-IN')}`;
 
   const drawTableHeader = (title) => {
     pdf.setFillColor(245, 245, 245);
@@ -133,21 +143,26 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
     y += rowHeight;
   };
 
+  const effectiveExpectedPay = expectedPay !== undefined ? Number(expectedPay) : Number(baseSalary || 0);
+
   drawTableHeader('Earnings');
-  drawTableRow('Basic pay', baseSalary);
+  if (baseSalary !== undefined && expectedPay !== undefined && Number(baseSalary) !== Number(expectedPay)) {
+    drawTableRow('Standard Base Salary', baseSalary);
+    drawTableRow('Expected Pay (Based on Working Days)', effectiveExpectedPay);
+  } else {
+    drawTableRow('Expected Pay (Basic Pay)', effectiveExpectedPay);
+  }
   
   if ((bonus || 0) > 0) drawTableRow('Bonus', bonus);
   if ((incentives || 0) > 0) drawTableRow('Other incentives', incentives);
   
-  const gross = (baseSalary || 0) + (bonus || 0) + (incentives || 0);
+  const gross = effectiveExpectedPay + (Number(bonus) || 0) + (Number(incentives) || 0);
   drawTableRow('Gross earnings', gross, true);
   
   // Deductions Table
-  if ((deductions || 0) > 0) {
-    y += 35;
-    drawTableHeader('Deductions');
-    drawTableRow('Total deductions', deductions, true);
-  }
+  y += 30;
+  drawTableHeader('Deductions');
+  drawTableRow('Total deductions', deductions || 0, true);
 
   // Net Pay Section - Highlight Box
   y += 40;

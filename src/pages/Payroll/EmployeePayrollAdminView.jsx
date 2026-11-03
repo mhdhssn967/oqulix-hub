@@ -21,8 +21,10 @@ export default function EmployeePayrollAdminView() {
   const [baseSalaryInput, setBaseSalaryInput] = useState('');
   
   // Process Month Modal
-  const [processModal, setProcessModal] = useState({ isOpen: false, month: '', existingLog: null });
+  const [processModal, setProcessModal] = useState({ isOpen: false, month: '', existingLog: null, downloadAfterSave: false });
   const [formData, setFormData] = useState({
+    totalWorkingDays: 0,
+    actualWorkingDays: 0,
     baseSalary: 0,
     bonus: 0,
     incentives: 0,
@@ -32,15 +34,39 @@ export default function EmployeePayrollAdminView() {
   const [calculationDetails, setCalculationDetails] = useState(null);
   const [generatingPdfId, setGeneratingPdfId] = useState(null);
 
-  const handleOpenProcessModal = async (monthStr, existingLog) => {
+  const recalculateExpectedPayFromDays = (totalDaysVal, actualDaysVal, standardSalaryVal) => {
+    const total = Number(totalDaysVal) || 0;
+    const actual = Number(actualDaysVal) || 0;
+    const fullSalary = Number(standardSalaryVal) || 0;
+    if (total <= 0) return fullSalary;
+    return Math.round((fullSalary / total) * actual);
+  };
+
+  const handleWorkingDaysChange = (field, value) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      const fullSalary = employee?.salary || calculationDetails?.originalSalary || 0;
+      const newExpected = recalculateExpectedPayFromDays(
+        field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
+        field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
+        fullSalary
+      );
+      updated.baseSalary = newExpected;
+      return updated;
+    });
+  };
+
+  const handleOpenProcessModal = async (monthStr, existingLog, downloadAfterSave = false) => {
     const isProcessed = !!existingLog;
     setFormData({
-      baseSalary: isProcessed ? (existingLog.baseSalary || 0) : (employee.salary || 0),
+      totalWorkingDays: isProcessed && existingLog.totalWorkingDays !== undefined ? existingLog.totalWorkingDays : 0,
+      actualWorkingDays: isProcessed && existingLog.actualWorkingDays !== undefined ? existingLog.actualWorkingDays : 0,
+      baseSalary: isProcessed ? (existingLog.expectedPay ?? existingLog.baseSalary ?? 0) : (employee.salary || 0),
       bonus: isProcessed ? (existingLog.bonus || 0) : 0,
       incentives: isProcessed ? (existingLog.incentives || 0) : 0,
       deductions: isProcessed ? (existingLog.deductions || 0) : 0
     });
-    setProcessModal({ isOpen: true, month: monthStr, existingLog });
+    setProcessModal({ isOpen: true, month: monthStr, existingLog, downloadAfterSave });
     setCalculationDetails({ loading: true });
     
     try {
@@ -74,7 +100,6 @@ export default function EmployeePayrollAdminView() {
       }
       
       const workingDays = daysInMonth - offDays;
-      const expectedHours = workingDays * 6.5;
       
       const attQ = query(
         collection(db, `userData/${companyId}/attendanceLogs`),
@@ -109,22 +134,26 @@ export default function EmployeePayrollAdminView() {
       });
       
       const actualHours = (totalMinutesWorked / 60) + (fieldDays * 6.5);
+      const actualWorkingDays = Number((actualHours / 6.5).toFixed(1));
       const fullSalary = employee.salary || 0;
       let calculatedSalary = fullSalary;
       
-      if (expectedHours > 0) {
-        calculatedSalary = (fullSalary / expectedHours) * actualHours;
+      if (workingDays > 0) {
+        calculatedSalary = (fullSalary / workingDays) * actualWorkingDays;
         if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
       }
       
-      if (!isProcessed) {
-        setFormData(p => ({ ...p, baseSalary: Math.round(calculatedSalary) }));
-      }
+      setFormData(p => ({
+        ...p,
+        totalWorkingDays: isProcessed && existingLog.totalWorkingDays !== undefined ? existingLog.totalWorkingDays : workingDays,
+        actualWorkingDays: isProcessed && existingLog.actualWorkingDays !== undefined ? existingLog.actualWorkingDays : actualWorkingDays,
+        baseSalary: isProcessed ? p.baseSalary : Math.round(calculatedSalary)
+      }));
       
       setCalculationDetails({
         loading: false,
-        actualHours: actualHours.toFixed(1),
-        expectedHours: expectedHours.toFixed(1),
+        actualWorkingDays,
+        totalWorkingDays: workingDays,
         originalSalary: fullSalary
       });
     } catch (err) {
@@ -307,33 +336,52 @@ export default function EmployeePayrollAdminView() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const netSalary = Number(formData.baseSalary) + Number(formData.bonus) + Number(formData.incentives) - Number(formData.deductions);
+      const finalExpectedPay = Number(formData.baseSalary) || 0;
+      const finalBonus = Number(formData.bonus) || 0;
+      const finalIncentives = Number(formData.incentives) || 0;
+      const finalDeductions = Number(formData.deductions) || 0;
+      const finalTotalDays = Number(formData.totalWorkingDays) || 0;
+      const finalActualDays = Number(formData.actualWorkingDays) || 0;
+      const netSalary = finalExpectedPay + finalBonus + finalIncentives - finalDeductions;
       
       const updateData = {
         employeeId: employee.id,
         employeeName: employee.name,
         role: employee.position || 'Employee',
         month: processModal.month,
-        baseSalary: Number(formData.baseSalary),
-        bonus: Number(formData.bonus),
-        incentives: Number(formData.incentives),
-        deductions: Number(formData.deductions),
+        totalWorkingDays: finalTotalDays,
+        actualWorkingDays: finalActualDays,
+        expectedPay: finalExpectedPay,
+        baseSalary: finalExpectedPay,
+        standardBaseSalary: employee.salary || 0,
+        bonus: finalBonus,
+        incentives: finalIncentives,
+        deductions: finalDeductions,
         netSalary,
         status: 'Paid',
       };
 
+      let savedLog = null;
       if (processModal.existingLog) {
         // Update existing log
         await updateDoc(doc(db, `userData/${companyId}/payrollLogs`, processModal.existingLog.id), updateData);
+        savedLog = { ...processModal.existingLog, ...updateData };
       } else {
         // Create new log
-        updateData.processedDate = serverTimestamp();
-        await setDoc(doc(collection(db, `userData/${companyId}/payrollLogs`)), updateData);
+        const newDocRef = doc(collection(db, `userData/${companyId}/payrollLogs`));
+        await setDoc(newDocRef, { ...updateData, processedDate: serverTimestamp() });
+        savedLog = { id: newDocRef.id, ...updateData, processedDate: new Date() };
       }
 
+      const shouldDownload = processModal.downloadAfterSave;
       await fetchData(); // Refresh data
-      setProcessModal({ isOpen: false, month: '', existingLog: null });
-      Swal.fire({ title: 'Success', text: 'Payroll record updated', icon: 'success', timer: 1500, showConfirmButton: false });
+      setProcessModal({ isOpen: false, month: '', existingLog: null, downloadAfterSave: false });
+      
+      if (shouldDownload && savedLog) {
+        await handleDownloadPDF(savedLog);
+      } else {
+        Swal.fire({ title: 'Success', text: 'Payroll record updated', icon: 'success', timer: 1500, showConfirmButton: false });
+      }
     } catch (err) {
       Swal.fire('Error', 'Failed to process payroll', 'error');
     } finally {
@@ -457,7 +505,8 @@ export default function EmployeePayrollAdminView() {
             <thead>
               <tr className="bg-zinc-50/50 border-b border-zinc-100">
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Month</th>
-                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Base Salary</th>
+                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Working Days (Actual / Total)</th>
+                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Expected Pay</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Bonus</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Incentive</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Deductions</th>
@@ -480,8 +529,13 @@ export default function EmployeePayrollAdminView() {
                         <span className="text-[11px] text-amber-600 font-medium bg-amber-50 px-1.5 py-0.5 rounded">Unprocessed</span>
                       )}
                     </td>
+                    <td className="px-5 py-4 text-[13px] font-medium text-zinc-700 text-center">
+                      {isProcessed && existingLog.actualWorkingDays !== undefined
+                        ? `${existingLog.actualWorkingDays} / ${existingLog.totalWorkingDays ?? '-'} Days`
+                        : '-'}
+                    </td>
                     <td className="px-5 py-4 text-[13px] font-medium text-zinc-600 text-right">
-                      {isProcessed ? `₹${(existingLog.baseSalary || 0).toLocaleString()}` : '-'}
+                      {isProcessed ? `₹${(existingLog.expectedPay ?? existingLog.baseSalary ?? 0).toLocaleString()}` : '-'}
                     </td>
                     <td className="px-5 py-4 text-[13px] font-medium text-emerald-600 text-right">
                       {isProcessed ? `+ ₹${(existingLog.bonus || 0).toLocaleString()}` : '-'}
@@ -498,28 +552,22 @@ export default function EmployeePayrollAdminView() {
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
-                          onClick={() => handleOpenProcessModal(monthStr, existingLog)}
+                          onClick={() => handleOpenProcessModal(monthStr, existingLog, false)}
                           className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg transition-colors ${isProcessed ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'}`}
                         >
                           {isProcessed ? 'Edit' : 'Process'}
                         </button>
                         {isProcessed && (
                           <button
-                            onClick={() => handleDownloadPDF(existingLog)}
+                            onClick={() => handleOpenProcessModal(monthStr, existingLog, true)}
                             disabled={generatingPdfId === existingLog.id}
-                            title="Download Payslip"
-                            className="p-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                            title="Edit Details & Download Payslip"
+                            className="px-2.5 py-1.5 bg-blue-50 text-blue-700 text-[12px] font-semibold rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                           >
-                            {generatingPdfId === existingLog.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                            {generatingPdfId === existingLog.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            Payslip
                           </button>
                         )}
-                        {!isProcessed && calculationDetails?.loading ? (
-                          <p className="mt-1.5 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating hours...</p>
-                        ) : !isProcessed && calculationDetails && !calculationDetails.error ? (
-                          <p className="mt-1.5 text-[10px] text-zinc-500 leading-tight">
-                            Calculated from <span className="font-semibold text-zinc-700">{calculationDetails.actualHours}</span> / {calculationDetails.expectedHours} worked hours. (Standard: ₹{calculationDetails.originalSalary?.toLocaleString()})
-                          </p>
-                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -564,30 +612,63 @@ export default function EmployeePayrollAdminView() {
       {/* Process/Edit Month Modal */}
       {processModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null })}></div>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null, downloadAfterSave: false })}></div>
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <form onSubmit={handleProcessMonth} className="flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between p-4 border-b border-zinc-100 shrink-0">
                 <div>
-                  <h2 className="text-[15px] font-semibold text-zinc-900">{processModal.existingLog ? 'Edit' : 'Process'} Salary</h2>
-                  <p className="text-[12px] text-zinc-500 mt-0.5">{processModal.month}</p>
+                  <h2 className="text-[15px] font-semibold text-zinc-900">
+                    {processModal.downloadAfterSave
+                      ? 'Review & Edit Payslip Details'
+                      : processModal.existingLog
+                        ? 'Edit Payslip / Salary Details'
+                        : 'Process Salary & Payslip'}
+                  </h2>
+                  <p className="text-[12px] text-zinc-500 mt-0.5">{employee.name} · {processModal.month}</p>
                 </div>
-                <button type="button" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null })} className="text-zinc-400 hover:text-black transition-colors">
+                <button type="button" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null, downloadAfterSave: false })} className="text-zinc-400 hover:text-black transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
               
               <div className="p-4 overflow-y-auto custom-scrollbar bg-zinc-50/50 flex flex-col gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Base Salary (₹)</label>
-                  <input type="number" required min="0" value={formData.baseSalary} onChange={(e) => setFormData({...formData, baseSalary: e.target.value})} className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all font-medium" />
-                  {!processModal.existingLog && calculationDetails?.loading ? (
-                    <p className="mt-1.5 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating hours...</p>
-                  ) : !processModal.existingLog && calculationDetails && !calculationDetails.error ? (
-                    <p className="mt-1.5 text-[10px] text-zinc-500 leading-tight">
-                      Calculated from <span className="font-semibold text-zinc-700">{calculationDetails.actualHours}</span> / {calculationDetails.expectedHours} worked hours. (Standard: ₹{calculationDetails.originalSalary?.toLocaleString()})
+                <div className="grid grid-cols-2 gap-4 bg-white p-3 rounded-xl border border-zinc-200/80">
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">Total Working Days</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={formData.totalWorkingDays}
+                      onChange={(e) => handleWorkingDaysChange('totalWorkingDays', e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 uppercase tracking-wider mb-1.5">Actual Working Days</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={formData.actualWorkingDays}
+                      onChange={(e) => handleWorkingDaysChange('actualWorkingDays', e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all font-semibold"
+                    />
+                  </div>
+                  {calculationDetails?.loading ? (
+                    <p className="col-span-2 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating working days...</p>
+                  ) : calculationDetails && !calculationDetails.error ? (
+                    <p className="col-span-2 text-[11px] text-zinc-500 leading-tight">
+                      Auto-calculated: <span className="font-semibold text-zinc-800">{calculationDetails.actualWorkingDays}</span> / <span className="font-semibold text-zinc-800">{calculationDetails.totalWorkingDays}</span> days (Standard Salary: ₹{calculationDetails.originalSalary?.toLocaleString()})
                     </p>
                   ) : null}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5">Expected Pay (₹)</label>
+                  <input type="number" required min="0" value={formData.baseSalary} onChange={(e) => setFormData({...formData, baseSalary: e.target.value})} className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[13px] transition-all font-semibold text-blue-700" />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -602,7 +683,7 @@ export default function EmployeePayrollAdminView() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-zinc-700 uppercase tracking-wider mb-1.5 flex items-center gap-2">Deductions (₹)</label>
+                  <label className="block text-[11px] font-bold text-red-600 uppercase tracking-wider mb-1.5 flex items-center gap-2">Deductions (₹)</label>
                   <input type="number" min="0" value={formData.deductions} onChange={(e) => setFormData({...formData, deductions: e.target.value})} className="w-full px-3 py-2 bg-red-50/50 border border-red-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none text-[13px] transition-all font-medium text-red-900" />
                 </div>
 
@@ -615,10 +696,10 @@ export default function EmployeePayrollAdminView() {
               </div>
 
               <div className="flex justify-end gap-2 p-4 border-t border-zinc-100 bg-white shrink-0">
-                <button type="button" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null })} className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="py-2 px-6 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
-                  Confirm
+                <button type="button" onClick={() => !isSubmitting && setProcessModal({ isOpen: false, month: '', existingLog: null, downloadAfterSave: false })} className="py-2 px-4 text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="py-2 px-5 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (processModal.downloadAfterSave ? <Download className="w-4 h-4" /> : <DollarSign className="w-4 h-4" />)}
+                  {processModal.downloadAfterSave ? 'Save & Download Payslip' : 'Confirm'}
                 </button>
               </div>
             </form>

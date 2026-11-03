@@ -26,6 +26,8 @@ export default function PayrollManagement() {
   // Form State
   const [formData, setFormData] = useState({
     month: '',
+    totalWorkingDays: 0,
+    actualWorkingDays: 0,
     baseSalary: 0,
     bonus: 0,
     incentives: 0,
@@ -34,9 +36,33 @@ export default function PayrollManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [calculationDetails, setCalculationDetails] = useState(null);
 
-  const handleMonthChange = async (monthStr) => {
+  const recalculateExpectedPayFromDays = (totalDaysVal, actualDaysVal, standardSalaryVal) => {
+    const total = Number(totalDaysVal) || 0;
+    const actual = Number(actualDaysVal) || 0;
+    const fullSalary = Number(standardSalaryVal) || 0;
+    if (total <= 0) return fullSalary;
+    let calculated = (fullSalary / total) * actual;
+    return Math.round(calculated);
+  };
+
+  const handleWorkingDaysChange = (field, value) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      const fullSalary = processSalaryPrompt.employee?.salary || calculationDetails?.originalSalary || 0;
+      const newExpected = recalculateExpectedPayFromDays(
+        field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
+        field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
+        fullSalary
+      );
+      updated.baseSalary = newExpected;
+      return updated;
+    });
+  };
+
+  const handleMonthChange = async (monthStr, empOverride = null) => {
+    const targetEmp = empOverride || processSalaryPrompt.employee;
     setFormData(p => ({ ...p, month: monthStr }));
-    if (!monthStr || !processSalaryPrompt.employee || !companyId) {
+    if (!monthStr || !targetEmp || !companyId) {
       setCalculationDetails(null);
       return;
     }
@@ -74,11 +100,10 @@ export default function PayrollManagement() {
       }
       
       const workingDays = daysInMonth - offDays;
-      const expectedHours = workingDays * 6.5;
       
       const attQ = query(
         collection(db, `userData/${companyId}/attendanceLogs`),
-        where('employeeId', '==', processSalaryPrompt.employee.id)
+        where('employeeId', '==', targetEmp.id)
       );
       const attSnap = await getDocs(attQ);
       
@@ -109,19 +134,25 @@ export default function PayrollManagement() {
       });
       
       const actualHours = (totalMinutesWorked / 60) + (fieldDays * 6.5);
-      const fullSalary = processSalaryPrompt.employee.salary || 0;
+      const actualWorkingDays = Number((actualHours / 6.5).toFixed(1));
+      const fullSalary = targetEmp.salary || 0;
       let calculatedSalary = fullSalary;
       
-      if (expectedHours > 0) {
-        calculatedSalary = (fullSalary / expectedHours) * actualHours;
+      if (workingDays > 0) {
+        calculatedSalary = (fullSalary / workingDays) * actualWorkingDays;
         if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
       }
       
-      setFormData(p => ({ ...p, baseSalary: Math.round(calculatedSalary) }));
+      setFormData(p => ({
+        ...p,
+        totalWorkingDays: workingDays,
+        actualWorkingDays: actualWorkingDays,
+        baseSalary: Math.round(calculatedSalary)
+      }));
       setCalculationDetails({
         loading: false,
-        actualHours: actualHours.toFixed(1),
-        expectedHours: expectedHours.toFixed(1),
+        actualWorkingDays,
+        totalWorkingDays: workingDays,
         originalSalary: fullSalary
       });
       
@@ -132,6 +163,7 @@ export default function PayrollManagement() {
   };
 
   const [currentMonthExpected, setCurrentMonthExpected] = useState({});
+  const [currentMonthDays, setCurrentMonthDays] = useState({});
 
   const fetchData = async () => {
     if (!companyId) return;
@@ -175,7 +207,7 @@ export default function PayrollManagement() {
         }
       }
       
-      const expectedHours = (daysInMonth - offDays) * 6.5;
+      const totalWorkingDays = daysInMonth - offDays;
       
       const attQ = query(collection(db, `userData/${companyId}/attendanceLogs`));
       const attSnap = await getDocs(attQ);
@@ -208,18 +240,23 @@ export default function PayrollManagement() {
       });
       
       const currentMonthExp = {};
+      const currentDaysMap = {};
       emps.forEach(emp => {
         const stats = empStats[emp.id] || { totalMinutesWorked: 0, fieldDays: 0 };
         const actualHours = (stats.totalMinutesWorked / 60) + (stats.fieldDays * 6.5);
+        const actualWorkingDays = Number((actualHours / 6.5).toFixed(1));
         const fullSalary = emp.salary || 0;
         let calculated = fullSalary;
-        if (expectedHours > 0) {
-          calculated = (fullSalary / expectedHours) * actualHours;
+        if (totalWorkingDays > 0) {
+          calculated = (fullSalary / totalWorkingDays) * actualWorkingDays;
+          if (calculated > fullSalary) calculated = fullSalary;
         }
         currentMonthExp[emp.id] = Math.round(calculated);
+        currentDaysMap[emp.id] = { totalWorkingDays, actualWorkingDays };
       });
       
       setCurrentMonthExpected(currentMonthExp);
+      setCurrentMonthDays(currentDaysMap);
     } catch (err) {
       console.error('Error fetching payroll data:', err);
     } finally {
@@ -244,6 +281,8 @@ export default function PayrollManagement() {
       const finalBonus = Number(formData.bonus) || 0;
       const finalIncentives = Number(formData.incentives) || 0;
       const finalDeductions = Number(formData.deductions) || 0;
+      const finalTotalDays = Number(formData.totalWorkingDays) || 0;
+      const finalActualDays = Number(formData.actualWorkingDays) || 0;
       const netSalary = finalBase + finalBonus + finalIncentives - finalDeductions;
       
       const batch = writeBatch(db);
@@ -255,7 +294,11 @@ export default function PayrollManagement() {
         employeeName: processSalaryPrompt.employee.name,
         role: processSalaryPrompt.employee.position || 'Employee',
         month: formData.month,
+        totalWorkingDays: finalTotalDays,
+        actualWorkingDays: finalActualDays,
+        expectedPay: finalBase,
         baseSalary: finalBase,
+        standardBaseSalary: processSalaryPrompt.employee.salary || 0,
         bonus: finalBonus,
         incentives: finalIncentives,
         deductions: finalDeductions,
@@ -347,10 +390,14 @@ export default function PayrollManagement() {
     const initialData = {};
     activeEmployees.forEach(emp => {
       const expected = currentMonthExpected[emp.id];
+      const daysInfo = currentMonthDays[emp.id] || { totalWorkingDays: 24, actualWorkingDays: 24 };
       initialData[emp.id] = {
-        baseSalary: (expected !== undefined && expected !== 0) ? expected : (emp.salary || 0),
+        totalWorkingDays: daysInfo.totalWorkingDays,
+        actualWorkingDays: daysInfo.actualWorkingDays,
+        baseSalary: (expected !== undefined) ? expected : (emp.salary || 0),
         bonus: 0,
-        incentives: 0
+        incentives: 0,
+        deductions: 0
       };
     });
 
@@ -369,21 +416,28 @@ export default function PayrollManagement() {
       const txDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`;
 
       activeEmployees.forEach(emp => {
-        const empData = processAllPrompt.data[emp.id] || { baseSalary: 0, bonus: 0, incentives: 0 };
+        const empData = processAllPrompt.data[emp.id] || { baseSalary: 0, bonus: 0, incentives: 0, deductions: 0, totalWorkingDays: 0, actualWorkingDays: 0 };
         const finalBase = Number(empData.baseSalary) || 0;
         const finalBonus = Number(empData.bonus) || 0;
         const finalIncentives = Number(empData.incentives) || 0;
-        const netSalary = finalBase + finalBonus + finalIncentives;
+        const finalDeductions = Number(empData.deductions) || 0;
+        const finalTotalDays = Number(empData.totalWorkingDays) || 0;
+        const finalActualDays = Number(empData.actualWorkingDays) || 0;
+        const netSalary = finalBase + finalBonus + finalIncentives - finalDeductions;
         
         const newLog = {
           employeeId: emp.id,
           employeeName: emp.name,
           role: emp.position || 'Employee',
           month: selectedMonthForExpected,
+          totalWorkingDays: finalTotalDays,
+          actualWorkingDays: finalActualDays,
+          expectedPay: finalBase,
           baseSalary: finalBase,
+          standardBaseSalary: emp.salary || 0,
           bonus: finalBonus,
           incentives: finalIncentives,
-          deductions: 0,
+          deductions: finalDeductions,
           netSalary: netSalary,
           status: 'Paid',
           processedDate: serverTimestamp()
@@ -597,9 +651,11 @@ export default function PayrollManagement() {
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => {
-                              setFormData({ month: '', baseSalary: emp.salary || 0, bonus: 0, incentives: 0, deductions: 0 });
+                              const defaultMonth = selectedMonthForExpected || '';
+                              setFormData({ month: defaultMonth, totalWorkingDays: 0, actualWorkingDays: 0, baseSalary: emp.salary || 0, bonus: 0, incentives: 0, deductions: 0 });
                               setCalculationDetails(null);
                               setProcessSalaryPrompt({ isOpen: true, employee: emp });
+                              if (defaultMonth) handleMonthChange(defaultMonth, emp);
                             }}
                             className="px-3 py-1.5 bg-black text-white text-[12px] font-semibold rounded-lg hover:bg-zinc-800 transition-colors"
                           >
@@ -678,9 +734,11 @@ export default function PayrollManagement() {
                             <div className="flex items-center justify-center gap-2">
                               <button
                                 onClick={() => {
-                                  setFormData({ month: '', baseSalary: emp.salary || 0, bonus: 0, incentives: 0, deductions: 0 });
+                                  const defaultMonth = selectedMonthForExpected || '';
+                                  setFormData({ month: defaultMonth, totalWorkingDays: 0, actualWorkingDays: 0, baseSalary: emp.salary || 0, bonus: 0, incentives: 0, deductions: 0 });
                                   setCalculationDetails(null);
                                   setProcessSalaryPrompt({ isOpen: true, employee: emp });
+                                  if (defaultMonth) handleMonthChange(defaultMonth, emp);
                                 }}
                                 className="px-3 py-1.5 bg-black/80 text-white text-[12px] font-semibold rounded-lg hover:bg-zinc-800 transition-colors"
                               >
@@ -741,9 +799,67 @@ export default function PayrollManagement() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 mt-1 pt-3 border-t border-zinc-100/80">
+                      <div className="grid grid-cols-2 gap-2 mt-1 pt-3 border-t border-zinc-100/80">
                         <div>
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Base Salary</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Total Working Days</label>
+                          <input 
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            onWheel={(e) => e.target.blur()}
+                            value={processAllPrompt.data[emp.id]?.totalWorkingDays ?? ''}
+                            onChange={(e) => {
+                              const newTotal = e.target.value;
+                              const actual = processAllPrompt.data[emp.id]?.actualWorkingDays ?? 0;
+                              const newExpected = recalculateExpectedPayFromDays(newTotal, actual, emp.salary || 0);
+                              setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: {
+                                  ...prev.data,
+                                  [emp.id]: {
+                                    ...prev.data[emp.id],
+                                    totalWorkingDays: newTotal,
+                                    baseSalary: newExpected
+                                  }
+                                }
+                              }));
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-zinc-800 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Actual Working Days</label>
+                          <input 
+                            type="number"
+                            step="any"
+                            min="0"
+                            required
+                            onWheel={(e) => e.target.blur()}
+                            value={processAllPrompt.data[emp.id]?.actualWorkingDays ?? ''}
+                            onChange={(e) => {
+                              const newActual = e.target.value;
+                              const total = processAllPrompt.data[emp.id]?.totalWorkingDays ?? 0;
+                              const newExpected = recalculateExpectedPayFromDays(total, newActual, emp.salary || 0);
+                              setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: {
+                                  ...prev.data,
+                                  [emp.id]: {
+                                    ...prev.data[emp.id],
+                                    actualWorkingDays: newActual,
+                                    baseSalary: newExpected
+                                  }
+                                }
+                              }));
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-zinc-800 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Expected Pay</label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                               <IndianRupee className="w-3 h-3 text-zinc-400" />
@@ -763,7 +879,7 @@ export default function PayrollManagement() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Bonus</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Bonus</label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                               <IndianRupee className="w-3 h-3 text-zinc-400" />
@@ -782,7 +898,7 @@ export default function PayrollManagement() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 block">Incentives</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Incentives</label>
                           <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                               <IndianRupee className="w-3 h-3 text-zinc-400" />
@@ -797,6 +913,25 @@ export default function PayrollManagement() {
                                 data: { ...prev.data, [emp.id]: { ...prev.data[emp.id], incentives: e.target.value } }
                               }))}
                               className="w-full pl-6 pr-2 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-purple-700 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-red-600 uppercase tracking-wider mb-1 block">Deductions</label>
+                          <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                              <IndianRupee className="w-3 h-3 text-red-400" />
+                            </div>
+                            <input 
+                              type="number"
+                              min="0"
+                              onWheel={(e) => e.target.blur()}
+                              value={processAllPrompt.data[emp.id]?.deductions ?? ''}
+                              onChange={(e) => setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: { ...prev.data, [emp.id]: { ...prev.data[emp.id], deductions: e.target.value } }
+                              }))}
+                              className="w-full pl-6 pr-2 py-1.5 bg-red-50/50 border border-red-200 rounded-md text-[12px] font-bold text-red-700 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </div>
                         </div>
@@ -852,25 +987,52 @@ export default function PayrollManagement() {
                     className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4 bg-white p-3 rounded-xl border border-zinc-200/80">
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 mb-1.5 uppercase tracking-wide">Total Working Days</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={formData.totalWorkingDays}
+                      onChange={(e) => handleWorkingDaysChange('totalWorkingDays', e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] font-semibold focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 mb-1.5 uppercase tracking-wide">Actual Working Days</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={formData.actualWorkingDays}
+                      onChange={(e) => handleWorkingDaysChange('actualWorkingDays', e.target.value)}
+                      className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] font-semibold focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                    />
+                  </div>
+                  {calculationDetails?.loading ? (
+                    <p className="col-span-2 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating working days...</p>
+                  ) : calculationDetails && !calculationDetails.error ? (
+                    <p className="col-span-2 text-[11px] text-zinc-500 leading-tight">
+                      Auto-calculated: <span className="font-semibold text-zinc-800">{calculationDetails.actualWorkingDays}</span> / <span className="font-semibold text-zinc-800">{calculationDetails.totalWorkingDays}</span> days (Standard Salary: ₹{calculationDetails.originalSalary?.toLocaleString()})
+                    </p>
+                  ) : null}
+                </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[12px] font-bold text-zinc-700 mb-1.5 uppercase tracking-wide">Base Salary (₹)</label>
+                    <label className="block text-[12px] font-bold text-zinc-700 mb-1.5 uppercase tracking-wide">Expected Pay (₹)</label>
                     <input 
                       type="number"
                       required
                       min="0"
                       value={formData.baseSalary}
                       onChange={(e) => setFormData(p => ({ ...p, baseSalary: e.target.value }))}
-                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                      className="w-full px-3 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] font-semibold text-blue-700 focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
                     />
-                    {calculationDetails?.loading ? (
-                      <p className="mt-1.5 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating hours...</p>
-                    ) : calculationDetails && !calculationDetails.error ? (
-                      <p className="mt-1.5 text-[10px] text-zinc-500 leading-tight">
-                        Calculated from <span className="font-semibold text-zinc-700">{calculationDetails.actualHours}</span> / {calculationDetails.expectedHours} worked hours. (Standard: ₹{calculationDetails.originalSalary?.toLocaleString()})
-                      </p>
-                    ) : null}
                   </div>
                   <div>
                     <label className="block text-[12px] font-bold text-zinc-700 mb-1.5 uppercase tracking-wide">Bonus (₹)</label>

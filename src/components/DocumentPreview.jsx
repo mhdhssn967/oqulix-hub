@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
 import OQ from '../assets/OQ.png';
@@ -18,7 +18,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
     try {
       setDownloading(true);
 
-      // Apply pdf-mode styling to strip gap/shadows during html2canvas render
+      // Apply pdf-mode styling to strip gap/shadows during render
       container.classList.add('pdf-mode');
 
       const pages = container.querySelectorAll('.page');
@@ -26,7 +26,11 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
         throw new Error('No pages found in document container.');
       }
 
-      // Pre-load images inside container to prevent canvas rendering errors
+      // Ensure web fonts and images are fully loaded before rasterizing
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+
       const images = container.querySelectorAll('img');
       await Promise.all(
         Array.from(images).map(
@@ -53,111 +57,22 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
 
       for (let i = 0; i < pages.length; i++) {
         const page = pages[i];
-        const canvas = await html2canvas(page, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
+
+        // Use html-to-image (native browser SVG foreignObject renderer) so text wrapping,
+        // word spacing, and Google Sans font metrics match the live preview 1:1
+        const imgData = await toJpeg(page, {
+          quality: 0.98,
+          pixelRatio: 2,
           backgroundColor: '#ffffff',
-          scrollX: 0,
-          scrollY: 0,
-          onclone: (clonedDoc) => {
-            const tempCanvas = clonedDoc.createElement('canvas');
-            const ctx = tempCanvas.getContext('2d');
-
-            const convertColorToRgb = (colorStr) => {
-              if (!colorStr || !colorStr.includes('oklch')) return colorStr;
-              try {
-                ctx.fillStyle = '#000000';
-                ctx.fillStyle = colorStr;
-                const res = ctx.fillStyle;
-                return res && !res.includes('oklch') ? res : 'transparent';
-              } catch (e) {
-                return 'transparent';
-              }
-            };
-
-            const replaceOklch = (text) => {
-              if (!text || !text.includes('oklch')) return text;
-              return text.replace(/oklch\([^)]+\)/gi, (match) => convertColorToRgb(match));
-            };
-
-            // 1. Extract rules from all document.styleSheets (including <link> stylesheets) and inline sanitized versions
-            try {
-              const styleSheets = Array.from(document.styleSheets);
-              styleSheets.forEach((sheet) => {
-                try {
-                  const rules = Array.from(sheet.cssRules || []);
-                  const cssText = rules.map((r) => r.cssText).join('\n');
-                  if (cssText) {
-                    const newStyle = clonedDoc.createElement('style');
-                    newStyle.textContent = replaceOklch(cssText);
-                    clonedDoc.head.appendChild(newStyle);
-                  }
-                } catch (e) {
-                  // cross-origin security fallback
-                }
-              });
-            } catch (e) {}
-
-            // 2. Process all existing <style> tags in cloned document
-            clonedDoc.querySelectorAll('style').forEach((styleEl) => {
-              if (styleEl.textContent && styleEl.textContent.includes('oklch')) {
-                styleEl.textContent = replaceOklch(styleEl.textContent);
-              }
-            });
-
-            // 3. Remove all <link rel="stylesheet"> tags so html2canvas doesn't fetch raw oklch files
-            clonedDoc.querySelectorAll('link[rel="stylesheet"]').forEach((linkEl) => {
-              linkEl.remove();
-            });
-
-            // 4. Clean up inline styles and computed styles for html, body, container, and all children
-            const container = clonedDoc.getElementById('document-container') || clonedDoc.body;
-            const targetElements = [
-              clonedDoc.documentElement,
-              clonedDoc.body,
-              container,
-              ...Array.from(container.querySelectorAll('*'))
-            ];
-
-            targetElements.forEach((el) => {
-              if (!el) return;
-
-              if (el.hasAttribute('style')) {
-                const inlineStyle = el.getAttribute('style');
-                if (inlineStyle && inlineStyle.includes('oklch')) {
-                  el.setAttribute('style', replaceOklch(inlineStyle));
-                }
-              }
-
-              const computed = clonedDoc.defaultView ? clonedDoc.defaultView.getComputedStyle(el) : null;
-              if (computed) {
-                [
-                  'color',
-                  'background-color',
-                  'border-color',
-                  'border-top-color',
-                  'border-right-color',
-                  'border-bottom-color',
-                  'border-left-color',
-                  'outline-color',
-                  'fill',
-                  'stroke',
-                  'box-shadow'
-                ].forEach((prop) => {
-                  const val = computed.getPropertyValue(prop);
-                  if (val && val.includes('oklch')) {
-                    const rgbVal = replaceOklch(val);
-                    el.style.setProperty(prop, rgbVal, 'important');
-                  }
-                });
-              }
-            });
+          cacheBust: true,
+          width: 794,
+          height: 1123,
+          style: {
+            margin: '0',
+            boxShadow: 'none'
           }
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.98);
         if (i > 0) {
           pdf.addPage('a4', 'portrait');
         }
@@ -190,6 +105,11 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const cleanHtml = (html) => {
+    if (!html || typeof html !== 'string') return '';
+    return html.replace(/&nbsp;/gi, ' ').replace(/\u00A0/g, ' ');
   };
 
   const items = formData.complementaryItems || [];
@@ -302,7 +222,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                 className="mail-content-dynamic" 
                 style={{ textAlign: "justify", lineHeight: 1.5, marginTop: '6px' }}
                 dangerouslySetInnerHTML={{
-                  __html: textData?.coverLetter || `<p>It was a pleasure demonstrating our flagship product, <strong>Happy Moves</strong>, to you. We appreciate the opportunity to showcase how our innovative physiotherapy VR tool can enhance the rehabilitation experience for your patients, making their journey towards recovery more engaging and effective.</p>`
+                  __html: cleanHtml(textData?.coverLetter || `<p>It was a pleasure demonstrating our flagship product, <strong>Happy Moves</strong>, to you. We appreciate the opportunity to showcase how our innovative physiotherapy VR tool can enhance the rehabilitation experience for your patients, making their journey towards recovery more engaging and effective.</p>`)
                 }}
               />
             </div>
@@ -422,7 +342,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
               <div 
                 className="license-agreement-dynamic"
                 dangerouslySetInnerHTML={{
-                  __html: textData?.slaPage1 || `<p><strong>Software License Agreement</strong> ("Agreement") is entered into between Oqulix, hereinafter referred to as "Licensor," and the entity or individual licensing the software, hereinafter referred to as "Licensee." This Agreement governs the use of the Happy Moves software.</p>
+                  __html: cleanHtml(textData?.slaPage1 || `<p><strong>Software License Agreement</strong> ("Agreement") is entered into between Oqulix, hereinafter referred to as "Licensor," and the entity or individual licensing the software, hereinafter referred to as "Licensee." This Agreement governs the use of the Happy Moves software.</p>
                     <ol>
                       <li><strong>License Grant:</strong>
                         <ul>
@@ -449,7 +369,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                           <li>The Happy Moves software, including all intellectual property rights, remains the exclusive property of Oqulix.</li>
                         </ul>
                       </li>
-                    </ol>`
+                    </ol>`)
                 }}
               />
             </div>
@@ -473,7 +393,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
               <div 
                 className="license-agreement-dynamic"
                 dangerouslySetInnerHTML={{
-                  __html: textData?.slaPage2 || `<ol start="5">
+                  __html: cleanHtml(textData?.slaPage2 || `<ol start="5">
                       <li><strong>Confidentiality of Pricing Details and Software Content:</strong>
                         <ul>
                           <li>Licensee agrees to maintain strict confidentiality regarding the pricing details of the Happy Moves software, as well as any offers or subsidies provided by Oqulix. This information shall not be disclosed to any third party, media, or on the internet.</li>
@@ -503,7 +423,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                           <li>In no event shall Oqulix be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or in connection with the use or inability to use the Happy Moves software.</li>
                         </ul>
                       </li>
-                    </ol>`
+                    </ol>`)
                 }}
               />
             </div>
@@ -527,7 +447,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
               <div 
                 className="license-agreement-dynamic"
                 dangerouslySetInnerHTML={{
-                  __html: textData?.slaPage3 || `<ol start="10">
+                  __html: cleanHtml(textData?.slaPage3 || `<ol start="10">
                       <li><strong>Annual Maintenance Contract (AMC):</strong>
                         <ul>
                           <li>After the completion of the initial three-year period, ongoing technical support will continue to be provided. However, access to new integrations, major feature additions, product enhancements, and future software updates will be covered under an optional Annual Maintenance Contract (AMC) of ₹45,000 per year.</li>
@@ -552,7 +472,7 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                         </ul>
                       </li>
                     </ol>
-                    <p style="font-size: 11px; text-align: center; margin-top: 10px; line-height: 1.35;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`
+                    <p style="font-size: 11px; text-align: center; margin-top: 10px; line-height: 1.35;">Happymoves is a research-stage digital rehabilitation software currently undergoing clinical validation. It is intended solely for investigational use and may only be accessed, tested, or applied under the direct supervision of a licensed and certified physiotherapist or medical professional.</p>`)
                 }}
               />
             </div>
@@ -583,12 +503,12 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                   className="bank-details-dynamic" 
                   style={{ marginTop: '6px' }}
                   dangerouslySetInnerHTML={{
-                    __html: textData?.bankDetails || `<ul>
+                    __html: cleanHtml(textData?.bankDetails || `<ul>
                       <li>Bank Name: HDFC BANK</li>
                       <li>Account Holder: OQULIX PVT. LTD</li>
                       <li>Account Number: 50200090596672</li>
                       <li>IFSC Code: HDFC0004587</li>
-                    </ul>`
+                    </ul>`)
                   }}
                 />
               </div>
@@ -602,8 +522,8 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
                 <div 
                   className="payment-terms-dynamic"
                   dangerouslySetInnerHTML={{
-                    __html: textData?.paymentTerms || `<p><strong>Thank you for choosing Happy Moves for your therapeutic needs. We are excited about the prospect of contributing to the success of your firm. We kindly request an advance payment 50% of TOTAL PRICE for your confirmation and a balance payment 50% of TOTAL PRICE before the day of implementation.</strong></p>
-                      <p style="margin-top: 8px;">Please make the payments within the specified timelines mentioned in the payment terms.</p>`
+                    __html: cleanHtml(textData?.paymentTerms || `<p><strong>Thank you for choosing Happy Moves for your therapeutic needs. We are excited about the prospect of contributing to the success of your firm. We kindly request an advance payment 50% of TOTAL PRICE for your confirmation and a balance payment 50% of TOTAL PRICE before the day of implementation.</strong></p>
+                      <p style="margin-top: 8px;">Please make the payments within the specified timelines mentioned in the payment terms.</p>`)
                   }}
                 />
               </div>

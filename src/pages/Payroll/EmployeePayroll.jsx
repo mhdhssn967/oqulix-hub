@@ -227,7 +227,8 @@ export default function EmployeePayroll() {
                   <thead>
                     <tr className="bg-white border-b border-zinc-100">
                       <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Month</th>
-                      <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Base Salary</th>
+                      <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Working Days</th>
+                      <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Expected Pay</th>
                       <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Bonus</th>
                       <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Incentive</th>
                       <th className="px-6 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-right">Deductions</th>
@@ -242,7 +243,10 @@ export default function EmployeePayroll() {
                           <span className="text-[14px] font-bold text-zinc-900 block">{log.month}</span>
                           <span className="text-[12px] text-zinc-500">Processed: {log.processedDate?.toDate ? log.processedDate.toDate().toLocaleDateString() : 'N/A'}</span>
                         </td>
-                        <td className="px-6 py-4 text-[14px] font-medium text-zinc-600 text-right">₹{log.baseSalary?.toLocaleString() || 0}</td>
+                        <td className="px-6 py-4 text-[14px] font-medium text-zinc-700 text-center">
+                          {log.actualWorkingDays !== undefined ? `${log.actualWorkingDays} / ${log.totalWorkingDays ?? '-'} Days` : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-[14px] font-medium text-zinc-600 text-right">₹{(log.expectedPay ?? log.baseSalary ?? 0).toLocaleString()}</td>
                         <td className="px-6 py-4 text-[14px] font-medium text-emerald-600 text-right">+ ₹{(log.bonus || 0).toLocaleString()}</td>
                         <td className="px-6 py-4 text-[14px] font-medium text-purple-600 text-right">+ ₹{(log.incentives || 0).toLocaleString()}</td>
                         <td className="px-6 py-4 text-[14px] font-medium text-red-500 text-right">- ₹{log.deductions?.toLocaleString() || 0}</td>

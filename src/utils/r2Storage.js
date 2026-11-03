@@ -2,9 +2,19 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
- * Cloudflare R2 Configuration via Vite Environment Variables
+ * Helper to clean environment variable values in case `KEY=VALUE` was pasted into the Value field in Vercel
  */
-const rawAccountId = (import.meta.env.VITE_R2_ACCOUNT_ID || '').trim();
+const cleanEnvValue = (val) => {
+  if (!val) return '';
+  let cleaned = String(val).trim();
+  const eqIndex = cleaned.indexOf('=');
+  if (eqIndex !== -1 && cleaned.slice(0, eqIndex).startsWith('VITE_')) {
+    cleaned = cleaned.slice(eqIndex + 1).trim();
+  }
+  return cleaned.replace(/^["']|["']$/g, '').trim();
+};
+
+const rawAccountId = cleanEnvValue(import.meta.env.VITE_R2_ACCOUNT_ID);
 // Guard against accidental duplicate paste (e.g. 64 chars of the same 32-char hex string twice)
 const R2_ACCOUNT_ID =
   rawAccountId.length === 64 &&
@@ -12,10 +22,10 @@ const R2_ACCOUNT_ID =
     ? rawAccountId.slice(0, 32)
     : rawAccountId;
 
-const R2_ACCESS_KEY_ID = (import.meta.env.VITE_R2_ACCESS_KEY_ID || '').trim();
-const R2_SECRET_ACCESS_KEY = (import.meta.env.VITE_R2_SECRET_ACCESS_KEY || '').trim();
-const R2_BUCKET_NAME = (import.meta.env.VITE_R2_BUCKET_NAME || '').trim();
-const R2_PUBLIC_URL = (import.meta.env.VITE_R2_PUBLIC_URL || '').trim();
+const R2_ACCESS_KEY_ID = cleanEnvValue(import.meta.env.VITE_R2_ACCESS_KEY_ID);
+const R2_SECRET_ACCESS_KEY = cleanEnvValue(import.meta.env.VITE_R2_SECRET_ACCESS_KEY);
+const R2_BUCKET_NAME = cleanEnvValue(import.meta.env.VITE_R2_BUCKET_NAME);
+const R2_PUBLIC_URL = cleanEnvValue(import.meta.env.VITE_R2_PUBLIC_URL);
 
 export const isR2Configured = () => {
   return Boolean(
@@ -55,7 +65,6 @@ const getR2Client = () => {
 
 /**
  * Upload a resume file to Cloudflare R2 using a Presigned URL + native fetch
- * (Avoids AWS SDK custom x-amz-* headers in browser requests)
  * @param {File} file - The browser File object
  * @param {string} positionId - The ID of the hiring position
  * @param {string} candidateName - Name of the candidate for clean file naming
