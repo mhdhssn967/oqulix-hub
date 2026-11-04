@@ -79,6 +79,51 @@ export function ChatPortal() {
 
   const messagesEndRef = useRef(null);
   const broadcastEndRef = useRef(null);
+  const prevUnreadRef = useRef(null);
+  const prevBroadcastCountRef = useRef(null);
+
+  // Gentle, pleasant message chime synthesizer using Web Audio API (zero external files or downloads required)
+  const playMessageChime = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+
+      const now = ctx.currentTime;
+      
+      // Note 1 (E5 - 659.25Hz)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now);
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.exponentialRampToValueAtTime(0.18, now + 0.03);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      // Note 2 (B5 - 987.77Hz) slightly delayed for a bright, cheerful double chime
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(987.77, now + 0.1);
+      gain2.gain.setValueAtTime(0.001, now + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.22, now + 0.13);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.1);
+      osc2.stop(now + 0.55);
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 700);
+    } catch (e) {
+      // Audio playback silently ignored if blocked by autoplay restrictions
+    }
+  };
 
   const currentUserId = user?.uid;
   const currentUserName = employeeData?.name || (isAdmin ? 'Admin' : (user?.displayName || 'User'));
@@ -175,6 +220,16 @@ export function ChatPortal() {
       snapshot.forEach(docSnap => {
         bList.push({ id: docSnap.id, ...docSnap.data() });
       });
+
+      // Play chime if a new broadcast arrived while app is open
+      if (prevBroadcastCountRef.current !== null && bList.length > prevBroadcastCountRef.current) {
+        const latest = bList[bList.length - 1];
+        if (latest && latest.senderId !== currentUserId) {
+          playMessageChime();
+        }
+      }
+      prevBroadcastCountRef.current = bList.length;
+
       setBroadcastMessages(bList);
       setTimeout(() => {
         broadcastEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -196,13 +251,30 @@ export function ChatPortal() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const meta = {};
       let totalUnread = 0;
+      let hasNewMessage = false;
+
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
         meta[docSnap.id] = data;
-        if (data.unreadCounts && data.unreadCounts[currentUserId]) {
-          totalUnread += data.unreadCounts[currentUserId];
+        const userUnread = (data.unreadCounts && data.unreadCounts[currentUserId]) || 0;
+        totalUnread += userUnread;
+
+        // Check if there is a fresh unread message from someone else
+        if (data.lastMessageSenderId && data.lastMessageSenderId !== currentUserId && userUnread > 0) {
+          const prevMeta = conversationsMeta[docSnap.id];
+          const prevUserUnread = (prevMeta?.unreadCounts && prevMeta.unreadCounts[currentUserId]) || 0;
+          if (userUnread > prevUserUnread) {
+            hasNewMessage = true;
+          }
         }
       });
+
+      // Play chime if unread message count increased while app is opened
+      if (hasNewMessage || (prevUnreadRef.current !== null && totalUnread > prevUnreadRef.current)) {
+        playMessageChime();
+      }
+      prevUnreadRef.current = totalUnread;
+
       setConversationsMeta(meta);
       setTotalUnreadCount(totalUnread);
     }, (error) => {
