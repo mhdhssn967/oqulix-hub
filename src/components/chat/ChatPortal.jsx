@@ -61,7 +61,21 @@ export function ChatPortal() {
   const [isBroadcastView, setIsBroadcastView] = useState(false);
   const [broadcastInput, setBroadcastInput] = useState('');
   const [broadcastPriority, setBroadcastPriority] = useState('Important'); // 'Announcement', 'Important', 'Urgent'
-  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+    }, 260);
+  };
+
+  const handleOpen = () => {
+    setIsClosing(false);
+    setIsOpen(true);
+    setIsMinimized(false);
+  };
 
   const messagesEndRef = useRef(null);
   const broadcastEndRef = useRef(null);
@@ -75,17 +89,24 @@ export function ChatPortal() {
     return [uid1, uid2].sort().join('_');
   };
 
-  // 1. Fetch Company Employees
+  // 1. Fetch Company Employees & Administrators
   useEffect(() => {
     if (!companyId || !currentUserId) return;
 
     let isMounted = true;
     const fetchEmployees = async () => {
       try {
-        const [empSnap, rootEmpSnap] = await Promise.all([
+        const [empSnap, rootEmpSnap, rolesSnap, adminsSnap] = await Promise.all([
           getDocs(collection(db, `userData/${companyId}/employees`)),
-          getDocs(collection(db, 'employees')).catch(() => ({ docs: [] }))
+          getDocs(collection(db, 'employees')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'users')).catch(() => ({ docs: [] })),
+          getDocs(collection(db, 'admins')).catch(() => ({ docs: [] }))
         ]);
+
+        const adminMap = {};
+        adminsSnap.docs.forEach(ad => {
+          adminMap[ad.id] = ad.data();
+        });
 
         const rootPhotoMap = {};
         rootEmpSnap.docs.forEach(rd => {
@@ -93,9 +114,12 @@ export function ChatPortal() {
         });
 
         const list = [];
+        const seenIds = new Set();
+
         empSnap.docs.forEach(d => {
           const data = d.data();
           if (d.id !== currentUserId && data.isActive !== false) {
+            seenIds.add(d.id);
             list.push({
               id: d.id,
               uid: d.id,
@@ -103,6 +127,28 @@ export function ChatPortal() {
               position: data.position || data.designation || 'Team Member',
               photoURL: data.photoURL || rootPhotoMap[d.id] || null,
               email: data.email || ''
+            });
+          }
+        });
+
+        // Ensure Admins are included in the messaging roster so employees can chat with Admin
+        const adminRoleDoc = rolesSnap.docs.find(rd => rd.id.toLowerCase() === 'admin');
+        const adminUserIds = adminRoleDoc?.data()?.userIds || [];
+
+        // Also check any direct admins collection entries or companyId itself
+        const candidateAdminIds = new Set([...adminUserIds, companyId]);
+        candidateAdminIds.forEach(adminUid => {
+          if (adminUid && adminUid !== currentUserId && !seenIds.has(adminUid)) {
+            seenIds.add(adminUid);
+            const aData = adminMap[adminUid] || {};
+            list.unshift({
+              id: adminUid,
+              uid: adminUid,
+              name: aData.name || 'Admin',
+              position: 'Administrator',
+              photoURL: aData.photoURL || null,
+              email: aData.email || '',
+              isAdmin: true
             });
           }
         });
@@ -334,15 +380,12 @@ export function ChatPortal() {
       {/* Floating Bottom-Right Action Button: Black Circle with White Icon */}
       {!isOpen && (
         <button
-          onClick={() => {
-            setIsOpen(true);
-            setIsMinimized(false);
-          }}
-          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-black text-white shadow-[0_8px_30px_rgb(0,0,0,0.3)] hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center border border-zinc-800 focus:outline-none focus:ring-4 focus:ring-black/10 group cursor-pointer"
+          onClick={handleOpen}
+          className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40 w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-black text-white shadow-[0_10px_35px_rgba(0,0,0,0.35)] hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center border border-zinc-800 focus:outline-none focus:ring-4 focus:ring-black/10 group cursor-pointer animate-in fade-in zoom-in-75 duration-300"
           title="Team Messages"
           aria-label="Open Team Messaging"
         >
-          <MessageSquare className="w-6 h-6 text-white stroke-[2.2] group-hover:scale-105 transition-transform" />
+          <MessageSquare className="w-6 h-6 text-white stroke-[2.2] group-hover:scale-110 transition-transform duration-200" />
           {totalUnreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[10px] sm:text-[11px] h-5 min-w-[20px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-pulse">
               {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
@@ -351,20 +394,25 @@ export function ChatPortal() {
         </button>
       )}
 
-      {/* Floating Window Overlay (Bottom Right) */}
+      {/* Floating Window Overlay (Bottom Right) with macOS Genie Spring Effect */}
       {isOpen && (
         <div 
-          className={`fixed z-50 transition-all duration-200 ${
+          className={`fixed z-50 origin-bottom-right transition-all duration-300 ${
+            isClosing 
+              ? 'animate-mac-close pointer-events-none' 
+              : 'animate-mac-open'
+          } ${
             isMinimized 
-              ? 'bottom-4 right-4 w-72 h-14' 
-              : 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-[95vw] sm:w-[640px] md:w-[760px] lg:w-[840px] h-[84vh] max-h-[660px]'
-          } bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-zinc-200/90 overflow-hidden flex flex-col`}
+              ? 'bottom-4 right-4 w-72 h-14 shadow-lg' 
+              : 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-[95vw] sm:w-[640px] md:w-[760px] lg:w-[840px] h-[84vh] max-h-[660px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)]'
+          } bg-white rounded-2xl border border-zinc-200/90 overflow-hidden flex flex-col`}
+          style={{ willChange: 'transform, opacity, filter' }}
         >
           {/* Top Window Bar */}
           <div className="px-4 py-3 bg-zinc-900 text-white flex items-center justify-between shrink-0 select-none">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
-              <h3 className="font-semibold text-[14px] text-white tracking-tight truncate flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <h3 className="font-semibold text-[13px] sm:text-[14px] text-white tracking-tight truncate flex items-center gap-2">
                 Team Messaging Portal
                 {totalUnreadCount > 0 && (
                   <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -383,7 +431,7 @@ export function ChatPortal() {
                 {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
               </button>
               <button 
-                onClick={() => setIsOpen(false)} 
+                onClick={handleClose} 
                 className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                 title="Close"
               >
@@ -504,9 +552,16 @@ export function ChatPortal() {
                             </div>
                             
                             <div className="min-w-0 flex-1">
-                              <h4 className="text-[13px] font-semibold text-zinc-900 truncate">
-                                {emp.name}
-                              </h4>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="text-[13px] font-semibold text-zinc-900 truncate">
+                                  {emp.name}
+                                </h4>
+                                {emp.isAdmin && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-black text-white shrink-0">
+                                    Admin
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[11px] text-zinc-500 truncate">
                                 {meta?.lastMessage || emp.position}
                               </p>

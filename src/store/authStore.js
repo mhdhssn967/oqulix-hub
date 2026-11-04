@@ -18,9 +18,16 @@ export const useAuthStore = create((set) => ({
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
-          // Fetch user's profile metadata from `employees` if it exists (for companyId, name, etc.)
-          const empDoc = await getDoc(doc(db, 'employees', user.uid));
-          const empData = empDoc.exists() ? empDoc.data() : null;
+          // Fetch user's profile metadata from `employees` or `admins` if it exists
+          let empDoc = await getDoc(doc(db, 'employees', user.uid));
+          let empData = empDoc.exists() ? empDoc.data() : null;
+
+          if (!empData) {
+            const adminDoc = await getDoc(doc(db, 'admins', user.uid));
+            if (adminDoc.exists()) {
+              empData = adminDoc.data();
+            }
+          }
 
           // Fetch all role documents from `users` collection
           const rolesSnapshot = await getDocs(collection(db, 'users'));
