@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Menu, LogOut, X, Camera } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
-import { storage, db } from '../../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db } from '../../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { uploadProfilePictureToR2, isR2Configured } from '../../utils/r2Storage';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
@@ -80,11 +80,17 @@ export function Header() {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({ icon: 'warning', title: 'Invalid File', text: 'Please select an image file (PNG, JPG, WEBP, etc.)', confirmButtonColor: '#000' });
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const storageRef = ref(storage, `profile_pictures/${user.uid}_${Date.now()}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      if (!isR2Configured()) {
+        throw new Error('Cloudflare R2 is not configured in environment variables.');
+      }
+      const { url } = await uploadProfilePictureToR2(file, user.uid);
       await updateProfile(undefined, url);
       Swal.fire({ icon: 'success', title: 'Profile picture updated!', timer: 2000, showConfirmButton: false });
     } catch (error) {

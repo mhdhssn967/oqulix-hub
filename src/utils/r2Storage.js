@@ -64,6 +64,50 @@ const getR2Client = () => {
 };
 
 /**
+ * Upload a profile picture to Cloudflare R2 using a Presigned URL + native fetch
+ * @param {File} file - The image File object
+ * @param {string} userId - The unique user ID
+ * @returns {Promise<{ url: string, key: string }>}
+ */
+export const uploadProfilePictureToR2 = async (file, userId) => {
+  const client = getR2Client();
+
+  const sanitizedOriginalName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'avatar.jpg';
+  const timestamp = Date.now();
+  const key = `profile_pictures/${userId}/${timestamp}_${sanitizedOriginalName}`;
+  const contentType = file.type || 'image/jpeg';
+
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  const signedPutUrl = await getSignedUrl(client, command, { expiresIn: 600 });
+
+  const response = await fetch(signedPutUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`R2 upload failed (${response.status}): ${errText || response.statusText}`);
+  }
+
+  const baseUrl = R2_PUBLIC_URL.replace(/\/+$/, '');
+  const publicUrl = `${baseUrl}/${key}`;
+
+  return {
+    url: publicUrl,
+    key,
+  };
+};
+
+/**
  * Upload a resume file to Cloudflare R2 using a Presigned URL + native fetch
  * @param {File} file - The browser File object
  * @param {string} positionId - The ID of the hiring position
