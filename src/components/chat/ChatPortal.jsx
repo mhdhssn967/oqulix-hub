@@ -10,7 +10,8 @@ import {
   setDoc, 
   serverTimestamp, 
   getDocs,
-  limit
+  limit,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuthStore } from '../../store/authStore';
@@ -24,11 +25,18 @@ import {
   Send, 
   ArrowLeft, 
   User, 
-  CheckCheck
+  CheckCheck,
+  Megaphone,
+  Radio,
+  Sparkles,
+  Trash2
 } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 export function ChatPortal() {
-  const { user, employeeData, companyId, isAdmin } = useAuthStore();
+  const { user, employeeData, companyId, isAdmin, isHR } = useAuthStore();
+  const canBroadcast = isAdmin || isHR;
+
   const { 
     isOpen, 
     setIsOpen, 
@@ -48,7 +56,15 @@ export function ChatPortal() {
   const [conversationsMeta, setConversationsMeta] = useState({});
   const [isSending, setIsSending] = useState(false);
 
+  // Broadcast Channels & Messages State
+  const [broadcastMessages, setBroadcastMessages] = useState([]);
+  const [isBroadcastView, setIsBroadcastView] = useState(false);
+  const [broadcastInput, setBroadcastInput] = useState('');
+  const [broadcastPriority, setBroadcastPriority] = useState('Important'); // 'Announcement', 'Important', 'Urgent'
+  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
+
   const messagesEndRef = useRef(null);
+  const broadcastEndRef = useRef(null);
 
   const currentUserId = user?.uid;
   const currentUserName = employeeData?.name || (isAdmin ? 'Admin' : (user?.displayName || 'User'));
@@ -101,7 +117,30 @@ export function ChatPortal() {
     return () => { isMounted = false; };
   }, [companyId, currentUserId]);
 
-  // 2. Listen to conversation metadata (last message, unread status)
+  // 2. Listen to Company Broadcast Messages
+  useEffect(() => {
+    if (!companyId) return;
+
+    const bRef = collection(db, `userData/${companyId}/broadcasts`);
+    const q = query(bRef, orderBy('createdAt', 'asc'), limit(100));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const bList = [];
+      snapshot.forEach(docSnap => {
+        bList.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setBroadcastMessages(bList);
+      setTimeout(() => {
+        broadcastEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }, (err) => {
+      console.error('Error fetching broadcast messages:', err);
+    });
+
+    return () => unsubscribe();
+  }, [companyId]);
+
+  // 3. Listen to conversation metadata (last message, unread status)
   useEffect(() => {
     if (!companyId || !currentUserId) return;
 
@@ -127,9 +166,9 @@ export function ChatPortal() {
     return () => unsubscribe();
   }, [companyId, currentUserId, setTotalUnreadCount]);
 
-  // 3. Listen to messages for the active conversation
+  // 4. Listen to messages for the active conversation
   useEffect(() => {
-    if (!companyId || !currentUserId || !activeEmployee) {
+    if (!companyId || !currentUserId || !activeEmployee || isBroadcastView) {
       setMessages([]);
       return;
     }
@@ -167,14 +206,18 @@ export function ChatPortal() {
     markAsRead();
 
     return () => unsubscribe();
-  }, [companyId, currentUserId, activeEmployee]);
+  }, [companyId, currentUserId, activeEmployee, isBroadcastView]);
 
   // Scroll to bottom on new message
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (isBroadcastView) {
+      broadcastEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, broadcastMessages, isBroadcastView]);
 
-  // Send message
+  // Send Direct Message
   const handleSendMessage = async (e) => {
     e?.preventDefault();
     if (!inputText.trim() || !companyId || !currentUserId || !activeEmployee || isSending) return;
@@ -188,7 +231,6 @@ export function ChatPortal() {
     const convDocRef = doc(db, `userData/${companyId}/chats/${convId}`);
 
     try {
-      // 1. Add message document
       await addDoc(msgsRef, {
         senderId: currentUserId,
         senderName: currentUserName,
@@ -197,7 +239,6 @@ export function ChatPortal() {
         read: false
       });
 
-      // 2. Update conversation meta with unread increments
       const existingMeta = conversationsMeta[convId] || {};
       const currentOtherUnread = (existingMeta.unreadCounts && existingMeta.unreadCounts[activeEmployee.id]) || 0;
 
@@ -226,6 +267,46 @@ export function ChatPortal() {
       console.error('Failed to send message:', err);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Broadcast Message to all employees (Admin & HR only)
+  const handleSendBroadcast = async (e) => {
+    e?.preventDefault();
+    if (!broadcastInput.trim() || !companyId || !canBroadcast || isSendingBroadcast) return;
+
+    const text = broadcastInput.trim();
+    const priority = broadcastPriority;
+    setBroadcastInput('');
+    setIsSendingBroadcast(true);
+
+    try {
+      const bRef = collection(db, `userData/${companyId}/broadcasts`);
+      await addDoc(bRef, {
+        senderId: currentUserId,
+        senderName: currentUserName,
+        senderRole: isAdmin ? 'Admin' : 'HR Management',
+        senderPhotoURL: currentUserPhoto,
+        text,
+        priority, // 'Announcement', 'Important', 'Urgent'
+        createdAt: serverTimestamp(),
+        isBroadcast: true
+      });
+    } catch (err) {
+      console.error('Failed to publish broadcast:', err);
+      Swal.fire({ icon: 'error', title: 'Broadcast Failed', text: err.message });
+    } finally {
+      setIsSendingBroadcast(false);
+    }
+  };
+
+  // Delete broadcast message (Admin/HR only)
+  const handleDeleteBroadcast = async (bId) => {
+    if (!canBroadcast || !companyId) return;
+    try {
+      await deleteDoc(doc(db, `userData/${companyId}/broadcasts`, bId));
+    } catch (err) {
+      console.error('Failed to delete broadcast:', err);
     }
   };
 
@@ -276,7 +357,7 @@ export function ChatPortal() {
           className={`fixed z-50 transition-all duration-200 ${
             isMinimized 
               ? 'bottom-4 right-4 w-72 h-14' 
-              : 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-[95vw] sm:w-[640px] md:w-[740px] lg:w-[820px] h-[82vh] max-h-[640px]'
+              : 'bottom-4 right-4 sm:bottom-6 sm:right-6 w-[95vw] sm:w-[640px] md:w-[760px] lg:w-[840px] h-[84vh] max-h-[660px]'
           } bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-zinc-200/90 overflow-hidden flex flex-col`}
         >
           {/* Top Window Bar */}
@@ -311,213 +392,452 @@ export function ChatPortal() {
             </div>
           </div>
 
-      {/* Window Body (When Not Minimized) */}
-      {!isMinimized && (
-        <div className="flex-1 min-h-0 flex overflow-hidden">
-          {/* Left Pane: Employee List with Search */}
-          <div 
-            className={`${
-              activeEmployee ? 'hidden md:flex' : 'flex'
-            } w-full md:w-[270px] lg:w-[300px] border-r border-zinc-200/80 flex-col bg-zinc-50/70 shrink-0 min-h-0`}
-          >
-            {/* Search Bar */}
-            <div className="p-3 border-b border-zinc-200/60 shrink-0 bg-white">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-                <input 
-                  type="text" 
-                  placeholder="Search colleagues..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-zinc-100/80 rounded-lg border border-transparent focus:border-zinc-300 focus:bg-white focus:outline-none transition-all placeholder:text-zinc-400"
-                />
-              </div>
-            </div>
-
-            {/* Employees Scroll List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 custom-scrollbar">
-              {filteredEmployees.length === 0 ? (
-                <div className="p-6 text-center text-zinc-400 text-[12px]">
-                  No colleagues found
+          {/* Window Body (When Not Minimized) */}
+          {!isMinimized && (
+            <div className="flex-1 min-h-0 flex overflow-hidden">
+              {/* Left Pane: Employee & Channels List with Search */}
+              <div 
+                className={`${
+                  (activeEmployee || isBroadcastView) ? 'hidden md:flex' : 'flex'
+                } w-full md:w-[280px] lg:w-[310px] border-r border-zinc-200/80 flex-col bg-zinc-50/70 shrink-0 min-h-0`}
+              >
+                {/* Search Bar */}
+                <div className="p-3 border-b border-zinc-200/60 shrink-0 bg-white">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search colleagues..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-zinc-100/80 rounded-lg border border-transparent focus:border-zinc-300 focus:bg-white focus:outline-none transition-all placeholder:text-zinc-400"
+                    />
+                  </div>
                 </div>
-              ) : (
-                filteredEmployees.map(emp => {
-                  const convId = getConversationId(currentUserId, emp.id);
-                  const meta = conversationsMeta[convId];
-                  const unread = meta?.unreadCounts?.[currentUserId] || 0;
-                  const isSelected = activeEmployee?.id === emp.id;
 
-                  return (
-                    <button
-                      key={emp.id}
-                      onClick={() => setActiveEmployee(emp)}
-                      className={`w-full p-3 text-left transition-colors flex items-center justify-between gap-3 ${
-                        isSelected ? 'bg-zinc-200/60' : 'hover:bg-zinc-100/70'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                {/* Company Broadcast Special Channel Card */}
+                <div className="p-2.5 border-b border-zinc-200/60 shrink-0 bg-white">
+                  <button
+                    onClick={() => {
+                      setIsBroadcastView(true);
+                      setActiveEmployee(null);
+                    }}
+                    className={`w-full p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 text-left ${
+                      isBroadcastView 
+                        ? 'bg-amber-500/10 border-amber-300 ring-2 ring-amber-500/20' 
+                        : 'bg-gradient-to-r from-amber-50/70 to-orange-50/70 border-amber-200/80 hover:border-amber-300 hover:shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Megaphone className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-[13px] font-bold text-amber-950 truncate">Company Broadcast</h4>
+                          <span className="text-[9px] font-black uppercase tracking-wider bg-amber-200/80 text-amber-800 px-1 py-0.2 rounded">
+                            Official
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800/80 truncate">
+                          {broadcastMessages.length > 0 
+                            ? broadcastMessages[broadcastMessages.length - 1].text 
+                            : 'Announcements for all employees'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {broadcastMessages.length > 0 && (
+                      <span className="shrink-0 bg-amber-600 text-white font-bold text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center shadow-xs">
+                        {broadcastMessages.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Section Title */}
+                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                  <span>Direct Messages</span>
+                  <span className="text-[10px] bg-zinc-200/70 text-zinc-600 px-1.5 py-0.2 rounded-full font-semibold">
+                    {filteredEmployees.length}
+                  </span>
+                </div>
+
+                {/* Employees Scroll List */}
+                <div className="flex-1 overflow-y-auto divide-y divide-zinc-100 custom-scrollbar">
+                  {filteredEmployees.length === 0 ? (
+                    <div className="p-6 text-center text-zinc-400 text-[12px]">
+                      No colleagues found
+                    </div>
+                  ) : (
+                    filteredEmployees.map(emp => {
+                      const convId = getConversationId(currentUserId, emp.id);
+                      const meta = conversationsMeta[convId];
+                      const unread = meta?.unreadCounts?.[currentUserId] || 0;
+                      const isSelected = !isBroadcastView && activeEmployee?.id === emp.id;
+
+                      return (
+                        <button
+                          key={emp.id}
+                          onClick={() => {
+                            setIsBroadcastView(false);
+                            setActiveEmployee(emp);
+                          }}
+                          className={`w-full p-3 text-left transition-colors flex items-center justify-between gap-3 ${
+                            isSelected ? 'bg-zinc-200/60' : 'hover:bg-zinc-100/70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="relative shrink-0">
+                              {emp.photoURL ? (
+                                <img 
+                                  src={emp.photoURL} 
+                                  alt={emp.name} 
+                                  className="w-9 h-9 rounded-full object-cover ring-1 ring-black/5" 
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-[12px]">
+                                  {emp.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white"></span>
+                            </div>
+                            
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-[13px] font-semibold text-zinc-900 truncate">
+                                {emp.name}
+                              </h4>
+                              <p className="text-[11px] text-zinc-500 truncate">
+                                {meta?.lastMessage || emp.position}
+                              </p>
+                            </div>
+                          </div>
+
+                          {unread > 0 && (
+                            <span className="shrink-0 bg-blue-600 text-white font-bold text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center shadow-xs">
+                              {unread}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Right Pane: Active Workspace (Broadcast OR 1:1 Chat) */}
+              <div 
+                className={`${
+                  (activeEmployee || isBroadcastView) ? 'flex' : 'hidden md:flex'
+                } flex-1 flex-col bg-white min-h-0`}
+              >
+                {/* CASE 1: Company Broadcast Workspace */}
+                {isBroadcastView ? (
+                  <>
+                    {/* Broadcast Header */}
+                    <div className="px-4 py-3 border-b border-amber-100 bg-amber-50/50 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Mobile Back Button */}
+                        <button 
+                          onClick={() => setIsBroadcastView(false)}
+                          className="md:hidden p-1.5 -ml-1 text-zinc-500 hover:text-black rounded-lg transition-colors"
+                          title="Back"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Megaphone className="w-4 h-4" />
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[14px] font-bold text-amber-950 truncate leading-tight">
+                              Official Company Broadcast
+                            </h4>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-200 text-amber-800">
+                              All Employees
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-amber-700/80">
+                            Announcements visible to every employee across all departments
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Broadcast Messages Feed */}
+                    <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#FAF9F6] custom-scrollbar">
+                      {broadcastMessages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center text-zinc-400 text-[12px] p-6">
+                          <Megaphone className="w-10 h-10 text-amber-300 mb-2 stroke-1" />
+                          <p className="font-semibold text-zinc-700 text-[14px]">No broadcasts published yet</p>
+                          <p className="text-[11px] text-zinc-400 mt-0.5 max-w-sm">
+                            {canBroadcast 
+                              ? 'As Admin or HR, you can post special company notices, holiday alerts, and announcements below.' 
+                              : 'Important announcements from Admin and HR will be highlighted here.'}
+                          </p>
+                        </div>
+                      ) : (
+                        broadcastMessages.map((msg, idx) => {
+                          const isUrgent = msg.priority === 'Urgent';
+                          const isImportant = msg.priority === 'Important';
+                          const timeStr = msg.createdAt?.toDate 
+                            ? msg.createdAt.toDate().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                            : msg.createdAt?.seconds 
+                              ? new Date(msg.createdAt.seconds * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : '';
+
+                          return (
+                            <div 
+                              key={msg.id || idx}
+                              className={`p-4 rounded-2xl border shadow-xs transition-all relative group ${
+                                isUrgent 
+                                  ? 'bg-rose-50/70 border-rose-200 text-rose-950' 
+                                  : isImportant 
+                                    ? 'bg-amber-50/70 border-amber-200 text-amber-950' 
+                                    : 'bg-white border-zinc-200/90 text-zinc-900'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {msg.senderPhotoURL ? (
+                                    <img 
+                                      src={msg.senderPhotoURL} 
+                                      alt={msg.senderName} 
+                                      className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-black/5" 
+                                    />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-[11px] shrink-0">
+                                      {msg.senderName?.charAt(0) || 'A'}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[13px] font-bold truncate">{msg.senderName}</span>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-black/5 text-zinc-600">
+                                        {msg.senderRole || 'HR / Admin'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    isUrgent 
+                                      ? 'bg-rose-600 text-white' 
+                                      : isImportant 
+                                        ? 'bg-amber-600 text-white' 
+                                        : 'bg-zinc-200 text-zinc-700'
+                                  }`}>
+                                    {msg.priority || 'Announcement'}
+                                  </span>
+
+                                  {canBroadcast && (
+                                    <button
+                                      onClick={() => handleDeleteBroadcast(msg.id)}
+                                      className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-rose-600 p-1 rounded transition-opacity"
+                                      title="Delete broadcast"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <p className="text-[13px] leading-relaxed whitespace-pre-wrap pl-9 font-medium">
+                                {msg.text}
+                              </p>
+
+                              <div className="text-[10px] text-zinc-400 mt-2.5 pl-9 flex items-center gap-2">
+                                <span>{timeStr}</span>
+                                <span>•</span>
+                                <span className="flex items-center gap-1 font-semibold text-zinc-500">
+                                  <Radio className="w-3 h-3 text-amber-500 animate-pulse" /> Broadcasted to all
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={broadcastEndRef} />
+                    </div>
+
+                    {/* Broadcast Composer (Admin / HR only) */}
+                    {canBroadcast ? (
+                      <form 
+                        onSubmit={handleSendBroadcast}
+                        className="p-3 border-t border-zinc-200 bg-white flex flex-col gap-2 shrink-0"
+                      >
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <span className="text-[11px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Broadcast as Admin/HR
+                          </span>
+                          <div className="flex items-center gap-1 bg-zinc-100 p-0.5 rounded-lg border border-zinc-200">
+                            {['Announcement', 'Important', 'Urgent'].map(p => (
+                              <button
+                                key={p}
+                                type="button"
+                                onClick={() => setBroadcastPriority(p)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                  broadcastPriority === p 
+                                    ? p === 'Urgent' 
+                                      ? 'bg-rose-600 text-white shadow-xs' 
+                                      : p === 'Important' 
+                                        ? 'bg-amber-500 text-white shadow-xs' 
+                                        : 'bg-zinc-800 text-white shadow-xs' 
+                                    : 'text-zinc-600 hover:text-black'
+                                }`}
+                              >
+                                {p}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="Write an announcement for all employees..."
+                            value={broadcastInput}
+                            onChange={e => setBroadcastInput(e.target.value)}
+                            className="flex-1 px-3.5 py-2 text-[13px] bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:bg-white focus:border-amber-500 transition-all placeholder:text-zinc-400"
+                          />
+                          <button 
+                            type="submit"
+                            disabled={!broadcastInput.trim() || isSendingBroadcast}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                          >
+                            <Megaphone className="w-3.5 h-3.5" />
+                            <span>Broadcast</span>
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="p-3 border-t border-zinc-100 bg-zinc-50/70 text-center text-[12px] text-zinc-500 font-medium">
+                        Only Admins and HR can publish company broadcasts.
+                      </div>
+                    )}
+                  </>
+                ) : activeEmployee ? (
+                  <>
+                    {/* CASE 2: 1:1 Direct Message Header */}
+                    <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {/* Mobile Back Button */}
+                        <button 
+                          onClick={() => setActiveEmployee(null)}
+                          className="md:hidden p-1.5 -ml-1 text-zinc-500 hover:text-black rounded-lg transition-colors"
+                          title="Back to colleagues"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+
                         <div className="relative shrink-0">
-                          {emp.photoURL ? (
+                          {activeEmployee.photoURL ? (
                             <img 
-                              src={emp.photoURL} 
-                              alt={emp.name} 
-                              className="w-9 h-9 rounded-full object-cover ring-1 ring-black/5" 
+                              src={activeEmployee.photoURL} 
+                              alt={activeEmployee.name} 
+                              className="w-9 h-9 rounded-full object-cover" 
                             />
                           ) : (
                             <div className="w-9 h-9 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-[12px]">
-                              {emp.name.charAt(0).toUpperCase()}
+                              {activeEmployee.name.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white"></span>
                         </div>
-                        
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-[13px] font-semibold text-zinc-900 truncate">
-                            {emp.name}
+
+                        <div className="min-w-0">
+                          <h4 className="text-[14px] font-bold text-zinc-900 truncate leading-tight">
+                            {activeEmployee.name}
                           </h4>
-                          <p className="text-[11px] text-zinc-500 truncate">
-                            {meta?.lastMessage || emp.position}
-                          </p>
-                        </div>
-                      </div>
-
-                      {unread > 0 && (
-                        <span className="shrink-0 bg-blue-600 text-white font-bold text-[10px] h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center shadow-xs">
-                          {unread}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Right Pane: Active Chat Window */}
-          <div 
-            className={`${
-              activeEmployee ? 'flex' : 'hidden md:flex'
-            } flex-1 flex-col bg-white min-h-0`}
-          >
-            {activeEmployee ? (
-              <>
-                {/* Active Chat Header */}
-                <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Mobile Back Button */}
-                    <button 
-                      onClick={() => setActiveEmployee(null)}
-                      className="md:hidden p-1.5 -ml-1 text-zinc-500 hover:text-black rounded-lg transition-colors"
-                      title="Back to colleagues"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-
-                    <div className="relative shrink-0">
-                      {activeEmployee.photoURL ? (
-                        <img 
-                          src={activeEmployee.photoURL} 
-                          alt={activeEmployee.name} 
-                          className="w-9 h-9 rounded-full object-cover" 
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-zinc-800 text-white flex items-center justify-center font-bold text-[12px]">
-                          {activeEmployee.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white"></span>
-                    </div>
-
-                    <div className="min-w-0">
-                      <h4 className="text-[14px] font-bold text-zinc-900 truncate leading-tight">
-                        {activeEmployee.name}
-                      </h4>
-                      <span className="text-[11px] text-zinc-400 capitalize">
-                        {activeEmployee.position}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Messages Scroll Area */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#FAFAFA] custom-scrollbar">
-                  {messages.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-zinc-400 text-[12px] p-6">
-                      <MessageSquare className="w-8 h-8 text-zinc-300 mb-2 stroke-1" />
-                      <p className="font-medium text-zinc-600">Start a conversation with {activeEmployee.name}</p>
-                      <p className="text-[11px] text-zinc-400 mt-0.5">Direct messages are synchronized across devices in real time.</p>
-                    </div>
-                  ) : (
-                    messages.map((msg, idx) => {
-                      const isMine = msg.senderId === currentUserId;
-                      const timeStr = msg.createdAt?.toDate 
-                        ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : msg.createdAt?.seconds 
-                          ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                          : '';
-
-                      return (
-                        <div 
-                          key={msg.id || idx}
-                          className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
-                        >
-                          <div 
-                            className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed break-words shadow-2xs ${
-                              isMine 
-                                ? 'bg-zinc-900 text-white rounded-br-xs' 
-                                : 'bg-white text-zinc-900 border border-zinc-200/80 rounded-bl-xs'
-                            }`}
-                          >
-                            {msg.text}
-                          </div>
-                          <span className="text-[10px] text-zinc-400 mt-1 px-1">
-                            {timeStr}
+                          <span className="text-[11px] text-zinc-400 capitalize">
+                            {activeEmployee.position}
                           </span>
                         </div>
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
+                      </div>
+                    </div>
 
-                {/* Chat Input Bar */}
-                <form 
-                  onSubmit={handleSendMessage}
-                  className="p-3 border-t border-zinc-100 bg-white flex items-center gap-2 shrink-0"
-                >
-                  <input 
-                    type="text" 
-                    placeholder={`Message ${activeEmployee.name.split(' ')[0]}...`}
-                    value={inputText}
-                    onChange={e => setInputText(e.target.value)}
-                    className="flex-1 px-3.5 py-2 text-[13px] bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:bg-white focus:border-zinc-900 transition-all placeholder:text-zinc-400"
-                  />
-                  <button 
-                    type="submit"
-                    disabled={!inputText.trim() || isSending}
-                    className="px-4 py-2 bg-zinc-900 hover:bg-black disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-all flex items-center gap-1.5 shadow-sm shrink-0"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Send</span>
-                  </button>
-                </form>
-              </>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-400">
-                <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 mb-3">
-                  <MessageSquare className="w-6 h-6 stroke-1" />
-                </div>
-                <h4 className="text-[14px] font-semibold text-zinc-700">No conversation selected</h4>
-                <p className="text-[12px] text-zinc-400 mt-1 max-w-xs">
-                  Choose a team member from the list on the left to start sending direct messages.
-                </p>
+                    {/* Messages Scroll Area */}
+                    <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#FAFAFA] custom-scrollbar">
+                      {messages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center text-zinc-400 text-[12px] p-6">
+                          <MessageSquare className="w-8 h-8 text-zinc-300 mb-2 stroke-1" />
+                          <p className="font-medium text-zinc-600">Start a conversation with {activeEmployee.name}</p>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">Direct messages are synchronized across devices in real time.</p>
+                        </div>
+                      ) : (
+                        messages.map((msg, idx) => {
+                          const isMine = msg.senderId === currentUserId;
+                          const timeStr = msg.createdAt?.toDate 
+                            ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : msg.createdAt?.seconds 
+                              ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                              : '';
+
+                          return (
+                            <div 
+                              key={msg.id || idx}
+                              className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                            >
+                              <div 
+                                className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed break-words shadow-2xs ${
+                                  isMine 
+                                    ? 'bg-zinc-900 text-white rounded-br-xs' 
+                                    : 'bg-white text-zinc-900 border border-zinc-200/80 rounded-bl-xs'
+                                }`}
+                              >
+                                {msg.text}
+                              </div>
+                              <span className="text-[10px] text-zinc-400 mt-1 px-1">
+                                {timeStr}
+                              </span>
+                            </div>
+                          );
+                        })
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Chat Input Bar */}
+                    <form 
+                      onSubmit={handleSendMessage}
+                      className="p-3 border-t border-zinc-100 bg-white flex items-center gap-2 shrink-0"
+                    >
+                      <input 
+                        type="text" 
+                        placeholder={`Message ${activeEmployee.name.split(' ')[0]}...`}
+                        value={inputText}
+                        onChange={e => setInputText(e.target.value)}
+                        className="flex-1 px-3.5 py-2 text-[13px] bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:bg-white focus:border-zinc-900 transition-all placeholder:text-zinc-400"
+                      />
+                      <button 
+                        type="submit"
+                        disabled={!inputText.trim() || isSending}
+                        className="px-4 py-2 bg-zinc-900 hover:bg-black disabled:opacity-40 text-white rounded-xl text-[12px] font-semibold transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send</span>
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 text-zinc-400">
+                    <div className="w-12 h-12 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 mb-3">
+                      <MessageSquare className="w-6 h-6 stroke-1" />
+                    </div>
+                    <h4 className="text-[14px] font-semibold text-zinc-700">No conversation selected</h4>
+                    <p className="text-[12px] text-zinc-400 mt-1 max-w-xs">
+                      Choose a team member from the list on the left to start sending direct messages, or select <strong>Company Broadcast</strong> above.
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
-    )}
-  </>
+    </>
   );
 }
