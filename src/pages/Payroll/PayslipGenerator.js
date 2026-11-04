@@ -26,7 +26,7 @@ const svgId = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" vi
 const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>`;
 
 export const generatePayslipPDF = async (employeeName, payrollData, companyName = 'Oqulix') => {
-  const { month, baseSalary, expectedPay, bonus, incentives, deductions, netSalary, processedDate, totalWorkingDays, actualWorkingDays } = payrollData;
+  const { month, baseSalary, expectedPay, bonus, incentives, deductions, netSalary, processedDate, totalWorkingDays, actualWorkingDays, totalLeaves, unpaidLeaves } = payrollData;
   const processDateStr = processedDate && processedDate.toDate 
     ? processedDate.toDate().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) 
     : (processedDate ? new Date(processedDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A');
@@ -78,15 +78,22 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
 
   // Employee Details - Table Grid
   const hasWorkingDays = totalWorkingDays !== undefined || actualWorkingDays !== undefined;
-  const gridHeight = hasWorkingDays ? 135 : 90;
-  y = 145;
+  const hasLeaves = totalLeaves !== undefined || unpaidLeaves !== undefined;
+  
+  // Rows: 1. Name/ID, 2. Desig/Date, 3. Working Days (optional), 4. Leaves (optional)
+  let rowCount = 2;
+  if (hasWorkingDays) rowCount++;
+  if (hasLeaves) rowCount++;
+  const gridHeight = rowCount * 45;
+
+  y = 135;
   pdf.setDrawColor(210, 210, 210);
   pdf.setLineWidth(1);
   pdf.rect(margin, y, pageWidth - 2 * margin, gridHeight, 'S'); // Outer box
   pdf.line(pageWidth / 2, y, pageWidth / 2, y + gridHeight); // Vertical divider
-  pdf.line(margin, y + 45, pageWidth - margin, y + 45); // Horizontal divider 1
-  if (hasWorkingDays) {
-    pdf.line(margin, y + 90, pageWidth - margin, y + 90); // Horizontal divider 2
+  
+  for (let r = 1; r < rowCount; r++) {
+    pdf.line(margin, y + (r * 45), pageWidth - margin, y + (r * 45)); // Horizontal divider
   }
   
   const drawIconDetail = (icon, label, value, x, yPos) => {
@@ -102,16 +109,27 @@ export const generatePayslipPDF = async (employeeName, payrollData, companyName 
     pdf.text(String(value ?? '—'), x + 42, yPos + 35);
   };
   
-  drawIconDetail(iconUser, 'Employee Name', employeeName || 'Employee', margin, y);
-  drawIconDetail(iconId, 'Employee ID', payrollData.employeeId || '—', pageWidth / 2, y);
-  drawIconDetail(iconBriefcase, 'Designation', payrollData.role || '—', margin, y + 45);
-  drawIconDetail(iconCalendar, 'Date Processed', processDateStr, pageWidth / 2, y + 45);
+  let currentGridY = y;
+  drawIconDetail(iconUser, 'Employee Name', employeeName || 'Employee', margin, currentGridY);
+  drawIconDetail(iconId, 'Employee ID', payrollData.employeeId || '—', pageWidth / 2, currentGridY);
+  
+  currentGridY += 45;
+  drawIconDetail(iconBriefcase, 'Designation', payrollData.role || '—', margin, currentGridY);
+  drawIconDetail(iconCalendar, 'Date Processed', processDateStr, pageWidth / 2, currentGridY);
+
   if (hasWorkingDays) {
-    drawIconDetail(iconCalendar, 'Total Working Days', totalWorkingDays !== undefined && totalWorkingDays !== '' ? `${totalWorkingDays} Days` : '—', margin, y + 90);
-    drawIconDetail(iconCheck, 'Actual Working Days', actualWorkingDays !== undefined && actualWorkingDays !== '' ? `${actualWorkingDays} Days` : '—', pageWidth / 2, y + 90);
+    currentGridY += 45;
+    drawIconDetail(iconCalendar, 'Total Working Days', totalWorkingDays !== undefined && totalWorkingDays !== '' ? `${totalWorkingDays} Days` : '—', margin, currentGridY);
+    drawIconDetail(iconCheck, 'Actual Working Days', actualWorkingDays !== undefined && actualWorkingDays !== '' ? `${actualWorkingDays} Days` : '—', pageWidth / 2, currentGridY);
   }
 
-  y += gridHeight + 30; // grid height + 30 spacing
+  if (hasLeaves) {
+    currentGridY += 45;
+    drawIconDetail(iconCalendar, 'Total Leaves', totalLeaves !== undefined && totalLeaves !== '' ? `${totalLeaves} Days` : '0 Days', margin, currentGridY);
+    drawIconDetail(iconCheck, 'Unpaid Leaves', unpaidLeaves !== undefined && unpaidLeaves !== '' ? `${unpaidLeaves} Days` : '0 Days', pageWidth / 2, currentGridY);
+  }
+
+  y += gridHeight + 25; // grid height + 25 spacing
 
   const currency = (amount) => `Rs. ${(Number(amount) || 0).toLocaleString('en-IN')}`;
 

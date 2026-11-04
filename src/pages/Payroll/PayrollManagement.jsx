@@ -28,6 +28,8 @@ export default function PayrollManagement() {
     month: '',
     totalWorkingDays: 0,
     actualWorkingDays: 0,
+    totalLeaves: 0,
+    unpaidLeaves: 0,
     baseSalary: 0,
     bonus: 0,
     incentives: 0,
@@ -36,12 +38,21 @@ export default function PayrollManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [calculationDetails, setCalculationDetails] = useState(null);
 
-  const recalculateExpectedPayFromDays = (totalDaysVal, actualDaysVal, standardSalaryVal) => {
+  const recalculateExpectedPay = ({ totalDaysVal, actualDaysVal, unpaidLeavesVal, standardSalaryVal }) => {
     const total = Number(totalDaysVal) || 0;
-    const actual = Number(actualDaysVal) || 0;
+    let actual = Number(actualDaysVal) || 0;
+    const unpaid = Number(unpaidLeavesVal) || 0;
     const fullSalary = Number(standardSalaryVal) || 0;
+    
     if (total <= 0) return fullSalary;
-    let calculated = (fullSalary / total) * actual;
+
+    let effectiveDays = actual;
+    if (unpaid > 0 && actual >= total) {
+      effectiveDays = Math.max(0, total - unpaid);
+    }
+    
+    let calculated = (fullSalary / total) * effectiveDays;
+    if (calculated > fullSalary) calculated = fullSalary;
     return Math.round(calculated);
   };
 
@@ -49,11 +60,12 @@ export default function PayrollManagement() {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
       const fullSalary = processSalaryPrompt.employee?.salary || calculationDetails?.originalSalary || 0;
-      const newExpected = recalculateExpectedPayFromDays(
-        field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
-        field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
-        fullSalary
-      );
+      const newExpected = recalculateExpectedPay({
+        totalDaysVal: field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
+        actualDaysVal: field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
+        unpaidLeavesVal: field === 'unpaidLeaves' ? value : prev.unpaidLeaves,
+        standardSalaryVal: fullSalary
+      });
       updated.baseSalary = newExpected;
       return updated;
     });
@@ -109,26 +121,37 @@ export default function PayrollManagement() {
       
       let totalMinutesWorked = 0;
       let fieldDays = 0;
+      let totalLeavesCount = 0;
+      let unpaidLeavesCount = 0;
       
       attSnap.docs.forEach(d => {
         const log = d.data();
-        if (log.date && log.date.startsWith(monthStr) && log.status !== 'On Leave') {
-          if (log.workType === 'Field') {
-            fieldDays++;
-          } else if (log.clockedInAt) {
-            const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
-            const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
-            let ms = tOut.getTime() - tIn.getTime();
-            if (log.breaks && Array.isArray(log.breaks)) {
-              log.breaks.forEach(b => {
-                if (b.startTime) {
-                  const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
-                  const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
-                  ms -= (bE.getTime() - bS.getTime());
-                }
-              });
+        if (log.date && log.date.startsWith(monthStr)) {
+          if (log.status === 'On Leave' || log.leaveReason) {
+            totalLeavesCount++;
+            const reason = (log.leaveReason || '').toLowerCase();
+            if (reason.includes('unpaid') || reason.includes('loss of pay') || reason.includes('lop')) {
+              unpaidLeavesCount++;
             }
-            if (ms > 0) totalMinutesWorked += Math.floor(ms / 60000);
+          }
+          if (log.status !== 'On Leave') {
+            if (log.workType === 'Field') {
+              fieldDays++;
+            } else if (log.clockedInAt) {
+              const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+              const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
+              let ms = tOut.getTime() - tIn.getTime();
+              if (log.breaks && Array.isArray(log.breaks)) {
+                log.breaks.forEach(b => {
+                  if (b.startTime) {
+                    const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
+                    const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
+                    ms -= (bE.getTime() - bS.getTime());
+                  }
+                });
+              }
+              if (ms > 0) totalMinutesWorked += Math.floor(ms / 60000);
+            }
           }
         }
       });
@@ -147,12 +170,16 @@ export default function PayrollManagement() {
         ...p,
         totalWorkingDays: workingDays,
         actualWorkingDays: actualWorkingDays,
+        totalLeaves: totalLeavesCount,
+        unpaidLeaves: unpaidLeavesCount,
         baseSalary: Math.round(calculatedSalary)
       }));
       setCalculationDetails({
         loading: false,
         actualWorkingDays,
         totalWorkingDays: workingDays,
+        totalLeaves: totalLeavesCount,
+        unpaidLeaves: unpaidLeavesCount,
         originalSalary: fullSalary
       });
       
@@ -215,26 +242,36 @@ export default function PayrollManagement() {
       const empStats = {};
       attSnap.docs.forEach(d => {
         const log = d.data();
-        if (log.date && log.date.startsWith(monthStr) && log.status !== 'On Leave') {
+        if (log.date && log.date.startsWith(monthStr)) {
           const eId = log.employeeId;
-          if (!empStats[eId]) empStats[eId] = { totalMinutesWorked: 0, fieldDays: 0 };
+          if (!empStats[eId]) empStats[eId] = { totalMinutesWorked: 0, fieldDays: 0, totalLeaves: 0, unpaidLeaves: 0 };
           
-          if (log.workType === 'Field') {
-            empStats[eId].fieldDays++;
-          } else if (log.clockedInAt) {
-            const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
-            const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
-            let ms = tOut.getTime() - tIn.getTime();
-            if (log.breaks && Array.isArray(log.breaks)) {
-              log.breaks.forEach(b => {
-                if (b.startTime) {
-                  const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
-                  const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
-                  ms -= (bE.getTime() - bS.getTime());
-                }
-              });
+          if (log.status === 'On Leave' || log.leaveReason) {
+            empStats[eId].totalLeaves++;
+            const reason = (log.leaveReason || '').toLowerCase();
+            if (reason.includes('unpaid') || reason.includes('loss of pay') || reason.includes('lop')) {
+              empStats[eId].unpaidLeaves++;
             }
-            if (ms > 0) empStats[eId].totalMinutesWorked += Math.floor(ms / 60000);
+          }
+
+          if (log.status !== 'On Leave') {
+            if (log.workType === 'Field') {
+              empStats[eId].fieldDays++;
+            } else if (log.clockedInAt) {
+              const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
+              const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
+              let ms = tOut.getTime() - tIn.getTime();
+              if (log.breaks && Array.isArray(log.breaks)) {
+                log.breaks.forEach(b => {
+                  if (b.startTime) {
+                    const bS = b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime);
+                    const bE = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : new Date();
+                    ms -= (bE.getTime() - bS.getTime());
+                  }
+                });
+              }
+              if (ms > 0) empStats[eId].totalMinutesWorked += Math.floor(ms / 60000);
+            }
           }
         }
       });
@@ -242,7 +279,7 @@ export default function PayrollManagement() {
       const currentMonthExp = {};
       const currentDaysMap = {};
       emps.forEach(emp => {
-        const stats = empStats[emp.id] || { totalMinutesWorked: 0, fieldDays: 0 };
+        const stats = empStats[emp.id] || { totalMinutesWorked: 0, fieldDays: 0, totalLeaves: 0, unpaidLeaves: 0 };
         const actualHours = (stats.totalMinutesWorked / 60) + (stats.fieldDays * 6.5);
         const actualWorkingDays = Number((actualHours / 6.5).toFixed(1));
         const fullSalary = emp.salary || 0;
@@ -252,7 +289,12 @@ export default function PayrollManagement() {
           if (calculated > fullSalary) calculated = fullSalary;
         }
         currentMonthExp[emp.id] = Math.round(calculated);
-        currentDaysMap[emp.id] = { totalWorkingDays, actualWorkingDays };
+        currentDaysMap[emp.id] = { 
+          totalWorkingDays, 
+          actualWorkingDays, 
+          totalLeaves: stats.totalLeaves, 
+          unpaidLeaves: stats.unpaidLeaves 
+        };
       });
       
       setCurrentMonthExpected(currentMonthExp);
@@ -283,6 +325,8 @@ export default function PayrollManagement() {
       const finalDeductions = Number(formData.deductions) || 0;
       const finalTotalDays = Number(formData.totalWorkingDays) || 0;
       const finalActualDays = Number(formData.actualWorkingDays) || 0;
+      const finalTotalLeaves = Number(formData.totalLeaves) || 0;
+      const finalUnpaidLeaves = Number(formData.unpaidLeaves) || 0;
       const netSalary = finalBase + finalBonus + finalIncentives - finalDeductions;
       
       const batch = writeBatch(db);
@@ -296,6 +340,8 @@ export default function PayrollManagement() {
         month: formData.month,
         totalWorkingDays: finalTotalDays,
         actualWorkingDays: finalActualDays,
+        totalLeaves: finalTotalLeaves,
+        unpaidLeaves: finalUnpaidLeaves,
         expectedPay: finalBase,
         baseSalary: finalBase,
         standardBaseSalary: processSalaryPrompt.employee.salary || 0,
@@ -390,10 +436,12 @@ export default function PayrollManagement() {
     const initialData = {};
     activeEmployees.forEach(emp => {
       const expected = currentMonthExpected[emp.id];
-      const daysInfo = currentMonthDays[emp.id] || { totalWorkingDays: 24, actualWorkingDays: 24 };
+      const daysInfo = currentMonthDays[emp.id] || { totalWorkingDays: 24, actualWorkingDays: 24, totalLeaves: 0, unpaidLeaves: 0 };
       initialData[emp.id] = {
         totalWorkingDays: daysInfo.totalWorkingDays,
         actualWorkingDays: daysInfo.actualWorkingDays,
+        totalLeaves: daysInfo.totalLeaves || 0,
+        unpaidLeaves: daysInfo.unpaidLeaves || 0,
         baseSalary: (expected !== undefined) ? expected : (emp.salary || 0),
         bonus: 0,
         incentives: 0,
@@ -416,13 +464,15 @@ export default function PayrollManagement() {
       const txDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`;
 
       activeEmployees.forEach(emp => {
-        const empData = processAllPrompt.data[emp.id] || { baseSalary: 0, bonus: 0, incentives: 0, deductions: 0, totalWorkingDays: 0, actualWorkingDays: 0 };
+        const empData = processAllPrompt.data[emp.id] || { baseSalary: 0, bonus: 0, incentives: 0, deductions: 0, totalWorkingDays: 0, actualWorkingDays: 0, totalLeaves: 0, unpaidLeaves: 0 };
         const finalBase = Number(empData.baseSalary) || 0;
         const finalBonus = Number(empData.bonus) || 0;
         const finalIncentives = Number(empData.incentives) || 0;
         const finalDeductions = Number(empData.deductions) || 0;
         const finalTotalDays = Number(empData.totalWorkingDays) || 0;
         const finalActualDays = Number(empData.actualWorkingDays) || 0;
+        const finalTotalLeaves = Number(empData.totalLeaves) || 0;
+        const finalUnpaidLeaves = Number(empData.unpaidLeaves) || 0;
         const netSalary = finalBase + finalBonus + finalIncentives - finalDeductions;
         
         const newLog = {
@@ -432,6 +482,8 @@ export default function PayrollManagement() {
           month: selectedMonthForExpected,
           totalWorkingDays: finalTotalDays,
           actualWorkingDays: finalActualDays,
+          totalLeaves: finalTotalLeaves,
+          unpaidLeaves: finalUnpaidLeaves,
           expectedPay: finalBase,
           baseSalary: finalBase,
           standardBaseSalary: emp.salary || 0,
@@ -799,9 +851,9 @@ export default function PayrollManagement() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 mt-1 pt-3 border-t border-zinc-100/80">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1 pt-3 border-t border-zinc-100/80">
                         <div>
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Total Working Days</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Total Work Days</label>
                           <input 
                             type="number"
                             step="any"
@@ -812,7 +864,13 @@ export default function PayrollManagement() {
                             onChange={(e) => {
                               const newTotal = e.target.value;
                               const actual = processAllPrompt.data[emp.id]?.actualWorkingDays ?? 0;
-                              const newExpected = recalculateExpectedPayFromDays(newTotal, actual, emp.salary || 0);
+                              const unpaid = processAllPrompt.data[emp.id]?.unpaidLeaves ?? 0;
+                              const newExpected = recalculateExpectedPay({
+                                totalDaysVal: newTotal,
+                                actualDaysVal: actual,
+                                unpaidLeavesVal: unpaid,
+                                standardSalaryVal: emp.salary || 0
+                              });
                               setProcessAllPrompt(prev => ({
                                 ...prev,
                                 data: {
@@ -829,7 +887,7 @@ export default function PayrollManagement() {
                           />
                         </div>
                         <div>
-                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Actual Working Days</label>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Actual Work Days</label>
                           <input 
                             type="number"
                             step="any"
@@ -840,7 +898,13 @@ export default function PayrollManagement() {
                             onChange={(e) => {
                               const newActual = e.target.value;
                               const total = processAllPrompt.data[emp.id]?.totalWorkingDays ?? 0;
-                              const newExpected = recalculateExpectedPayFromDays(total, newActual, emp.salary || 0);
+                              const unpaid = processAllPrompt.data[emp.id]?.unpaidLeaves ?? 0;
+                              const newExpected = recalculateExpectedPay({
+                                totalDaysVal: total,
+                                actualDaysVal: newActual,
+                                unpaidLeavesVal: unpaid,
+                                standardSalaryVal: emp.salary || 0
+                              });
                               setProcessAllPrompt(prev => ({
                                 ...prev,
                                 data: {
@@ -854,6 +918,63 @@ export default function PayrollManagement() {
                               }));
                             }}
                             className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-zinc-800 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-1 block">Total Leaves</label>
+                          <input 
+                            type="number"
+                            step="any"
+                            min="0"
+                            onWheel={(e) => e.target.blur()}
+                            value={processAllPrompt.data[emp.id]?.totalLeaves ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: {
+                                  ...prev.data,
+                                  [emp.id]: {
+                                    ...prev.data[emp.id],
+                                    totalLeaves: val
+                                  }
+                                }
+                              }));
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-zinc-50 border border-zinc-200 rounded-md text-[12px] font-bold text-zinc-800 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-amber-600 uppercase tracking-wider mb-1 block">Unpaid Leaves</label>
+                          <input 
+                            type="number"
+                            step="any"
+                            min="0"
+                            onWheel={(e) => e.target.blur()}
+                            value={processAllPrompt.data[emp.id]?.unpaidLeaves ?? ''}
+                            onChange={(e) => {
+                              const newUnpaid = e.target.value;
+                              const total = processAllPrompt.data[emp.id]?.totalWorkingDays ?? 0;
+                              const actual = processAllPrompt.data[emp.id]?.actualWorkingDays ?? 0;
+                              const newExpected = recalculateExpectedPay({
+                                totalDaysVal: total,
+                                actualDaysVal: actual,
+                                unpaidLeavesVal: newUnpaid,
+                                standardSalaryVal: emp.salary || 0
+                              });
+                              setProcessAllPrompt(prev => ({
+                                ...prev,
+                                data: {
+                                  ...prev.data,
+                                  [emp.id]: {
+                                    ...prev.data[emp.id],
+                                    unpaidLeaves: newUnpaid,
+                                    baseSalary: newExpected
+                                  }
+                                }
+                              }));
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-amber-50/50 border border-amber-200 rounded-md text-[12px] font-bold text-amber-800 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           />
                         </div>
                       </div>
@@ -1013,11 +1134,33 @@ export default function PayrollManagement() {
                       className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] font-semibold focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-zinc-600 mb-1.5 uppercase tracking-wide">Total Leaves</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={formData.totalLeaves}
+                      onChange={(e) => setFormData(p => ({ ...p, totalLeaves: e.target.value }))}
+                      className="w-full px-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-[13px] font-semibold focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-amber-700 mb-1.5 uppercase tracking-wide">Unpaid Leaves</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={formData.unpaidLeaves}
+                      onChange={(e) => handleWorkingDaysChange('unpaidLeaves', e.target.value)}
+                      className="w-full px-3 py-2 bg-amber-50/50 border border-amber-200 rounded-lg text-[13px] font-semibold text-amber-900 focus:bg-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
+                    />
+                  </div>
                   {calculationDetails?.loading ? (
-                    <p className="col-span-2 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating working days...</p>
+                    <p className="col-span-2 text-[11px] text-zinc-500 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin"/> Calculating working days & leaves...</p>
                   ) : calculationDetails && !calculationDetails.error ? (
                     <p className="col-span-2 text-[11px] text-zinc-500 leading-tight">
-                      Auto-calculated: <span className="font-semibold text-zinc-800">{calculationDetails.actualWorkingDays}</span> / <span className="font-semibold text-zinc-800">{calculationDetails.totalWorkingDays}</span> days (Standard Salary: ₹{calculationDetails.originalSalary?.toLocaleString()})
+                      Auto-calculated: <span className="font-semibold text-zinc-800">{calculationDetails.actualWorkingDays}</span> / <span className="font-semibold text-zinc-800">{calculationDetails.totalWorkingDays}</span> days · Leaves: <span className="font-semibold text-zinc-800">{calculationDetails.totalLeaves ?? 0}</span> (Unpaid: <span className="font-semibold text-amber-700">{calculationDetails.unpaidLeaves ?? 0}</span>)
                     </p>
                   ) : null}
                 </div>
