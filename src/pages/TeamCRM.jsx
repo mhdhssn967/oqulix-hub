@@ -6,9 +6,11 @@ import { useAuthStore } from '../store/authStore';
 import { 
   Users, User, Calendar as CalendarIcon, Phone, Mail, MapPin, Search, Plus, 
   ArrowLeft, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle2, Clock, 
-  AlertCircle, TrendingUp, Flame, Tag, Loader2, MessageSquare, Edit2, X
+  AlertCircle, TrendingUp, Flame, Tag, Loader2, MessageSquare, Edit2, X,
+  Building2, DollarSign, Briefcase, Hash, FileText, CheckCircle, Target
 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import QuickUpdateModal from '../components/QuickUpdateModal';
 
 export default function TeamCRM() {
   const navigate = useNavigate();
@@ -35,6 +37,10 @@ export default function TeamCRM() {
   // Calendar State
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [selectedDayEvents, setSelectedDayEvents] = useState(null);
+
+  // Lead Details & Quick Update Modal State
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [quickUpdateLead, setQuickUpdateLead] = useState(null);
 
   // Edit / Add Lead Modal State
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -300,6 +306,41 @@ export default function TeamCRM() {
     setIsLeadModalOpen(true);
   };
 
+  const getIconForKey = (key) => {
+    const k = key.toLowerCase();
+    if (k.includes('name') || k.includes('client') || k.includes('institution')) return <Building2 className="w-4 h-4" />;
+    if (k.includes('contact') || k.includes('person')) return <User className="w-4 h-4" />;
+    if (k.includes('phone') || k.includes('number') || k.includes('contactno')) return <Phone className="w-4 h-4" />;
+    if (k.includes('email')) return <Mail className="w-4 h-4" />;
+    if (k.includes('place') || k.includes('country') || k.includes('region') || k.includes('address') || k.includes('state')) return <MapPin className="w-4 h-4" />;
+    if (k.includes('price') || k.includes('value')) return <DollarSign className="w-4 h-4" />;
+    if (k.includes('date') || k.includes('followup') || k.includes('time')) return <CalendarIcon className="w-4 h-4" />;
+    if (k.includes('status')) return <CheckCircle className="w-4 h-4" />;
+    if (k.includes('priority')) return <AlertCircle className="w-4 h-4" />;
+    if (k.includes('designation') || k.includes('role')) return <Briefcase className="w-4 h-4" />;
+    if (k.includes('remarks') || k.includes('message')) return <MessageSquare className="w-4 h-4" />;
+    if (k.includes('type')) return <Tag className="w-4 h-4" />;
+    if (k.includes('id')) return <Hash className="w-4 h-4" />;
+    return <FileText className="w-4 h-4" />;
+  };
+
+  const getStatusColor = (status) => {
+    if (!status) return 'bg-zinc-100 text-zinc-700';
+    const s = status.toLowerCase();
+    if (s.includes('new lead')) return 'bg-blue-100 text-blue-700';
+    if (s.includes('contacted') && !s.includes('no response')) return 'bg-amber-100 text-amber-700';
+    if (s.includes('no response')) return 'bg-red-100 text-red-700';
+    if (s.includes('interested')) return 'bg-purple-100 text-purple-700';
+    if (s.includes('follow up') || s.includes('follow-up')) return 'bg-orange-100 text-orange-700';
+    if (s.includes('quotation sent')) return 'bg-cyan-100 text-cyan-700';
+    if (s.includes('awaiting decision')) return 'bg-indigo-100 text-indigo-700';
+    if (s.includes('token')) return 'bg-teal-100 text-teal-700';
+    if (s.includes('closed') || s.includes('won')) return 'bg-emerald-100 text-emerald-700';
+    if (s.includes('lost') || s.includes('not interested')) return 'bg-rose-100 text-rose-700';
+    if (s.includes('inactive') || s.includes('terminated')) return 'bg-zinc-200 text-zinc-600';
+    return 'bg-zinc-100 text-zinc-700';
+  };
+
   // Calendar Helpers
   const year = calendarDate.getFullYear();
   const month = calendarDate.getMonth();
@@ -307,7 +348,7 @@ export default function TeamCRM() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] font-sans">
+    <div className="flex flex-col min-h-[calc(100vh-5rem)] lg:h-[calc(100vh-5rem)] font-sans pb-6 lg:pb-0">
       {/* Top Header */}
       <header className="shrink-0 flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-zinc-200/60">
         <div>
@@ -320,27 +361,27 @@ export default function TeamCRM() {
             </button>
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-semibold text-black tracking-tight flex items-center gap-2.5">
-              <Users className="w-7 h-7 text-purple-600" />
+            <h1 className="text-2xl sm:text-3xl font-semibold text-black tracking-tight flex items-center gap-2.5">
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 text-purple-600" />
               Team CRM & Performance
             </h1>
           </div>
-          <p className="text-[14px] text-zinc-500 mt-1">
+          <p className="text-[13px] sm:text-[14px] text-zinc-500 mt-1">
             Supervise team leads, manage pipeline updates, and analyze daily performance.
           </p>
         </div>
 
         {/* Segment Switcher */}
-        <div className="flex items-center gap-2 bg-zinc-100 p-1 rounded-xl border border-zinc-200">
+        <div className="flex items-center gap-1.5 sm:gap-2 bg-zinc-100 p-1 rounded-xl border border-zinc-200 self-start md:self-auto">
           <button 
             onClick={() => setActiveSegment('happymoves')}
-            className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
+            className={`px-3 sm:px-4 py-1.5 rounded-lg text-[12px] sm:text-[13px] font-bold transition-all ${activeSegment === 'happymoves' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
           >
             Happy Moves
           </button>
           <button 
             onClick={() => setActiveSegment('gamefaktory')}
-            className={`px-4 py-1.5 rounded-lg text-[13px] font-bold transition-all ${activeSegment === 'gamefaktory' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
+            className={`px-3 sm:px-4 py-1.5 rounded-lg text-[12px] sm:text-[13px] font-bold transition-all ${activeSegment === 'gamefaktory' ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-800'}`}
           >
             Game Faktory
           </button>
@@ -353,7 +394,7 @@ export default function TeamCRM() {
           <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
         </div>
       ) : employees.length === 0 ? (
-        <div className="flex-1 bg-white rounded-2xl border border-zinc-200 p-12 text-center text-zinc-500 flex flex-col items-center justify-center mt-4">
+        <div className="flex-1 bg-white rounded-2xl border border-zinc-200 p-8 sm:p-12 text-center text-zinc-500 flex flex-col items-center justify-center mt-4">
           <Users className="w-12 h-12 mx-auto mb-3 text-zinc-300" />
           <h3 className="text-[16px] font-semibold text-zinc-800">No Subordinate Employees Assigned</h3>
           <p className="text-[13px] text-zinc-500 mt-1 max-w-md mx-auto">
@@ -361,14 +402,16 @@ export default function TeamCRM() {
           </p>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 pt-4 grid grid-cols-1 lg:grid-cols-4 gap-6 items-stretch">
-          {/* Subordinates Sidebar - Separately Scrollable */}
-          <div className="lg:col-span-1 flex flex-col min-h-0 bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-            <div className="shrink-0 text-[11px] font-bold text-zinc-400 uppercase tracking-wider pb-3 border-b border-zinc-100 flex items-center justify-between">
+        <div className="flex-1 min-h-0 pt-4 flex flex-col lg:grid lg:grid-cols-4 gap-4 lg:gap-6 items-stretch">
+          {/* Subordinates List - Horizontal chips on mobile, vertical sidebar on desktop */}
+          <div className="lg:col-span-1 shrink-0 bg-white border border-zinc-200/80 rounded-2xl p-3 sm:p-4 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col lg:min-h-0">
+            <div className="shrink-0 text-[11px] font-bold text-zinc-400 uppercase tracking-wider pb-2 lg:pb-3 border-b border-zinc-100 flex items-center justify-between">
               <span>Your Team Members</span>
               <span className="bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full text-[10px] font-semibold">{employees.length}</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pt-3 pr-1">
+            
+            {/* Scrollable list: horizontal scroll on mobile, vertical scroll on desktop */}
+            <div className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-y-auto gap-2 pt-3 no-scrollbar lg:custom-scrollbar">
               {employees.map(emp => {
                 const isSelected = selectedSubordinate?.id === emp.id;
                 const empLeadsCount = leads.filter(l => l.userId === emp.id || l.assignedToUid === emp.id).length;
@@ -382,30 +425,30 @@ export default function TeamCRM() {
                       setSelectedSubordinate(emp);
                       setSelectedDayEvents(null);
                     }}
-                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    className={`shrink-0 lg:w-full p-2.5 sm:p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 ${
                       isSelected
                         ? 'bg-purple-50/80 border-purple-300 shadow-sm ring-2 ring-purple-500/20'
                         : 'bg-white border-zinc-200/80 hover:border-zinc-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       {emp.photoURL ? (
                         <img 
                           src={emp.photoURL} 
                           alt={emp.name} 
-                          className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
                         />
                       ) : (
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[12px] shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>
+                        <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-[11px] sm:text-[12px] shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>
                           {emp.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div className="min-w-0">
-                        <h4 className="text-[13px] font-bold text-zinc-900 truncate">{emp.name}</h4>
-                        <p className="text-[11px] text-zinc-500 truncate capitalize">{emp.position || 'Associate'}</p>
+                        <h4 className="text-[12px] sm:text-[13px] font-bold text-zinc-900 truncate max-w-[120px] sm:max-w-none">{emp.name}</h4>
+                        <p className="text-[10px] sm:text-[11px] text-zinc-500 truncate capitalize">{emp.position || 'Associate'}</p>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 text-zinc-700 shrink-0 ml-2">
+                    <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold bg-zinc-100 text-zinc-700 shrink-0">
                       {totalCount} leads
                     </span>
                   </button>
@@ -414,31 +457,31 @@ export default function TeamCRM() {
             </div>
           </div>
 
-          {/* Right Main Panel: Subordinate Details, Pipeline & Calendar - Separately Scrollable */}
-          <div className="lg:col-span-3 flex flex-col min-h-0 gap-4">
+          {/* Right Main Panel: Subordinate Details, Pipeline & Calendar */}
+          <div className="lg:col-span-3 flex flex-col flex-1 min-h-0 gap-4">
             {selectedSubordinate && (
-              <div className="shrink-0 bg-white p-4 lg:p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="shrink-0 bg-white p-3.5 sm:p-4 lg:p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
                 <div className="flex items-center gap-3">
                   {selectedSubordinate.photoURL ? (
                     <img 
                       src={selectedSubordinate.photoURL} 
                       alt={selectedSubordinate.name} 
-                      className="w-11 h-11 rounded-full object-cover shrink-0 shadow-sm ring-2 ring-purple-500/20" 
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover shrink-0 shadow-sm ring-2 ring-purple-500/20" 
                     />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[16px] shrink-0">
+                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[14px] sm:text-[16px] shrink-0">
                       {selectedSubordinate.name.charAt(0).toUpperCase()}
                     </div>
                   )}
                   <div className="min-w-0">
-                    <h2 className="text-[17px] font-bold text-zinc-900 truncate">{selectedSubordinate.name}</h2>
-                    <div className="flex flex-wrap items-center gap-3 text-[12px] text-zinc-500 mt-0.5">
+                    <h2 className="text-[15px] sm:text-[17px] font-bold text-zinc-900 truncate">{selectedSubordinate.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-[12px] text-zinc-500 mt-0.5">
                       <span className="capitalize">{selectedSubordinate.position || 'Associate'}</span>
                       {selectedSubordinate.phone && (
                         <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {selectedSubordinate.phone}</span>
                       )}
                       {selectedSubordinate.assignedRegions && (
-                        <span className="flex items-center gap-1 max-w-md truncate" title={selectedSubordinate.assignedRegions}>
+                        <span className="hidden sm:flex items-center gap-1 max-w-md truncate" title={selectedSubordinate.assignedRegions}>
                           <MapPin className="w-3 h-3 shrink-0" /> {selectedSubordinate.assignedRegions}
                         </span>
                       )}
@@ -446,27 +489,27 @@ export default function TeamCRM() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 flex-wrap">
                   <div className="flex rounded-lg bg-zinc-100 p-1 border border-zinc-200">
                     <button
                       onClick={() => setActiveView('pipeline')}
-                      className={`px-3 py-1.5 rounded-md text-[12px] font-bold transition-all ${activeView === 'pipeline' ? 'bg-white text-black shadow-sm' : 'text-zinc-600 hover:text-black'}`}
+                      className={`px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-[12px] font-bold transition-all ${activeView === 'pipeline' ? 'bg-white text-black shadow-sm' : 'text-zinc-600 hover:text-black'}`}
                     >
-                      Pipeline View
+                      Pipeline
                     </button>
                     <button
                       onClick={() => setActiveView('calendar')}
-                      className={`px-3 py-1.5 rounded-md text-[12px] font-bold transition-all flex items-center gap-1.5 ${activeView === 'calendar' ? 'bg-white text-black shadow-sm' : 'text-zinc-600 hover:text-black'}`}
+                      className={`px-2.5 sm:px-3 py-1 rounded-md text-[11px] sm:text-[12px] font-bold transition-all flex items-center gap-1.5 ${activeView === 'calendar' ? 'bg-white text-black shadow-sm' : 'text-zinc-600 hover:text-black'}`}
                     >
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      Calendar Performance
+                      <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      Calendar
                     </button>
                   </div>
                   <button
                     onClick={openAddModal}
-                    className="px-3.5 py-2 bg-black hover:bg-zinc-800 text-white rounded-xl text-[12px] font-semibold transition-all flex items-center gap-1.5 shadow-sm"
+                    className="px-3 sm:px-3.5 py-1.5 sm:py-2 bg-black hover:bg-zinc-800 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-[12px] font-semibold transition-all flex items-center gap-1.5 shadow-sm"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Add Lead for {selectedSubordinate.name.split(' ')[0]}
+                    <Plus className="w-3.5 h-3.5" /> Add Lead
                   </button>
                 </div>
               </div>
@@ -474,24 +517,24 @@ export default function TeamCRM() {
 
             {/* View 1: Pipeline Table View */}
             {activeView === 'pipeline' && (
-              <div className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-[350px] lg:min-h-0 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
                 {/* Filters */}
-                <div className="shrink-0 p-4 border-b border-zinc-100 bg-zinc-50/50 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-64">
-                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <div className="shrink-0 p-3 sm:p-4 border-b border-zinc-100 bg-zinc-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 sm:w-60 min-w-[150px]">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                       <input
                         type="text"
-                        placeholder="Search leads, phone, place..."
+                        placeholder="Search leads..."
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[13px] outline-none focus:ring-2 focus:ring-black/5 focus:border-black"
+                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[12px] sm:text-[13px] outline-none focus:ring-1 focus:ring-black focus:border-black"
                       />
                     </div>
                     <select
                       value={selectedLeadTypeTab}
                       onChange={e => setSelectedLeadTypeTab(e.target.value)}
-                      className="px-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[12px] font-medium outline-none cursor-pointer"
+                      className="px-2.5 py-1.5 bg-white border border-zinc-200 rounded-lg text-[11px] sm:text-[12px] font-medium outline-none cursor-pointer"
                     >
                       <option value="all">All Types</option>
                       <option value="regular">Regular Leads</option>
@@ -501,7 +544,7 @@ export default function TeamCRM() {
                     <select
                       value={statusFilter}
                       onChange={e => setStatusFilter(e.target.value)}
-                      className="px-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[12px] font-medium outline-none cursor-pointer"
+                      className="px-2.5 py-1.5 bg-white border border-zinc-200 rounded-lg text-[11px] sm:text-[12px] font-medium outline-none cursor-pointer"
                     >
                       <option value="">All Statuses</option>
                       <option value="New Lead">New Lead</option>
@@ -514,25 +557,25 @@ export default function TeamCRM() {
                       <option value="Deal Lost">Deal Lost</option>
                     </select>
                   </div>
-                  <div className="text-[12px] text-zinc-500 font-medium">
+                  <div className="text-[11px] sm:text-[12px] text-zinc-500 font-medium self-end sm:self-auto">
                     Showing <strong>{subordinateItems.length}</strong> items
                   </div>
                 </div>
 
-                {/* Table - independently scrollable vertically & horizontally */}
-                <div className="flex-1 min-h-0 overflow-auto">
-                  <table className="w-full text-left border-collapse">
+                {/* Table with responsive horizontal scroll wrapper */}
+                <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse min-w-[620px]">
                     <thead className="sticky top-0 z-10 bg-zinc-50 shadow-[0_1px_0_rgba(0,0,0,0.05)]">
-                      <tr className="border-b border-zinc-200 text-[11px] font-bold uppercase text-zinc-500 tracking-wider">
-                        <th className="px-4 py-3 bg-zinc-50">Lead / Client</th>
-                        <th className="px-4 py-3 bg-zinc-50">Contact</th>
-                        <th className="px-4 py-3 bg-zinc-50">Status</th>
-                        <th className="px-4 py-3 bg-zinc-50">Next Follow Up</th>
-                        <th className="px-4 py-3 bg-zinc-50">Latest Remarks</th>
-                        <th className="px-4 py-3 bg-zinc-50 text-right">Actions</th>
+                      <tr className="border-b border-zinc-200 text-[10px] sm:text-[11px] font-bold uppercase text-zinc-500 tracking-wider">
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50">Lead / Client</th>
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50">Contact</th>
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50">Status</th>
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50">Next Follow Up</th>
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50">Latest Remarks</th>
+                        <th className="px-3 sm:px-4 py-3 bg-zinc-50 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 text-[13px]">
+                    <tbody className="divide-y divide-zinc-100 text-[12px] sm:text-[13px]">
                       {subordinateItems.length === 0 ? (
                         <tr>
                           <td colSpan="6" className="p-8 text-center text-zinc-400">
@@ -541,9 +584,13 @@ export default function TeamCRM() {
                         </tr>
                       ) : (
                         subordinateItems.map(item => (
-                          <tr key={item.id} className="hover:bg-zinc-50/60 transition-colors">
+                          <tr 
+                            key={item.id} 
+                            onClick={() => setQuickUpdateLead(item)}
+                            className="hover:bg-zinc-50/80 transition-colors cursor-pointer group"
+                          >
                             <td className="px-4 py-3">
-                              <div className="font-bold text-zinc-900">{item.clientName || item.name || 'Untitled'}</div>
+                              <div className="font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">{item.clientName || item.name || 'Untitled'}</div>
                               <div className="text-[11px] text-zinc-400 capitalize">{item._type || 'lead'} · {item.place || item.region || 'No region'}</div>
                             </td>
                             <td className="px-4 py-3 text-zinc-600 font-medium">
@@ -560,11 +607,14 @@ export default function TeamCRM() {
                             <td className="px-4 py-3 text-zinc-500 max-w-xs truncate" title={item.remarks}>
                               {item.remarks || '—'}
                             </td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
                               <button
-                                onClick={() => openEditModal(item)}
-                                className="p-1.5 hover:bg-zinc-100 rounded-md text-zinc-500 hover:text-black transition-colors"
-                                title="Edit & Update Lead"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditModal(item);
+                                }}
+                                className="p-1.5 hover:bg-zinc-200/70 rounded-md text-zinc-500 hover:text-black transition-colors"
+                                title="Edit Lead Details"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
@@ -580,16 +630,16 @@ export default function TeamCRM() {
 
             {/* View 2: Calendar Performance View */}
             {activeView === 'calendar' && (
-              <div className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-5 flex flex-col gap-4 overflow-y-auto">
+              <div className="flex-1 min-h-0 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-4 sm:p-5 flex flex-col gap-4 overflow-y-auto">
                 {/* Month Navigator */}
-                <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100">
                   <div className="flex items-center gap-2">
-                    <CalendarIcon className="w-5 h-5 text-purple-600" />
-                    <h3 className="text-[16px] font-bold text-zinc-900">
+                    <CalendarIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                    <h3 className="text-[15px] sm:text-[16px] font-bold text-zinc-900">
                       {calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 self-end sm:self-auto">
                     <button
                       onClick={() => setCalendarDate(new Date(year, month - 1, 1))}
                       className="p-1.5 rounded-lg border border-zinc-200 hover:bg-zinc-100 transition-colors"
@@ -598,7 +648,7 @@ export default function TeamCRM() {
                     </button>
                     <button
                       onClick={() => setCalendarDate(new Date())}
-                      className="px-3 py-1 rounded-lg border border-zinc-200 hover:bg-zinc-100 text-[12px] font-semibold transition-colors"
+                      className="px-2.5 sm:px-3 py-1 rounded-lg border border-zinc-200 hover:bg-zinc-100 text-[11px] sm:text-[12px] font-semibold transition-colors"
                     >
                       Today
                     </button>
@@ -612,82 +662,84 @@ export default function TeamCRM() {
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-wrap items-center gap-4 text-[12px] text-zinc-600 bg-zinc-50 p-2.5 rounded-xl border border-zinc-100">
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 text-[11px] sm:text-[12px] text-zinc-600 bg-zinc-50 p-2 sm:p-2.5 rounded-xl border border-zinc-100">
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Added Leads
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-blue-500 inline-block"></span> Added
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Contact Interactions
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-amber-500 inline-block"></span> Calls/Notes
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Scheduled Follow-Ups
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-purple-500 inline-block"></span> Follow-Ups
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Deals Won
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-emerald-500 inline-block"></span> Deals Won
                   </span>
                 </div>
 
-                {/* Calendar Grid */}
-                <div className="grid grid-cols-7 gap-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                    <div key={d} className="text-center font-bold text-[11px] uppercase text-zinc-400 py-1">
-                      {d}
-                    </div>
-                  ))}
-
-                  {/* Empty slots for start padding */}
-                  {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                    <div key={`empty-${i}`} className="min-h-[85px] bg-zinc-50/40 rounded-xl border border-dashed border-zinc-100"></div>
-                  ))}
-
-                  {/* Days */}
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const dayNum = i + 1;
-                    const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                    const activity = calendarActivityMap[dayStr] || { added: [], contacted: [], followups: [], won: [] };
-                    const hasActivity = activity.added.length > 0 || activity.contacted.length > 0 || activity.followups.length > 0 || activity.won.length > 0;
-                    const isToday = new Date().toISOString().split('T')[0] === dayStr;
-
-                    return (
-                      <div
-                        key={dayStr}
-                        onClick={() => hasActivity && setSelectedDayEvents({ date: dayStr, ...activity })}
-                        className={`min-h-[85px] p-2 rounded-xl border transition-all flex flex-col justify-between ${
-                          hasActivity ? 'cursor-pointer hover:shadow-md hover:border-purple-300' : ''
-                        } ${isToday ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300' : 'bg-white border-zinc-200/80'}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`text-[12px] font-bold ${isToday ? 'text-purple-700' : 'text-zinc-700'}`}>
-                            {dayNum}
-                          </span>
-                          {activity.won.length > 0 && (
-                            <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1 rounded">
-                              WON!
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Badges */}
-                        <div className="flex flex-col gap-1 mt-1">
-                          {activity.added.length > 0 && (
-                            <span className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-1.5 py-0.5 rounded truncate">
-                              +{activity.added.length} Added
-                            </span>
-                          )}
-                          {activity.contacted.length > 0 && (
-                            <span className="text-[10px] bg-amber-50 text-amber-700 font-semibold px-1.5 py-0.5 rounded truncate">
-                              {activity.contacted.length} Calls/Notes
-                            </span>
-                          )}
-                          {activity.followups.length > 0 && (
-                            <span className="text-[10px] bg-purple-50 text-purple-700 font-semibold px-1.5 py-0.5 rounded truncate">
-                              {activity.followups.length} Follow-ups
-                            </span>
-                          )}
-                        </div>
+                {/* Calendar Grid with responsive horizontal scroll on very narrow screens */}
+                <div className="overflow-x-auto pb-2 custom-scrollbar">
+                  <div className="min-w-[550px] grid grid-cols-7 gap-1.5 sm:gap-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                      <div key={d} className="text-center font-bold text-[10px] sm:text-[11px] uppercase text-zinc-400 py-1">
+                        {d}
                       </div>
-                    );
-                  })}
+                    ))}
+
+                    {/* Empty slots for start padding */}
+                    {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                      <div key={`empty-${i}`} className="min-h-[75px] sm:min-h-[85px] bg-zinc-50/40 rounded-xl border border-dashed border-zinc-100"></div>
+                    ))}
+
+                    {/* Days */}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const dayNum = i + 1;
+                      const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                      const activity = calendarActivityMap[dayStr] || { added: [], contacted: [], followups: [], won: [] };
+                      const hasActivity = activity.added.length > 0 || activity.contacted.length > 0 || activity.followups.length > 0 || activity.won.length > 0;
+                      const isToday = new Date().toISOString().split('T')[0] === dayStr;
+
+                      return (
+                        <div
+                          key={dayStr}
+                          onClick={() => hasActivity && setSelectedDayEvents({ date: dayStr, ...activity })}
+                          className={`min-h-[75px] sm:min-h-[85px] p-1.5 sm:p-2 rounded-xl border transition-all flex flex-col justify-between ${
+                            hasActivity ? 'cursor-pointer hover:shadow-md hover:border-purple-300' : ''
+                          } ${isToday ? 'bg-purple-50/50 border-purple-300 ring-1 ring-purple-300' : 'bg-white border-zinc-200/80'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[11px] sm:text-[12px] font-bold ${isToday ? 'text-purple-700' : 'text-zinc-700'}`}>
+                              {dayNum}
+                            </span>
+                            {activity.won.length > 0 && (
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-1 rounded">
+                                WON!
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Badges */}
+                          <div className="flex flex-col gap-0.5 sm:gap-1 mt-1">
+                            {activity.added.length > 0 && (
+                              <span className="text-[9px] sm:text-[10px] bg-blue-50 text-blue-700 font-semibold px-1 sm:px-1.5 py-0.5 rounded truncate">
+                                +{activity.added.length} Added
+                              </span>
+                            )}
+                            {activity.contacted.length > 0 && (
+                              <span className="text-[9px] sm:text-[10px] bg-amber-50 text-amber-700 font-semibold px-1 sm:px-1.5 py-0.5 rounded truncate">
+                                {activity.contacted.length} Calls
+                              </span>
+                            )}
+                            {activity.followups.length > 0 && (
+                              <span className="text-[9px] sm:text-[10px] bg-purple-50 text-purple-700 font-semibold px-1 sm:px-1.5 py-0.5 rounded truncate">
+                                {activity.followups.length} Follow-ups
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -712,7 +764,14 @@ export default function TeamCRM() {
                         <h4 className="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-1.5">Leads Added ({selectedDayEvents.added.length})</h4>
                         <div className="space-y-1.5">
                           {selectedDayEvents.added.map((it, idx) => (
-                            <div key={idx} className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-[12px] flex items-center justify-between">
+                            <div 
+                              key={idx} 
+                              onClick={() => {
+                                setSelectedDayEvents(null);
+                                setQuickUpdateLead(it);
+                              }}
+                              className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-100/60 transition-colors"
+                            >
                               <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
                               <span className="text-zinc-500">{it.contactNo || it.contactNumber}</span>
                             </div>
@@ -726,7 +785,14 @@ export default function TeamCRM() {
                         <h4 className="text-[11px] font-bold text-amber-700 uppercase tracking-wider mb-1.5">Calls & Interactions ({selectedDayEvents.contacted.length})</h4>
                         <div className="space-y-1.5">
                           {selectedDayEvents.contacted.map((it, idx) => (
-                            <div key={idx} className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100 text-[12px]">
+                            <div 
+                              key={idx} 
+                              onClick={() => {
+                                setSelectedDayEvents(null);
+                                setQuickUpdateLead(it);
+                              }}
+                              className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100 text-[12px] cursor-pointer hover:bg-amber-100/60 transition-colors"
+                            >
                               <div className="flex items-center justify-between">
                                 <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
                                 <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">{it.statusNote}</span>
@@ -743,7 +809,14 @@ export default function TeamCRM() {
                         <h4 className="text-[11px] font-bold text-purple-700 uppercase tracking-wider mb-1.5">Follow-ups Scheduled ({selectedDayEvents.followups.length})</h4>
                         <div className="space-y-1.5">
                           {selectedDayEvents.followups.map((it, idx) => (
-                            <div key={idx} className="p-2.5 rounded-lg bg-purple-50/50 border border-purple-100 text-[12px] flex items-center justify-between">
+                            <div 
+                              key={idx} 
+                              onClick={() => {
+                                setSelectedDayEvents(null);
+                                setQuickUpdateLead(it);
+                              }}
+                              className="p-2.5 rounded-lg bg-purple-50/50 border border-purple-100 text-[12px] flex items-center justify-between cursor-pointer hover:bg-purple-100/60 transition-colors"
+                            >
                               <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
                               <span className="text-purple-700 font-medium">{it.nextFollowUp || it.followUpDate}</span>
                             </div>
@@ -863,6 +936,166 @@ export default function TeamCRM() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Update Modal for Team Leads */}
+      {quickUpdateLead && (
+        <QuickUpdateModal 
+          lead={quickUpdateLead}
+          companyId={companyId}
+          activeSegment={activeSegment}
+          isAdmin={isAdmin}
+          isHR={isHR}
+          activeTab={quickUpdateLead._type === 'ads' ? 'ads' : quickUpdateLead._type === 'distributor' ? 'distributors' : 'regular'}
+          onFullProfile={(lead) => {
+            setSelectedLead(lead);
+            setQuickUpdateLead(null);
+          }}
+          onClose={() => setQuickUpdateLead(null)}
+          onSuccess={(updatedData) => {
+            const updateList = (prev) => prev.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
+            setLeads(updateList);
+            setAdLeads(updateList);
+            setDistributors(updateList);
+            setQuickUpdateLead(null);
+          }}
+        />
+      )}
+
+      {/* Full Lead Details / Profile Modal */}
+      {selectedLead && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={() => setSelectedLead(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[85vh] transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 sm:p-8 flex flex-col sm:flex-row items-start justify-between gap-5 relative overflow-hidden shrink-0">
+              <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 opacity-10 pointer-events-none">
+                <Target className="w-64 h-64 text-white" />
+              </div>
+              <button 
+                onClick={() => setSelectedLead(null)}
+                className="absolute top-4 right-4 sm:hidden text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-xl p-2 z-20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="relative z-10 w-full sm:w-auto pr-10 sm:pr-0">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md tracking-wide uppercase">
+                    Lead Profile
+                  </span>
+                  {selectedLead.currentStatus && (
+                    <span className="bg-emerald-500/20 text-emerald-300 text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md border border-emerald-500/30 tracking-wide uppercase">
+                      {selectedLead.currentStatus}
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight break-words">
+                  {selectedLead.clientName || selectedLead.name || selectedLead.distributorName || 'Unknown Lead'}
+                </h2>
+                {(selectedLead.place || selectedLead.region) && (
+                  <p className="text-zinc-400 mt-2 flex items-center gap-1.5 text-sm">
+                    <MapPin className="w-4 h-4" />
+                    {selectedLead.place || selectedLead.region} {selectedLead.country ? `, ${selectedLead.country}` : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5 relative z-10 w-full sm:w-auto mt-4 sm:mt-0">
+                <button 
+                  onClick={() => {
+                    const leadToEdit = selectedLead;
+                    setSelectedLead(null);
+                    openEditModal(leadToEdit);
+                  }}
+                  className="bg-white/10 text-white border border-white/20 hover:bg-white hover:text-black transition-all rounded-xl px-4 py-2 text-[13px] font-bold shadow-md flex items-center gap-2 backdrop-blur-md"
+                >
+                  <Edit2 className="w-3.5 h-3.5" /> Edit Profile
+                </button>
+                <button 
+                  onClick={() => setSelectedLead(null)}
+                  className="hidden sm:flex text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl p-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                {Object.entries(selectedLead)
+                  .filter(([k,v]) => {
+                    const ignoredKeys = ['clientName', 'name', 'distributorName', 'companyId', 'associate', 'id', 'addedBy', 'addedByName', 'assignedToUid', 'userId', 'statusHistory'];
+                    return typeof v !== 'object' && !ignoredKeys.includes(k);
+                  })
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([key, value]) => {
+                    const formattedKey = key === 'employeeName' ? 'Associate' : key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                    return (
+                      <div key={key} className="flex items-start gap-4 pb-4 border-b border-zinc-100 group">
+                        <div className="mt-0.5 text-zinc-400 group-hover:text-black transition-colors">
+                          {getIconForKey(key)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500 mb-0.5">
+                            {formattedKey}
+                          </div>
+                          <div className="text-[14px] text-zinc-900 font-medium whitespace-pre-wrap">
+                            {value || <span className="text-zinc-300 italic">Not provided</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              
+              {selectedLead.statusHistory && selectedLead.statusHistory.length > 0 && (
+                <div className="mt-8 border-t border-zinc-100 pt-6">
+                  <h3 className="text-[12px] font-bold text-zinc-800 mb-4 uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-zinc-400" />
+                    Update History & Remarks
+                  </h3>
+                  <div className="space-y-6">
+                    {selectedLead.statusHistory.map((history, idx) => {
+                      const colorClass = getStatusColor(history.status);
+                      const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
+                      const dotColor = textClass.replace('text-', 'bg-');
+                      
+                      return (
+                        <div key={idx} className="flex gap-4 items-stretch relative">
+                          <div className="w-24 shrink-0 text-right pt-1">
+                            <div className="text-[12px] font-bold text-zinc-700">
+                              {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                            <div className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider mt-0.5">
+                              {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+
+                          <div className="relative flex flex-col items-center shrink-0 w-6 pt-1.5">
+                            {idx !== selectedLead.statusHistory.length - 1 && (
+                              <div className="absolute top-5 bottom-[-24px] w-0.5 bg-zinc-200"></div>
+                            )}
+                            <div className={`w-3.5 h-3.5 rounded-full z-10 border-2 border-black ${dotColor} ring-[3px] ring-white`}></div>
+                          </div>
+
+                          <div className={`flex-1 rounded-xl p-4 border ${colorClass}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-bold text-[14px]">{history.status}</span>
+                              {history.updatedBy && (
+                                <span className="text-[11px] opacity-75 font-medium">By {history.updatedBy}</span>
+                              )}
+                            </div>
+                            {history.remarks && (
+                              <p className="text-[13px] leading-relaxed opacity-90 mt-2 whitespace-pre-wrap">{history.remarks}</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

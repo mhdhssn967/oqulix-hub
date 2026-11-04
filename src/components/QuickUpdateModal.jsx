@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, Phone, MessageSquare, Copy, CheckCircle, User, ArrowRightLeft, Megaphone, TrendingUp, Clock } from 'lucide-react';
+import { X, Loader2, Phone, MessageSquare, Copy, CheckCircle, User, ArrowRightLeft, Megaphone, TrendingUp, Clock, Calendar } from 'lucide-react';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import Swal from 'sweetalert2';
@@ -40,6 +40,7 @@ export default function QuickUpdateModal({
   const [updateStatus, setUpdateStatus] = useState('');
   const [updateRemarks, setUpdateRemarks] = useState('');
   const [updateStatusDate, setUpdateStatusDate] = useState(new Date().toISOString().split('T')[0]);
+  const [updateNextFollowUp, setUpdateNextFollowUp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Infer collection name based on lead._type or activeTab
@@ -50,6 +51,7 @@ export default function QuickUpdateModal({
   useEffect(() => {
     if (lead) {
       setUpdateStatus(lead.currentStatus || 'New Lead');
+      setUpdateNextFollowUp(lead.nextFollowUp || lead.followUpDate || '');
       
       let lastDate = new Date().toISOString().split('T')[0];
       if (lead.statusHistory && lead.statusHistory.length > 0) {
@@ -115,6 +117,13 @@ export default function QuickUpdateModal({
           lastFollowedUp: effectiveDate.toISOString().split('T')[0],
           updatedAt: serverTimestamp()
         };
+
+        if (updateNextFollowUp !== undefined) {
+          updatedData.nextFollowUp = updateNextFollowUp;
+          if (collectionName === 'adLeads') {
+            updatedData.followUpDate = updateNextFollowUp;
+          }
+        }
         
         await updateDoc(docRef, updatedData);
         if (onSuccess) onSuccess(updatedData);
@@ -127,25 +136,75 @@ export default function QuickUpdateModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 sm:p-6 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col transform transition-all animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-        <div className="bg-gradient-to-r from-zinc-900 to-zinc-800 p-6 flex items-center justify-between relative overflow-hidden shrink-0">
-          <div className="relative z-10">
-            <h2 className="text-xl font-bold text-white tracking-tight">Quick Update</h2>
-            <p className="text-zinc-400 text-[13px] mt-1 pr-4">{lead.clientName || lead.name || lead.distributorName || 'Lead'}</p>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+      <div 
+        className="bg-white rounded-xl border border-zinc-200/80 shadow-2xl w-full max-w-md max-h-[88vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150" 
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Sleek Minimal Header */}
+        <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white">
+          <div className="min-w-0 pr-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Quick Update</span>
+              <span className="text-zinc-300">•</span>
+              <span className="text-[11px] font-medium text-zinc-500 capitalize">{collectionName === 'adLeads' ? 'Ad Lead' : collectionName === 'distributors' ? 'Distributor' : 'Regular Lead'}</span>
+            </div>
+            <h2 className="text-[16px] font-semibold text-zinc-900 truncate mt-0.5">
+              {lead.clientName || lead.name || lead.distributorName || 'Lead'}
+            </h2>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-2 z-20">
-            <X className="w-5 h-5" />
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="text-zinc-400 hover:text-zinc-800 transition-colors p-1.5 hover:bg-zinc-100 rounded-lg shrink-0"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
         
-        <form onSubmit={handleQuickUpdate} className="p-6 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-4">
+        {/* Form Body */}
+        <form onSubmit={handleQuickUpdate} className="p-5 overflow-y-auto custom-scrollbar flex-1 flex flex-col gap-4">
+          
+          {/* Quick Communication Bar */}
+          <div className="grid grid-cols-3 gap-2 p-1.5 bg-zinc-50/80 border border-zinc-200/60 rounded-lg">
+            <a 
+              href={`tel:${(lead?.contactNo || lead?.contactNumber || lead?.phone || '').replace(/[^0-9+]/g, '')}`} 
+              className="py-1.5 px-2 rounded-md text-[12px] font-medium text-zinc-700 hover:text-black hover:bg-white hover:shadow-xs transition-all flex items-center justify-center gap-1.5"
+            >
+              <Phone className="w-3.5 h-3.5 text-blue-600" /> Call
+            </a>
+            <a 
+              href={`https://wa.me/${(lead?.contactNo || lead?.contactNumber || lead?.phone || '').replace(/[^0-9]/g, '')}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="py-1.5 px-2 rounded-md text-[12px] font-medium text-zinc-700 hover:text-black hover:bg-white hover:shadow-xs transition-all flex items-center justify-center gap-1.5"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp
+            </a>
+            <button 
+              type="button" 
+              onClick={() => {
+                const phone = lead?.contactNo || lead?.contactNumber || lead?.phone || '';
+                if (phone) {
+                  navigator.clipboard.writeText(phone);
+                  Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
+                } else {
+                  Swal.fire({ title: 'No Phone', text: 'This lead does not have a phone number.', icon: 'warning', timer: 1500, showConfirmButton: false });
+                }
+              }} 
+              className="py-1.5 px-2 rounded-md text-[12px] font-medium text-zinc-700 hover:text-black hover:bg-white hover:shadow-xs transition-all flex items-center justify-center gap-1.5"
+            >
+              <Copy className="w-3.5 h-3.5 text-zinc-500" /> Copy
+            </button>
+          </div>
+
+          {/* Update Status */}
           <div>
-            <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Update Status</label>
+            <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Update Status</label>
             <select 
               value={updateStatus} 
               onChange={(e) => setUpdateStatus(e.target.value)}
-              className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800 cursor-pointer"
+              className="w-full px-3 py-2 bg-zinc-50/50 border border-zinc-200/80 rounded-lg focus:bg-white focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-[13px] font-medium transition-all text-zinc-800 cursor-pointer"
             >
               {collectionName === 'distributors' ? (
                 <>
@@ -180,150 +239,144 @@ export default function QuickUpdateModal({
             </select>
           </div>
 
-          {(isAdmin || isHR) && (
-            <div>
-              <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Status Date</label>
-              <input
-                type="date"
-                value={updateStatusDate}
-                onChange={(e) => setUpdateStatusDate(e.target.value)}
-                className="w-full px-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 focus:border-black outline-none text-[14px] transition-all text-zinc-800"
-              />
-            </div>
-          )}
+          {/* Dates Grid: Status Date (if Admin/HR) & Next Follow-Up */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(isAdmin || isHR) && (
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Status Date</label>
+                <input
+                  type="date"
+                  value={updateStatusDate}
+                  onChange={(e) => setUpdateStatusDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50/50 border border-zinc-200/80 rounded-lg focus:bg-white focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-[13px] font-medium transition-all text-zinc-800"
+                />
+              </div>
+            )}
 
+            <div className={(isAdmin || isHR) ? '' : 'sm:col-span-2'}>
+              <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                <span>Next Follow-Up (Optional)</span>
+                {updateNextFollowUp && (
+                  <button
+                    type="button"
+                    onClick={() => setUpdateNextFollowUp('')}
+                    className="text-[10px] lowercase text-zinc-400 hover:text-red-500 font-semibold"
+                  >
+                    clear
+                  </button>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={updateNextFollowUp}
+                  onChange={(e) => setUpdateNextFollowUp(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50/50 border border-zinc-200/80 rounded-lg focus:bg-white focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 outline-none text-[13px] font-medium transition-all text-zinc-800"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Remarks */}
           <div>
-            <label className="block text-[12px] font-bold text-zinc-700 uppercase tracking-wider mb-2">Add Remarks (Optional)</label>
+            <label className="block text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Add Remarks (Optional)</label>
             <textarea 
               value={updateRemarks} 
               onChange={(e) => setUpdateRemarks(e.target.value)}
-              rows="3"
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-lg p-3 text-[14px] text-zinc-900 focus:outline-none focus:bg-white focus:border-black transition-colors resize-none placeholder:text-zinc-400"
+              rows="2"
+              className="w-full bg-zinc-50/50 border border-zinc-200/80 rounded-lg p-2.5 text-[13px] text-zinc-900 focus:outline-none focus:bg-white focus:ring-1 focus:ring-zinc-900 focus:border-zinc-900 transition-all resize-none placeholder:text-zinc-400"
               placeholder="Note down what was discussed..."
             ></textarea>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            <a 
-              href={`tel:${(lead?.contactNo || lead?.contactNumber || lead?.phone || '').replace(/[^0-9+]/g, '')}`} 
-              className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <Phone className="w-3.5 h-3.5" /> Call
-            </a>
-            <a 
-              href={`https://wa.me/${(lead?.contactNo || lead?.contactNumber || lead?.phone || '').replace(/[^0-9]/g, '')}`} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white bg-[#25D366] hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
-            </a>
+          {/* Primary Action Button */}
+          <div className="flex flex-col gap-2 pt-1">
             <button 
-              type="button" 
-              onClick={() => {
-                const phone = lead?.contactNo || lead?.contactNumber || lead?.phone || '';
-                if (phone) {
-                  navigator.clipboard.writeText(phone);
-                  Swal.fire({ title: 'Copied!', text: 'Phone number copied to clipboard', icon: 'success', timer: 1000, showConfirmButton: false });
-                } else {
-                  Swal.fire({ title: 'No Phone', text: 'This lead does not have a phone number.', icon: 'warning', timer: 1500, showConfirmButton: false });
-                }
-              }} 
-              className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+              type="submit" 
+              disabled={isSubmitting} 
+              className="w-full py-2.5 rounded-lg text-[13px] font-semibold text-white bg-zinc-900 hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-xs"
             >
-              <Copy className="w-3.5 h-3.5" /> Copy
+              {isSubmitting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><CheckCircle className="w-3.5 h-3.5" /> Save Update</>}
             </button>
-          </div>
 
-          <div className="flex flex-col gap-2 mt-2">
-            <button type="submit" disabled={isSubmitting} className="w-full py-2.5 rounded-xl text-[14px] font-semibold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-sm">
-              {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <><CheckCircle className="w-4 h-4" /> Update Status</>}
-            </button>
-            <div className="flex gap-2">
+            {/* Ancillary Actions */}
+            <div className="flex flex-wrap gap-2 pt-1">
               {onFullProfile && (
                 <button 
                   type="button" 
                   onClick={() => onFullProfile(lead)} 
-                  className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 min-w-[110px] py-2 rounded-lg text-[12px] font-semibold text-zinc-700 bg-zinc-100/80 hover:bg-zinc-200/70 border border-zinc-200/50 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <User className="w-3.5 h-3.5" /> Full Profile
+                  <User className="w-3.5 h-3.5 text-zinc-500" /> Full Profile
                 </button>
               )}
               {onTransfer && (
                 <button 
                   type="button" 
                   onClick={() => onTransfer(lead)} 
-                  className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  className="flex-1 min-w-[110px] py-2 rounded-lg text-[12px] font-semibold text-zinc-700 bg-white border border-zinc-200 hover:bg-zinc-50 transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                 >
-                  <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-zinc-500" /> Reassign
+                </button>
+              )}
+              {onConvertToAd && (
+                <button 
+                  type="button"
+                  onClick={() => onConvertToAd(lead)} 
+                  className="w-full py-2 rounded-lg text-[12px] font-semibold text-blue-600 bg-blue-50/60 hover:bg-blue-100/60 transition-colors border border-blue-200/70 flex items-center justify-center gap-1.5"
+                >
+                  <Megaphone className="w-3.5 h-3.5" /> Convert to Ad Lead
+                </button>
+              )}
+              {onPromoteDistributor && !lead.isActiveDistributor && (
+                <button 
+                  type="button"
+                  onClick={() => onPromoteDistributor(lead)} 
+                  className="w-full py-2 rounded-lg text-[12px] font-semibold text-emerald-700 bg-emerald-50/60 hover:bg-emerald-100/60 transition-colors border border-emerald-200/70 flex items-center justify-center gap-1.5"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" /> Promote Distributor
                 </button>
               )}
             </div>
-            {onConvertToAd && (
-              <button 
-                type="button"
-                onClick={() => onConvertToAd(lead)} 
-                className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors border border-blue-200 flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <Megaphone className="w-3.5 h-3.5" /> Convert to Ad
-              </button>
-            )}
-            {onTransferToRegular && (
-              <button 
-                type="button"
-                onClick={() => onTransferToRegular(lead)} 
-                className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-200 flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" /> Transfer to Regular
-              </button>
-            )}
-            {onPromoteDistributor && !lead.isActiveDistributor && (
-              <button 
-                type="button"
-                onClick={() => onPromoteDistributor(lead)} 
-                className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200 flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <TrendingUp className="w-3.5 h-3.5" /> Promote Dist.
-              </button>
-            )}
           </div>
 
+          {/* Recent History Timeline */}
           {lead.statusHistory && lead.statusHistory.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-zinc-100">
-              <h3 className="text-[11px] font-bold text-zinc-500 mb-3 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="mt-2 pt-3 border-t border-zinc-100">
+              <h3 className="text-[10px] font-bold text-zinc-400 mb-2.5 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-3 h-3 text-zinc-400" />
                 Recent History
               </h3>
-              <div className="space-y-4 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+              <div className="space-y-3 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
                 {[...lead.statusHistory].reverse().map((history, idx) => {
                   const colorClass = getStatusColor(history.status);
                   const textClass = colorClass.split(' ')[1] || 'text-zinc-700';
                   const dotColor = textClass.replace('text-', 'bg-');
                   
                   return (
-                    <div key={idx} className="flex gap-2 items-stretch relative">
-                      <div className="w-[3.5rem] shrink-0 text-right pt-0.5">
+                    <div key={idx} className="flex gap-2 items-stretch relative text-[12px]">
+                      <div className="w-[3.2rem] shrink-0 text-right pt-0.5">
                         <div className="text-[10px] font-bold text-zinc-700">
                           {new Date(history.date).toLocaleString('en-US', { month: 'short', day: 'numeric' })}
                         </div>
-                        <div className="text-[9px] font-medium text-zinc-400 mt-0.5">
+                        <div className="text-[9px] font-medium text-zinc-400">
                           {new Date(history.date).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                       
                       <div className="relative flex flex-col items-center mx-1">
-                        <div className={`w-2 h-2 rounded-full ${dotColor} z-10 mt-1.5 ring-4 ring-white`}></div>
+                        <div className={`w-1.5 h-1.5 rounded-full ${dotColor} z-10 mt-1.5 ring-2 ring-white`}></div>
                         {idx !== lead.statusHistory.length - 1 && (
-                          <div className="w-px h-full bg-zinc-200 absolute top-3"></div>
+                          <div className="w-px h-full bg-zinc-200 absolute top-2.5"></div>
                         )}
                       </div>
                       
-                      <div className="flex-1 pb-4">
-                        <div className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${colorClass} mb-1.5`}>
+                      <div className="flex-1 pb-2">
+                        <div className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${colorClass} mb-1`}>
                           {history.status}
                         </div>
                         {history.remarks && (
-                          <p className="text-[11px] text-zinc-600 bg-zinc-50 p-2 rounded-lg border border-zinc-100 whitespace-pre-wrap leading-relaxed">
+                          <p className="text-[11px] text-zinc-600 bg-zinc-50/70 p-2 rounded-md border border-zinc-100/80 whitespace-pre-wrap leading-relaxed">
                             {history.remarks}
                           </p>
                         )}

@@ -3631,7 +3631,6 @@ export default function CRM() {
           }}
           onTransfer={(lead) => setIsTransferModalOpen(true)}
           onConvertToAd={(activeTab === 'regular' || activeTab === 'distributors') ? (lead) => handleConvertToAdLead(lead) : undefined}
-          onTransferToRegular={(activeTab === 'ads') ? (lead) => handleConvertToRegularLead(lead) : undefined}
           onPromoteDistributor={(activeTab === 'distributors' && !quickUpdateLead.isActiveDistributor) ? (lead) => {
             setConvertingDistributorId(lead.id);
             setActiveDistributorFormData({
