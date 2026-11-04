@@ -36,21 +36,16 @@ export default function EmployeePayrollAdminView() {
   const [calculationDetails, setCalculationDetails] = useState(null);
   const [generatingPdfId, setGeneratingPdfId] = useState(null);
 
-  const recalculateExpectedPay = ({ totalDaysVal, actualDaysVal, unpaidLeavesVal, standardSalaryVal }) => {
+  const recalculateExpectedPay = ({ totalDaysVal, unpaidLeavesVal, standardSalaryVal }) => {
     const total = Number(totalDaysVal) || 0;
-    let actual = Number(actualDaysVal) || 0;
     const unpaid = Number(unpaidLeavesVal) || 0;
     const fullSalary = Number(standardSalaryVal) || 0;
     
     if (total <= 0) return fullSalary;
 
-    // If unpaid leaves are specified and actualDays equals or exceeds totalDays, adjust actual days accordingly
-    let effectiveDays = actual;
-    if (unpaid > 0 && actual >= total) {
-      effectiveDays = Math.max(0, total - unpaid);
-    }
-    
-    let calculated = (fullSalary / total) * effectiveDays;
+    // Deduct salary only for unpaid leaves (casual and sick leaves are paid)
+    const payableDays = Math.max(0, total - unpaid);
+    let calculated = (fullSalary / total) * payableDays;
     if (calculated > fullSalary) calculated = fullSalary;
     return Math.round(calculated);
   };
@@ -59,13 +54,17 @@ export default function EmployeePayrollAdminView() {
     setFormData(prev => {
       const updated = { ...prev, [field]: value };
       const fullSalary = employee?.salary || calculationDetails?.originalSalary || 0;
-      const newExpected = recalculateExpectedPay({
-        totalDaysVal: field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
-        actualDaysVal: field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
-        unpaidLeavesVal: field === 'unpaidLeaves' ? value : prev.unpaidLeaves,
-        standardSalaryVal: fullSalary
-      });
-      updated.baseSalary = newExpected;
+      
+      // Auto-update expected pay when changing totalWorkingDays or unpaidLeaves
+      if (field === 'totalWorkingDays' || field === 'unpaidLeaves') {
+        const newExpected = recalculateExpectedPay({
+          totalDaysVal: field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
+          unpaidLeavesVal: field === 'unpaidLeaves' ? value : prev.unpaidLeaves,
+          standardSalaryVal: fullSalary
+        });
+        updated.baseSalary = newExpected;
+      }
+      
       return updated;
     });
   };
@@ -166,7 +165,8 @@ export default function EmployeePayrollAdminView() {
       let calculatedSalary = fullSalary;
       
       if (workingDays > 0) {
-        calculatedSalary = (fullSalary / workingDays) * actualWorkingDays;
+        const payableDays = Math.max(0, workingDays - unpaidLeavesCount);
+        calculatedSalary = (fullSalary / workingDays) * payableDays;
         if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
       }
       

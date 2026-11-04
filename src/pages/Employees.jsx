@@ -43,8 +43,23 @@ export default function Employees() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, `userData/${companyId}/employees`));
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const [snap, rootEmpSnap] = await Promise.all([
+        getDocs(collection(db, `userData/${companyId}/employees`)),
+        getDocs(collection(db, 'employees')).catch(() => ({ docs: [] }))
+      ]);
+      const rootPhotoMap = {};
+      rootEmpSnap.docs.forEach(rd => {
+        if (rd.data().photoURL) rootPhotoMap[rd.id] = rd.data().photoURL;
+      });
+
+      const data = snap.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          ...d,
+          photoURL: d.photoURL || rootPhotoMap[doc.id] || null
+        };
+      });
       setEmployees(data);
       
       const rolesSnap = await getDocs(collection(db, 'users'));
@@ -253,9 +268,17 @@ export default function Employees() {
                   }}>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px]">
-                          {emp.name.charAt(0).toUpperCase()}
-                        </div>
+                        {emp.photoURL ? (
+                          <img 
+                            src={emp.photoURL} 
+                            alt={emp.name} 
+                            className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px]">
+                            {emp.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                         <div className="flex flex-col">
                           <span className="text-[14px] font-semibold text-zinc-900">{emp.name}</span>
                           <span className={`text-[10px] font-bold uppercase tracking-wider ${emp.isActive !== false ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -358,9 +381,17 @@ export default function Employees() {
                       }}>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-zinc-200 text-zinc-500 flex items-center justify-center font-bold text-[12px]">
-                              {emp.name.charAt(0).toUpperCase()}
-                            </div>
+                            {emp.photoURL ? (
+                              <img 
+                                src={emp.photoURL} 
+                                alt={emp.name} 
+                                className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10 opacity-70" 
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-zinc-200 text-zinc-500 flex items-center justify-center font-bold text-[12px]">
+                                {emp.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
                             <div className="flex flex-col">
                               <span className="text-[14px] font-semibold text-zinc-600">{emp.name}</span>
                               <span className="text-[10px] font-bold uppercase tracking-wider text-red-500">

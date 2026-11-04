@@ -38,20 +38,16 @@ export default function PayrollManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [calculationDetails, setCalculationDetails] = useState(null);
 
-  const recalculateExpectedPay = ({ totalDaysVal, actualDaysVal, unpaidLeavesVal, standardSalaryVal }) => {
+  const recalculateExpectedPay = ({ totalDaysVal, unpaidLeavesVal, standardSalaryVal }) => {
     const total = Number(totalDaysVal) || 0;
-    let actual = Number(actualDaysVal) || 0;
     const unpaid = Number(unpaidLeavesVal) || 0;
     const fullSalary = Number(standardSalaryVal) || 0;
     
     if (total <= 0) return fullSalary;
 
-    let effectiveDays = actual;
-    if (unpaid > 0 && actual >= total) {
-      effectiveDays = Math.max(0, total - unpaid);
-    }
-    
-    let calculated = (fullSalary / total) * effectiveDays;
+    // Deduct salary only for unpaid leaves (casual & sick leaves are paid)
+    const payableDays = Math.max(0, total - unpaid);
+    let calculated = (fullSalary / total) * payableDays;
     if (calculated > fullSalary) calculated = fullSalary;
     return Math.round(calculated);
   };
@@ -62,7 +58,6 @@ export default function PayrollManagement() {
       const fullSalary = processSalaryPrompt.employee?.salary || calculationDetails?.originalSalary || 0;
       const newExpected = recalculateExpectedPay({
         totalDaysVal: field === 'totalWorkingDays' ? value : prev.totalWorkingDays,
-        actualDaysVal: field === 'actualWorkingDays' ? value : prev.actualWorkingDays,
         unpaidLeavesVal: field === 'unpaidLeaves' ? value : prev.unpaidLeaves,
         standardSalaryVal: fullSalary
       });
@@ -162,7 +157,8 @@ export default function PayrollManagement() {
       let calculatedSalary = fullSalary;
       
       if (workingDays > 0) {
-        calculatedSalary = (fullSalary / workingDays) * actualWorkingDays;
+        const payableDays = Math.max(0, workingDays - unpaidLeavesCount);
+        calculatedSalary = (fullSalary / workingDays) * payableDays;
         if (calculatedSalary > fullSalary) calculatedSalary = fullSalary;
       }
       
@@ -285,7 +281,8 @@ export default function PayrollManagement() {
         const fullSalary = emp.salary || 0;
         let calculated = fullSalary;
         if (totalWorkingDays > 0) {
-          calculated = (fullSalary / totalWorkingDays) * actualWorkingDays;
+          const payableDays = Math.max(0, totalWorkingDays - (stats.unpaidLeaves || 0));
+          calculated = (fullSalary / totalWorkingDays) * payableDays;
           if (calculated > fullSalary) calculated = fullSalary;
         }
         currentMonthExp[emp.id] = Math.round(calculated);
@@ -863,11 +860,9 @@ export default function PayrollManagement() {
                             value={processAllPrompt.data[emp.id]?.totalWorkingDays ?? ''}
                             onChange={(e) => {
                               const newTotal = e.target.value;
-                              const actual = processAllPrompt.data[emp.id]?.actualWorkingDays ?? 0;
                               const unpaid = processAllPrompt.data[emp.id]?.unpaidLeaves ?? 0;
                               const newExpected = recalculateExpectedPay({
                                 totalDaysVal: newTotal,
-                                actualDaysVal: actual,
                                 unpaidLeavesVal: unpaid,
                                 standardSalaryVal: emp.salary || 0
                               });
@@ -897,22 +892,13 @@ export default function PayrollManagement() {
                             value={processAllPrompt.data[emp.id]?.actualWorkingDays ?? ''}
                             onChange={(e) => {
                               const newActual = e.target.value;
-                              const total = processAllPrompt.data[emp.id]?.totalWorkingDays ?? 0;
-                              const unpaid = processAllPrompt.data[emp.id]?.unpaidLeaves ?? 0;
-                              const newExpected = recalculateExpectedPay({
-                                totalDaysVal: total,
-                                actualDaysVal: newActual,
-                                unpaidLeavesVal: unpaid,
-                                standardSalaryVal: emp.salary || 0
-                              });
                               setProcessAllPrompt(prev => ({
                                 ...prev,
                                 data: {
                                   ...prev.data,
                                   [emp.id]: {
                                     ...prev.data[emp.id],
-                                    actualWorkingDays: newActual,
-                                    baseSalary: newExpected
+                                    actualWorkingDays: newActual
                                   }
                                 }
                               }));
@@ -955,10 +941,8 @@ export default function PayrollManagement() {
                             onChange={(e) => {
                               const newUnpaid = e.target.value;
                               const total = processAllPrompt.data[emp.id]?.totalWorkingDays ?? 0;
-                              const actual = processAllPrompt.data[emp.id]?.actualWorkingDays ?? 0;
                               const newExpected = recalculateExpectedPay({
                                 totalDaysVal: total,
-                                actualDaysVal: actual,
                                 unpaidLeavesVal: newUnpaid,
                                 standardSalaryVal: emp.salary || 0
                               });

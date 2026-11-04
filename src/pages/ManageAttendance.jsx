@@ -604,9 +604,24 @@ export default function ManageAttendance() {
     if (!companyId) return;
     setLoading(true);
     try {
-      // 1. Fetch all employees
-      const empSnap = await getDocs(collection(db, `userData/${companyId}/employees`));
-      const emps = empSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // 1. Fetch all employees from company and root collection to merge photoURL
+      const [empSnap, rootEmpSnap] = await Promise.all([
+        getDocs(collection(db, `userData/${companyId}/employees`)),
+        getDocs(collection(db, 'employees')).catch(() => ({ docs: [] }))
+      ]);
+      const rootPhotoMap = {};
+      rootEmpSnap.docs.forEach(rd => {
+        if (rd.data().photoURL) rootPhotoMap[rd.id] = rd.data().photoURL;
+      });
+
+      const emps = empSnap.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          ...d,
+          photoURL: d.photoURL || rootPhotoMap[doc.id] || null
+        };
+      });
       setEmployees(emps);
 
       // 2. Fetch attendance logs
@@ -1019,13 +1034,24 @@ export default function ManageAttendance() {
                   }
                   if (log.status === 'Clocked Out') statusColor = "bg-zinc-100 text-zinc-600 border-zinc-200";
                   
+                  const empProfile = employees.find(e => e.id === log.employeeId);
+                  const avatarPhoto = empProfile?.photoURL || log.photoURL;
+
                   return (
                     <tr key={log.id} className="hover:bg-zinc-50/50 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px] shrink-0">
-                            {log.employeeName ? log.employeeName.charAt(0).toUpperCase() : '?'}
-                          </div>
+                          {avatarPhoto ? (
+                            <img 
+                              src={avatarPhoto} 
+                              alt={log.employeeName} 
+                              className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-600 flex items-center justify-center font-bold text-[12px] shrink-0">
+                              {log.employeeName ? log.employeeName.charAt(0).toUpperCase() : '?'}
+                            </div>
+                          )}
                           <div className="flex flex-col min-w-0">
                             <span className="text-[14px] font-semibold text-zinc-900 truncate">{log.employeeName}</span>
                             {(log.remarks || log.clockInRemark) && (
@@ -1285,11 +1311,19 @@ export default function ManageAttendance() {
                             : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm'
                         }`}
                       >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[13px] shrink-0 transition-colors ${
-                          isSelected ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-600'
-                        }`}>
-                          {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
-                        </div>
+                        {emp.photoURL ? (
+                          <img 
+                            src={emp.photoURL} 
+                            alt={emp.name} 
+                            className="w-10 h-10 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[13px] shrink-0 transition-colors ${
+                            isSelected ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-600'
+                          }`}>
+                            {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
                           <p className="text-[11px] text-zinc-500 truncate">{emp.position || 'Employee'}</p>
@@ -1485,11 +1519,19 @@ export default function ManageAttendance() {
                             : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm'
                         }`}
                       >
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[13px] shrink-0 transition-colors ${
-                          isSelected ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-600'
-                        }`}>
-                          {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
-                        </div>
+                        {emp.photoURL ? (
+                          <img 
+                            src={emp.photoURL} 
+                            alt={emp.name} 
+                            className="w-10 h-10 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-[13px] shrink-0 transition-colors ${
+                            isSelected ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-600'
+                          }`}>
+                            {emp.name ? emp.name.charAt(0).toUpperCase() : '?'}
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
                           <p className="text-[11px] text-zinc-500 truncate">{emp.position || 'Employee'}</p>
@@ -1710,9 +1752,17 @@ export default function ManageAttendance() {
               {/* Employee Info Header */}
               <div className="flex items-center justify-between bg-white p-5 rounded-xl border border-slate-200">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
-                    {reportModal.data.name.charAt(0).toUpperCase()}
-                  </div>
+                  {reportModal.data.photoURL ? (
+                    <img 
+                      src={reportModal.data.photoURL} 
+                      alt={reportModal.data.name} 
+                      className="w-12 h-12 rounded-full object-cover shrink-0 shadow-sm ring-2 ring-slate-200" 
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg shrink-0">
+                      {reportModal.data.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">{reportModal.data.name}</h2>
                     <p className="text-[13px] text-slate-500 font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {reportModal.data.date}</p>

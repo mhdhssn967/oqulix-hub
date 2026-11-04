@@ -58,9 +58,25 @@ export default function TeamCRM() {
     if (!companyId) return;
     setLoading(true);
     try {
-      // 1. Fetch all employees
-      const empSnap = await getDocs(collection(db, `userData/${companyId}/employees`));
-      const allEmps = empSnap.docs.map(d => ({ id: d.id, uid: d.id, ...d.data() }));
+      // 1. Fetch all employees from company and root collection to merge photoURL
+      const [empSnap, rootEmpSnap] = await Promise.all([
+        getDocs(collection(db, `userData/${companyId}/employees`)),
+        getDocs(collection(db, 'employees')).catch(() => ({ docs: [] }))
+      ]);
+      const rootPhotoMap = {};
+      rootEmpSnap.docs.forEach(rd => {
+        if (rd.data().photoURL) rootPhotoMap[rd.id] = rd.data().photoURL;
+      });
+
+      const allEmps = empSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          uid: d.id,
+          ...data,
+          photoURL: data.photoURL || rootPhotoMap[d.id] || null
+        };
+      });
 
       // Filter subordinates:
       // If user is Admin or HR, they can supervise all employees.
@@ -373,9 +389,17 @@ export default function TeamCRM() {
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[12px] shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>
-                        {emp.name.charAt(0).toUpperCase()}
-                      </div>
+                      {emp.photoURL ? (
+                        <img 
+                          src={emp.photoURL} 
+                          alt={emp.name} 
+                          className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm ring-1 ring-black/10" 
+                        />
+                      ) : (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[12px] shrink-0 ${isSelected ? 'bg-purple-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>
+                          {emp.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <h4 className="text-[13px] font-bold text-zinc-900 truncate">{emp.name}</h4>
                         <p className="text-[11px] text-zinc-500 truncate capitalize">{emp.position || 'Associate'}</p>
@@ -395,9 +419,17 @@ export default function TeamCRM() {
             {selectedSubordinate && (
               <div className="shrink-0 bg-white p-4 lg:p-5 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[16px] shrink-0">
-                    {selectedSubordinate.name.charAt(0).toUpperCase()}
-                  </div>
+                  {selectedSubordinate.photoURL ? (
+                    <img 
+                      src={selectedSubordinate.photoURL} 
+                      alt={selectedSubordinate.name} 
+                      className="w-11 h-11 rounded-full object-cover shrink-0 shadow-sm ring-2 ring-purple-500/20" 
+                    />
+                  ) : (
+                    <div className="w-11 h-11 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[16px] shrink-0">
+                      {selectedSubordinate.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <h2 className="text-[17px] font-bold text-zinc-900 truncate">{selectedSubordinate.name}</h2>
                     <div className="flex flex-wrap items-center gap-3 text-[12px] text-zinc-500 mt-0.5">

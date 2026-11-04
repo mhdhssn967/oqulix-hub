@@ -108,7 +108,7 @@ export const useAuthStore = create((set) => ({
   },
 
   updateProfile: async (name, photoURL, crmPreferences) => {
-    const { user, isAdmin, isEmployee, employeeData } = useAuthStore.getState();
+    const { user, isAdmin, isEmployee, employeeData, companyId } = useAuthStore.getState();
     if (!user) return false;
     
     const collectionName = isAdmin ? 'admins' : (isEmployee ? 'employees' : 'users');
@@ -121,6 +121,15 @@ export const useAuthStore = create((set) => ({
       if (crmPreferences !== undefined) updates.crmPreferences = crmPreferences;
       
       await updateDoc(doc(db, collectionName, user.uid), updates);
+
+      // If this is an employee belonging to a company, also sync to `userData/{companyId}/employees/{uid}`
+      if (companyId && isEmployee) {
+        try {
+          await updateDoc(doc(db, `userData/${companyId}/employees`, user.uid), updates);
+        } catch (e) {
+          console.warn("Could not sync profile to company employee doc:", e);
+        }
+      }
       
       set({ 
         employeeData: { 
