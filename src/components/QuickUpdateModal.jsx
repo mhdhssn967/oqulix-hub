@@ -22,6 +22,32 @@ const getStatusColor = (status) => {
   return 'bg-zinc-100 text-zinc-700';
 };
 
+const STORAGE_KEY = 'active_quick_update_lead';
+const STORAGE_EXPIRY_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+export function clearActiveQuickUpdateStorage() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to clear sessionStorage:', e);
+  }
+}
+
+export function getActiveQuickUpdateFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed.timestamp && Date.now() - parsed.timestamp < STORAGE_EXPIRY_MS && parsed.lead) {
+      return parsed;
+    }
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to parse sessionStorage quick update:', e);
+  }
+  return null;
+}
+
 export default function QuickUpdateModal({ 
   lead, 
   onClose, 
@@ -48,13 +74,20 @@ export default function QuickUpdateModal({
   if (lead._type === 'adLead' || activeTab === 'ads') collectionName = 'adLeads';
   if (lead._type === 'distributor' || activeTab === 'distributors') collectionName = 'distributors';
 
+  // Initialize values (checking stored draft if same lead)
   useEffect(() => {
     if (lead) {
-      setUpdateStatus(lead.currentStatus || 'New Lead');
-      setUpdateNextFollowUp(lead.nextFollowUp || lead.followUpDate || '');
-      
+      const stored = getActiveQuickUpdateFromStorage();
+      const hasStoredDraft = stored && stored.lead?.id === lead.id;
+
+      setUpdateStatus(hasStoredDraft && stored.status !== undefined ? stored.status : (lead.currentStatus || 'New Lead'));
+      setUpdateNextFollowUp(hasStoredDraft && stored.nextFollowUp !== undefined ? stored.nextFollowUp : (lead.nextFollowUp || lead.followUpDate || ''));
+      setUpdateRemarks(hasStoredDraft && stored.remarks !== undefined ? stored.remarks : '');
+
       let lastDate = new Date().toISOString().split('T')[0];
-      if (lead.statusHistory && lead.statusHistory.length > 0) {
+      if (hasStoredDraft && stored.statusDate) {
+        lastDate = stored.statusDate;
+      } else if (lead.statusHistory && lead.statusHistory.length > 0) {
         const lastEntry = lead.statusHistory[lead.statusHistory.length - 1];
         if (lastEntry.date) {
           lastDate = new Date(lastEntry.date).toISOString().split('T')[0];
@@ -68,6 +101,29 @@ export default function QuickUpdateModal({
       setUpdateStatusDate(lastDate);
     }
   }, [lead]);
+
+  // Continuously sync active lead and user inputs into sessionStorage
+  useEffect(() => {
+    if (lead && lead.id) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+          lead,
+          status: updateStatus,
+          remarks: updateRemarks,
+          statusDate: updateStatusDate,
+          nextFollowUp: updateNextFollowUp,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.error('Failed to sync quick update to sessionStorage:', e);
+      }
+    }
+  }, [lead, updateStatus, updateRemarks, updateStatusDate, updateNextFollowUp]);
+
+  const handleClose = () => {
+    clearActiveQuickUpdateStorage();
+    if (onClose) onClose();
+  };
 
   const handleQuickUpdate = async (e) => {
     e.preventDefault();
@@ -126,9 +182,10 @@ export default function QuickUpdateModal({
         }
         
         await updateDoc(docRef, updatedData);
+        clearActiveQuickUpdateStorage();
         if (onSuccess) onSuccess(updatedData);
       }
-      onClose();
+      handleClose();
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
@@ -136,7 +193,7 @@ export default function QuickUpdateModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-3 sm:p-4" onClick={handleClose}>
       <div 
         className="bg-white rounded-xl border border-zinc-200/80 shadow-2xl w-full max-w-md max-h-[88vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150" 
         onClick={e => e.stopPropagation()}
@@ -155,7 +212,7 @@ export default function QuickUpdateModal({
           </div>
           <button 
             type="button" 
-            onClick={onClose} 
+            onClick={handleClose} 
             className="text-zinc-400 hover:text-zinc-800 transition-colors p-1.5 hover:bg-zinc-100 rounded-lg shrink-0"
           >
             <X className="w-4 h-4" />

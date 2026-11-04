@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import Swal from 'sweetalert2';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
-import QuickUpdateModal from '../components/QuickUpdateModal';
+import QuickUpdateModal, { getActiveQuickUpdateFromStorage, clearActiveQuickUpdateStorage } from '../components/QuickUpdateModal';
 import { crmCache, clearCRMCache } from '../store/crmCache';
 
 const LEAD_STATUS_OPTIONS = [
@@ -1294,7 +1294,7 @@ export default function CRM() {
     fetchCRMData();
   }, [companyId, isAdmin, user?.uid, activeSegment]);
 
-  // Handle cross-page navigation state
+  // Handle cross-page navigation state & restore sessionStorage active lead on return
   useEffect(() => {
     if (location.state?.openQuickUpdateLead) {
       const lead = location.state.openQuickUpdateLead;
@@ -1302,6 +1302,13 @@ export default function CRM() {
       setUpdateStatus(lead.currentStatus || 'New Lead');
       setUpdateRemarks('');
       navigate('.', { replace: true, state: {} });
+    } else if (!quickUpdateLead) {
+      const stored = getActiveQuickUpdateFromStorage();
+      if (stored && stored.lead) {
+        setQuickUpdateLead(stored.lead);
+        if (stored.status) setUpdateStatus(stored.status);
+        if (stored.remarks) setUpdateRemarks(stored.remarks);
+      }
     }
   }, [location.state, navigate]);
 
@@ -3644,12 +3651,17 @@ export default function CRM() {
             setQuickUpdateLead(null);
             setIsActiveDistributorModalOpen(true);
           } : undefined}
-          onClose={() => setQuickUpdateLead(null)}
+          onClose={() => {
+            clearActiveQuickUpdateStorage();
+            setQuickUpdateLead(null);
+          }}
           onSuccess={(updatedData) => {
+            clearActiveQuickUpdateStorage();
             const updateLocalState = (itemsList) => itemsList.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
             if (activeTab === 'regular') setRegularLeads(prev => updateLocalState(prev));
             if (activeTab === 'ads') setAdLeads(prev => updateLocalState(prev));
             if (activeTab === 'distributors') setDistributors(prev => updateLocalState(prev));
+            setQuickUpdateLead(null);
           }}
         />
       )}

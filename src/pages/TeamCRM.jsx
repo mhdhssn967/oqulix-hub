@@ -10,7 +10,7 @@ import {
   Building2, DollarSign, Briefcase, Hash, FileText, CheckCircle, Target
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import QuickUpdateModal from '../components/QuickUpdateModal';
+import QuickUpdateModal, { getActiveQuickUpdateFromStorage, clearActiveQuickUpdateStorage } from '../components/QuickUpdateModal';
 
 export default function TeamCRM() {
   const navigate = useNavigate();
@@ -120,6 +120,16 @@ export default function TeamCRM() {
   useEffect(() => {
     fetchData();
   }, [companyId, activeSegment, user?.uid]);
+
+  // Restore sessionStorage active lead on return if present
+  useEffect(() => {
+    if (!quickUpdateLead) {
+      const stored = getActiveQuickUpdateFromStorage();
+      if (stored && stored.lead) {
+        setQuickUpdateLead(stored.lead);
+      }
+    }
+  }, []);
 
   // Combine and filter items belonging to the selected subordinate
   const subordinateItems = useMemo(() => {
@@ -953,8 +963,12 @@ export default function TeamCRM() {
             setSelectedLead(lead);
             setQuickUpdateLead(null);
           }}
-          onClose={() => setQuickUpdateLead(null)}
+          onClose={() => {
+            clearActiveQuickUpdateStorage();
+            setQuickUpdateLead(null);
+          }}
           onSuccess={(updatedData) => {
+            clearActiveQuickUpdateStorage();
             const updateList = (prev) => prev.map(it => it.id === quickUpdateLead.id ? { ...it, ...updatedData } : it);
             setLeads(updateList);
             setAdLeads(updateList);
