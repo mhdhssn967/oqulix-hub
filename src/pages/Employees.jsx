@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, doc, setDoc, getDocs, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { db, secondaryAuth } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircle, Eye, EyeOff, MonitorSmartphone } from 'lucide-react';
+import { Plus, X, UserCog, Mail, Phone, Briefcase, KeyRound, Loader2, AlertCircle, Eye, EyeOff, MonitorSmartphone, Camera } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { uploadProfilePictureToR2, isR2Configured } from '../utils/r2Storage';
 
 export default function Employees() {
-  const { user, companyId } = useAuthStore();
+  const { user, companyId, isAdmin, isHR } = useAuthStore();
   const [employees, setEmployees] = useState([]);
   const [assets, setAssets] = useState([]);
   const [rolesData, setRolesData] = useState({});
@@ -17,6 +19,8 @@ export default function Employees() {
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const avatarFileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,6 +33,7 @@ export default function Employees() {
     dateOfJoining: '',
     managerId: '',
     managerName: '',
+    photoURL: '',
     isActive: true
   });
 
@@ -106,6 +111,44 @@ export default function Employees() {
     });
   };
 
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      Swal.fire({ icon: 'warning', title: 'Invalid File', text: 'Please select an image file (PNG, JPG, WEBP).' });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      if (!isR2Configured()) {
+        throw new Error('Cloudflare R2 is not configured.');
+      }
+
+      // Use employee's ID if editing, or current user's UID as temp placeholder
+      const targetUid = editingEmployeeId || user.uid;
+      const { url } = await uploadProfilePictureToR2(file, targetUid);
+
+      setFormData(prev => ({ ...prev, photoURL: url }));
+
+      // If already editing an employee, instantly update in Firestore so it's live
+      if (editingEmployeeId) {
+        await setDoc(doc(db, `userData/${companyId}/employees`, editingEmployeeId), { photoURL: url }, { merge: true });
+        await setDoc(doc(db, 'employees', editingEmployeeId), { photoURL: url }, { merge: true });
+        setEmployees(prev => prev.map(emp => emp.id === editingEmployeeId ? { ...emp, photoURL: url } : emp));
+      }
+
+      Swal.fire({ icon: 'success', title: 'Profile photo uploaded!', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      Swal.fire({ icon: 'error', title: 'Upload Failed', text: err.message });
+    } finally {
+      setIsUploadingPhoto(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = '';
+    }
+  };
+
   const togglePasswordVisibility = (id) => {
     setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -127,6 +170,7 @@ export default function Employees() {
           dateOfJoining: formData.dateOfJoining || '',
           managerId: formData.managerId || '',
           managerName: formData.managerName || '',
+          photoURL: formData.photoURL || '',
           isActive: formData.isActive !== false
         };
         await setDoc(doc(db, `userData/${companyId}/employees`, editingEmployeeId), updateData, { merge: true });
@@ -135,7 +179,8 @@ export default function Employees() {
           name: formData.name,
           permissions: formData.permissions,
           managerId: formData.managerId || '',
-          managerName: formData.managerName || ''
+          managerName: formData.managerName || '',
+          photoURL: formData.photoURL || ''
         }, { merge: true });
         
         if (formData.position) {
@@ -161,6 +206,7 @@ export default function Employees() {
           dateOfJoining: formData.dateOfJoining || '',
           managerId: formData.managerId || '',
           managerName: formData.managerName || '',
+          photoURL: formData.photoURL || '',
           isActive: formData.isActive !== false,
           createdAt: serverTimestamp(),
           userId: employeeId
@@ -174,7 +220,8 @@ export default function Employees() {
           userId: employeeId,
           permissions: formData.permissions,
           managerId: formData.managerId || '',
-          managerName: formData.managerName || ''
+          managerName: formData.managerName || '',
+          photoURL: formData.photoURL || ''
         });
 
         if (formData.position) {
@@ -261,6 +308,7 @@ export default function Employees() {
                       dateOfJoining: emp.dateOfJoining || '',
                       managerId: emp.managerId || '',
                       managerName: emp.managerName || '',
+                      photoURL: emp.photoURL || '',
                       isActive: emp.isActive !== false
                     });
                     setEditingEmployeeId(emp.id);
@@ -374,6 +422,7 @@ export default function Employees() {
                           dateOfJoining: emp.dateOfJoining || '',
                           managerId: emp.managerId || '',
                           managerName: emp.managerName || '',
+                          photoURL: emp.photoURL || '',
                           isActive: emp.isActive !== false
                         });
                         setEditingEmployeeId(emp.id);
@@ -486,6 +535,64 @@ export default function Employees() {
                 {/* Left Column - General Info */}
                 <div className="flex flex-col gap-4">
                   <h3 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider border-b border-zinc-100 pb-2">General Details</h3>
+                  
+                  {/* Profile Picture Upload Section */}
+                  <div className="flex items-center gap-4 p-3 bg-zinc-50 rounded-xl border border-zinc-200/80">
+                    <div className="relative group shrink-0">
+                      {formData.photoURL ? (
+                        <img 
+                          src={formData.photoURL} 
+                          alt={formData.name || 'Profile'} 
+                          className="w-14 h-14 rounded-full object-cover shadow-sm ring-2 ring-black/10" 
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-zinc-200 text-zinc-600 flex items-center justify-center font-bold text-lg">
+                          {formData.name ? formData.name.charAt(0).toUpperCase() : '?'}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => avatarFileInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                        className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        title="Upload Profile Picture"
+                      >
+                        {isUploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-bold text-zinc-800">Profile Picture</div>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">JPG, PNG or WEBP. Uploads to Cloudflare R2.</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => avatarFileInputRef.current?.click()}
+                          disabled={isUploadingPhoto}
+                          className="px-2.5 py-1 bg-white border border-zinc-200 hover:border-black rounded-lg text-[11px] font-semibold text-zinc-700 transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isUploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                          {formData.photoURL ? 'Change Photo' : 'Upload Photo'}
+                        </button>
+                        {formData.photoURL && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(p => ({ ...p, photoURL: '' }))}
+                            className="px-2 py-1 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <input 
+                      type="file" 
+                      ref={avatarFileInputRef} 
+                      onChange={handlePhotoUpload} 
+                      accept="image/*" 
+                      className="hidden" 
+                    />
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">

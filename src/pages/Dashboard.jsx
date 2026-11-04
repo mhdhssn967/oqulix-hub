@@ -23,6 +23,10 @@ export default function Dashboard() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   const userName = isAdmin ? 'Admin' : (employeeData?.name || 'User');
+  const userPhoto = employeeData?.photoURL || null;
+  const userInitials = userName
+    ? userName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'U';
   const todayDate = new Date().toISOString().split('T')[0];
   const currentDateFormatted = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -332,44 +336,9 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-semibold text-zinc-900 tracking-tight">
             Welcome back, {userName}
           </h1>
-          <p className="text-[14px] text-zinc-500 mt-1 mb-4">
+          <p className="text-[14px] text-zinc-500 mt-1">
             Here's a quick overview of your workspace today.
           </p>
-
-          {/* Quick Stats Pills */}
-          {!isAdmin && (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
-                <Calendar className="w-3.5 h-3.5" /> Working Days: {stats.totalWorkingDays}
-              </div>
-              <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
-                <CheckCircle className="w-3.5 h-3.5" /> Present: {stats.totalPresent} / {stats.workingDaysPassed}
-              </div>
-              <div className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-100 flex items-center gap-1.5 whitespace-nowrap">
-                <CalendarMinus className="w-3.5 h-3.5" /> Leaves: {stats.leaveCount}
-              </div>
-              {stats.wfhCount > 0 && (
-                <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
-                  <Laptop className="w-3.5 h-3.5" /> WFH: {stats.wfhCount}
-                </div>
-              )}
-              {stats.fieldCount > 0 && (
-                <div className="px-3 py-1.5 bg-fuchsia-50 text-fuchsia-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-fuchsia-100 flex items-center gap-1.5 whitespace-nowrap">
-                  <Map className="w-3.5 h-3.5" /> Field: {stats.fieldCount}
-                </div>
-              )}
-              {stats.absentCount > 0 && (
-                <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
-                  <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
-                </div>
-              )}
-              {stats.extraDaysCount > 0 && (
-                <div className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-cyan-100 flex items-center gap-1.5 whitespace-nowrap">
-                  <Briefcase className="w-3.5 h-3.5" /> Extra Days: {stats.extraDaysCount}
-                </div>
-              )}
-            </div>
-          )}
         </div>
         <div className="flex items-center gap-3 shrink-0 self-start md:self-end">
           <button onClick={() => setIsRequestModalOpen(true)} className="py-2 px-4 text-[13px] font-semibold text-white bg-black hover:bg-zinc-800 rounded-lg transition-colors flex items-center gap-2 shadow-sm">
@@ -411,223 +380,88 @@ export default function Dashboard() {
         </div>
       )}
 
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Quick Stats & Actions */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          {quickLinks.length > 0 && (
-            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
-              <h3 className="text-[15px] font-semibold text-zinc-900 mb-5 flex items-center gap-2">
-                <LayoutDashboard className="w-4 h-4 text-zinc-400" />
-                Quick Access
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {quickLinks.map((link, idx) => (
-                  <div 
-                    key={idx}
-                    onClick={() => navigate(link.path)}
-                    className="group p-4 rounded-xl border border-zinc-200 hover:border-black/20 hover:shadow-sm bg-white cursor-pointer transition-all flex items-start gap-4"
-                  >
-                    <div className={`p-3 rounded-xl ${link.color} ${link.border} bg-opacity-50 shrink-0 transition-transform group-hover:scale-105`}>
-                      <link.icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[14px] font-semibold text-zinc-900 truncate">{link.label}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-black transition-colors" />
-                      </div>
-                      <p className="text-[12px] text-zinc-500 mt-0.5 truncate">{link.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Official Company Calendar */}
-          <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <h2 className="text-[16px] font-semibold text-zinc-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-zinc-400" />
-                Company Calendar
-              </h2>
-              <div className="flex items-center justify-between sm:justify-end gap-3 bg-zinc-50 border border-zinc-200/60 rounded-xl p-1">
-                <button 
-                  onClick={() => setCalendarDate(new Date(calYear, calMonth - 1, 1))} 
-                  className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-[13px] font-semibold text-zinc-900 min-w-[120px] text-center">
-                  {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </span>
-                <button 
-                  onClick={() => setCalendarDate(new Date(calYear, calMonth + 1, 1))} 
-                  className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1">
-              {weekDays.map(day => (
-                <div key={day} className="text-center text-[10px] sm:text-[11px] font-bold text-zinc-600 uppercase tracking-wider py-1.5 sm:py-2 bg-zinc-100/80 rounded-lg">
-                  {day}
+      {/* Top Section: Overview Pills + Quick Access on the Left, Today's Log on the Right */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        {/* Left Container: Overview & Quick Access Combined */}
+        <div className="lg:col-span-8 bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6 flex flex-col justify-between">
+          <div>
+            {/* Overview Pills */}
+            {!isAdmin && (
+              <div className="mb-6 pb-6 border-b border-zinc-100">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider">Attendance Overview</span>
+                  <span className="text-[11px] text-zinc-400 font-medium">This Month</span>
                 </div>
-              ))}
-              {calendarDays.map((day, idx) => {
-                const leaveData = isLeaveDay(calYear, calMonth, day);
-                const isLeave = leaveData.isLeave;
-                
-                const today = new Date();
-                const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
-                const isPastDay = day && (calYear < today.getFullYear() || (calYear === today.getFullYear() && calMonth < today.getMonth()) || (calYear === today.getFullYear() && calMonth === today.getMonth() && day < today.getDate()));
-                
-                const canEdit = (isAdmin || hasPerm('Employees')) && day;
-                
-                const dateStr = day ? `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
-                const myLog = dateStr ? monthAttendance[dateStr] : null;
-                
-                const isAbsent = !isAdmin && isPastDay && !isLeave && !myLog;
-                
-                return (
-                  <div 
-                    key={idx} 
-                    onClick={() => handleDayClick(day)}
-                    className={`aspect-square sm:aspect-auto sm:h-16 flex flex-col items-center justify-center sm:justify-start sm:p-2 rounded-xl border ${
-                      !day ? 'border-transparent bg-transparent' : 
-                      isAbsent ? 'border-red-200 bg-red-50' :
-                      isLeave ? 'border-slate-200 bg-slate-50' : 
-                      isToday ? 'border-blue-200 bg-blue-50 ring-1 ring-blue-100' :
-                      'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50'
-                    } ${canEdit ? 'cursor-pointer hover:opacity-80' : ''} transition-all relative overflow-hidden group`}
-                  >
-                    {day && (
-                      <>
-                        <span className={`text-[13px] sm:text-[14px] font-bold ${
-                          isAbsent ? 'text-red-700' :
-                          isLeave ? 'text-slate-500' : 
-                          isToday ? 'text-blue-700' : 'text-zinc-700'
-                        }`}>
-                          {day}
-                        </span>
-                        
-                        {isLeave && (
-                          <div className="hidden sm:block mt-0.5 w-full text-center">
-                            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-200/60 px-1.5 py-0.5 rounded-md truncate max-w-full inline-block" title={leaveData.reason}>
-                              {leaveData.reason}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {isAbsent && (
-                          <div className="hidden sm:block mt-0.5 w-full text-center">
-                            <span className="flex items-center justify-center gap-0.5 text-[9px] font-bold text-red-700 uppercase tracking-wider bg-red-100 px-1.5 py-0.5 rounded-md truncate max-w-full" title="Absent">
-                              <X className="w-2.5 h-2.5" strokeWidth={3} /> Absent
-                            </span>
-                          </div>
-                        )}
-
-                        {!isAdmin && !isLeave && !isAbsent && myLog && (
-                          <div className="hidden sm:block mt-0.5 w-full text-center">
-                            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md truncate max-w-full inline-block ${
-                              myLog.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
-                              myLog.status.startsWith('On ') ? 'bg-orange-100 text-orange-700' :
-                              'bg-emerald-100 text-emerald-700'
-                            }`} title={myLog.workType === 'Field' && myLog.fieldLocation ? `Field: ${myLog.fieldLocation}` : myLog.status}>
-                              {myLog.workType === 'Field' && myLog.fieldLocation 
-                                ? `Field: ${myLog.fieldLocation}` 
-                                : (myLog.status === 'Clocked Out' ? 'Present' : myLog.status)}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Mobile indicators */}
-                        {isLeave && (
-                          <div className="sm:hidden absolute bottom-1.5 w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
-                        )}
-                        {isAbsent && (
-                          <div className="sm:hidden absolute bottom-1.5 flex items-center justify-center">
-                             <X className="w-3 h-3 text-red-600" strokeWidth={4} />
-                          </div>
-                        )}
-                        {!isAdmin && !isLeave && !isAbsent && myLog && (
-                          <div className={`sm:hidden absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${
-                             myLog.status === 'On Leave' ? 'bg-amber-500' :
-                             myLog.status.startsWith('On ') ? 'bg-orange-500' :
-                             'bg-emerald-500'
-                          }`}></div>
-                        )}
-
-                        {canEdit && !isLeave && !isAbsent && (
-                          <div className="hidden sm:group-hover:flex absolute inset-0 bg-black/5 items-center justify-center">
-                            <span className="text-[10px] font-bold text-zinc-600">Mark Off</span>
-                          </div>
-                        )}
-                      </>
-                    )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="px-3 py-1.5 bg-zinc-100 text-zinc-700 rounded-full text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 whitespace-nowrap">
+                    <Calendar className="w-3.5 h-3.5" /> Working Days: {stats.totalWorkingDays}
                   </div>
-                );
-              })}
-            </div>
-            <div className="mt-5 flex flex-wrap justify-end gap-5 text-[12px] font-semibold text-zinc-500">
-               <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
-                   <div className="w-1 h-1 bg-slate-400 rounded-full sm:hidden"></div>
-                 </div>
-                 Leave / Off
-               </div>
-               {!isAdmin && (
-                 <>
-                   <div className="flex items-center gap-2">
-                     <div className="w-3 h-3 rounded-md bg-red-100 border border-red-200 flex items-center justify-center">
-                       <X className="w-2.5 h-2.5 text-red-600 sm:hidden" strokeWidth={4} />
-                     </div>
-                     Absent
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <div className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
-                       <div className="w-1 h-1 bg-emerald-500 rounded-full sm:hidden"></div>
-                     </div>
-                     Present
-                   </div>
-                 </>
-               )}
-               <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-md bg-blue-100 border border-blue-200"></div>
-                 Today
-               </div>
-            </div>
-          </div>
-          {/* Pending Tasks Banner */}
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center shrink-0">
-                <CheckSquare className="w-6 h-6" />
+                  <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
+                    <CheckCircle className="w-3.5 h-3.5" /> Present: {stats.totalPresent} / {stats.workingDaysPassed}
+                  </div>
+                  <div className="px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-100 flex items-center gap-1.5 whitespace-nowrap">
+                    <CalendarMinus className="w-3.5 h-3.5" /> Leaves: {stats.leaveCount}
+                  </div>
+                  {stats.wfhCount > 0 && (
+                    <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
+                      <Laptop className="w-3.5 h-3.5" /> WFH: {stats.wfhCount}
+                    </div>
+                  )}
+                  {stats.fieldCount > 0 && (
+                    <div className="px-3 py-1.5 bg-fuchsia-50 text-fuchsia-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-fuchsia-100 flex items-center gap-1.5 whitespace-nowrap">
+                      <Map className="w-3.5 h-3.5" /> Field: {stats.fieldCount}
+                    </div>
+                  )}
+                  {stats.absentCount > 0 && (
+                    <div className="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-rose-100 flex items-center gap-1.5 whitespace-nowrap">
+                      <AlertCircle className="w-3.5 h-3.5" /> Absent: {stats.absentCount}
+                    </div>
+                  )}
+                  {stats.extraDaysCount > 0 && (
+                    <div className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-cyan-100 flex items-center gap-1.5 whitespace-nowrap">
+                      <Briefcase className="w-3.5 h-3.5" /> Extra Days: {stats.extraDaysCount}
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* Quick Actions */}
+            {quickLinks.length > 0 && (
               <div>
-                <h3 className="text-[16px] font-semibold text-orange-900">Pending Tasks</h3>
-                <p className="text-[13px] text-orange-700 mt-0.5">
-                  You currently have <strong className="font-bold">{pendingTasksCount}</strong> tasks awaiting action.
-                </p>
+                <h3 className="text-[15px] font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                  <LayoutDashboard className="w-4 h-4 text-zinc-400" />
+                  Quick Access
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {quickLinks.map((link, idx) => (
+                    <div 
+                      key={idx}
+                      onClick={() => navigate(link.path)}
+                      className="group p-3.5 rounded-xl border border-zinc-200/90 hover:border-black/20 hover:shadow-sm bg-zinc-50/50 hover:bg-white cursor-pointer transition-all flex items-start gap-3.5"
+                    >
+                      <div className={`p-2.5 rounded-xl ${link.color} ${link.border} bg-opacity-50 shrink-0 transition-transform group-hover:scale-105`}>
+                        <link.icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-semibold text-zinc-900 truncate">{link.label}</span>
+                          <ArrowUpRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-black transition-colors" />
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-0.5 truncate">{link.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            <button 
-              onClick={() => navigate('/tasks')}
-              className="px-5 py-2.5 bg-white border border-orange-200 text-orange-700 text-[13px] font-semibold rounded-xl hover:bg-orange-100 transition-colors shrink-0 shadow-sm"
-            >
-              View Tasks
-            </button>
+            )}
           </div>
         </div>
 
-        {/* Right Column: Attendance Widget */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        {/* Right Column: Attendance Widget (Today's Log) */}
+        <div className="lg:col-span-4 flex flex-col">
           <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden h-full">
-            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
               <h2 className="text-[15px] font-semibold text-zinc-900 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-zinc-400" />
                 Today's Log
@@ -638,21 +472,35 @@ export default function Dashboard() {
               </button>
             </div>
             
-            <div className="p-6 flex-1 flex flex-col justify-center">
+            <div className="p-6 flex-1 flex flex-col justify-between">
               {todayAttendance ? (
-                <div className="flex flex-col items-center text-center">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
-                    todayAttendance.status === 'On Leave' ? 'bg-rose-100 text-rose-600' : 
-                    (todayAttendance.status.startsWith('On ') ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600')
-                  }`}>
-                    {todayAttendance.status === 'On Leave' ? <Calendar className="w-7 h-7" /> : <Clock className="w-7 h-7" />}
+                <div className="flex flex-col items-center text-center my-auto">
+                  <div className="relative mb-3">
+                    {userPhoto ? (
+                      <img 
+                        src={userPhoto} 
+                        alt={userName} 
+                        className="w-28 h-28 rounded-full object-cover shadow-lg ring-4 ring-zinc-100 border border-zinc-200" 
+                      />
+                    ) : (
+                      <div className="w-28 h-28 rounded-full bg-gradient-to-br from-zinc-800 to-black text-white flex items-center justify-center font-extrabold text-3xl shadow-lg ring-4 ring-zinc-100">
+                        {userInitials}
+                      </div>
+                    )}
+                    {/* Status Indicator Pip */}
+                    <span className={`absolute bottom-1 right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-[11px] font-bold shadow-sm ${
+                      todayAttendance.status === 'On Leave' ? 'bg-rose-500 text-white' : 
+                      (todayAttendance.status.startsWith('On ') ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white')
+                    }`}>
+                      {todayAttendance.status === 'On Leave' ? 'L' : '✓'}
+                    </span>
                   </div>
                   
-                  <h3 className="text-2xl font-bold text-zinc-900 mb-1">
+                  <h3 className="text-xl font-bold text-zinc-900 mb-1">
                     {todayAttendance.status}
                   </h3>
                   
-                  <div className="text-[13px] text-zinc-500 mb-6">
+                  <div className="text-[13px] text-zinc-500 mb-4">
                     {todayAttendance.workType && todayAttendance.status !== 'On Leave' && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-zinc-100 text-zinc-700 rounded-md font-medium mr-2">
                         {todayAttendance.workType}
@@ -671,17 +519,17 @@ export default function Dashboard() {
                   </div>
                   
                   {todayAttendance.status !== 'On Leave' && todayAttendance.status !== 'Clocked Out' && (
-                    <div className="w-full mt-auto p-4 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between">
+                    <div className="w-full p-3.5 bg-zinc-50 border border-zinc-200/80 rounded-xl flex items-center justify-between">
                       <div className="flex flex-col items-start">
-                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Current Time</span>
-                        <span className="text-[15px] font-semibold text-zinc-900 mt-0.5">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Current Time</span>
+                        <span className="text-[14px] font-semibold text-zinc-900 mt-0.5">
                           {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <div className="h-8 w-px bg-zinc-200"></div>
+                      <div className="h-7 w-px bg-zinc-200"></div>
                       <div className="flex flex-col items-end">
-                        <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Status</span>
-                        <span className="text-[13px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Status</span>
+                        <span className="text-[12px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
                           <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -693,18 +541,188 @@ export default function Dashboard() {
                   )}
                 </div>
               ) : (
-                <div className="text-center py-6">
-                  <div className="w-14 h-14 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-100">
-                    <Clock className="w-6 h-6 text-zinc-300" />
+                <div className="flex flex-col items-center text-center py-6 my-auto">
+                  <div className="relative mb-3">
+                    {userPhoto ? (
+                      <img 
+                        src={userPhoto} 
+                        alt={userName} 
+                        className="w-28 h-28 rounded-full object-cover shadow-lg ring-4 ring-zinc-100 border border-zinc-200 opacity-80" 
+                      />
+                    ) : (
+                      <div className="w-28 h-28 rounded-full bg-zinc-100 text-zinc-500 flex items-center justify-center font-bold text-3xl shadow-sm ring-4 ring-zinc-100">
+                        {userInitials}
+                      </div>
+                    )}
+                    <span className="absolute bottom-1 right-1 w-6 h-6 rounded-full border-2 border-white bg-zinc-400 text-white flex items-center justify-center text-[11px] font-bold shadow-sm">
+                      —
+                    </span>
                   </div>
-                  <h3 className="text-[15px] font-semibold text-zinc-900 mb-1">Not Clocked In</h3>
-                  <p className="text-[13px] text-zinc-500 max-w-[200px] mx-auto">
+                  <h3 className="text-[17px] font-bold text-zinc-900 mb-1">Not Clocked In</h3>
+                  <p className="text-[13px] text-zinc-500 max-w-[220px] mx-auto">
                     Your attendance hasn't been logged yet for today.
                   </p>
                 </div>
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Full-Width Section: Official Company Calendar */}
+      <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-[16px] font-semibold text-zinc-900 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-zinc-400" />
+            Company Calendar
+          </h2>
+          <div className="flex items-center justify-between sm:justify-end gap-3 bg-zinc-50 border border-zinc-200/60 rounded-xl p-1">
+            <button 
+              onClick={() => setCalendarDate(new Date(calYear, calMonth - 1, 1))} 
+              className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-[13px] font-semibold text-zinc-900 min-w-[120px] text-center">
+              {calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </span>
+            <button 
+              onClick={() => setCalendarDate(new Date(calYear, calMonth + 1, 1))} 
+              className="p-1.5 text-zinc-500 hover:text-black hover:bg-white rounded-lg hover:shadow-sm transition-all"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1">
+          {weekDays.map(day => (
+            <div key={day} className="text-center text-[10px] sm:text-[11px] font-bold text-zinc-600 uppercase tracking-wider py-1.5 sm:py-2 bg-zinc-100/80 rounded-lg">
+              {day}
+            </div>
+          ))}
+          {calendarDays.map((day, idx) => {
+            const leaveData = isLeaveDay(calYear, calMonth, day);
+            const isLeave = leaveData.isLeave;
+            
+            const today = new Date();
+            const isToday = day === today.getDate() && calMonth === today.getMonth() && calYear === today.getFullYear();
+            const isPastDay = day && (calYear < today.getFullYear() || (calYear === today.getFullYear() && calMonth < today.getMonth()) || (calYear === today.getFullYear() && calMonth === today.getMonth() && day < today.getDate()));
+            
+            const canEdit = (isAdmin || hasPerm('Employees')) && day;
+            
+            const dateStr = day ? `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : null;
+            const myLog = dateStr ? monthAttendance[dateStr] : null;
+            
+            const isAbsent = !isAdmin && isPastDay && !isLeave && !myLog;
+            
+            return (
+              <div 
+                key={idx} 
+                onClick={() => handleDayClick(day)}
+                className={`aspect-square sm:aspect-auto sm:h-16 flex flex-col items-center justify-center sm:justify-start sm:p-2 rounded-xl border ${
+                  !day ? 'border-transparent bg-transparent' : 
+                  isAbsent ? 'border-red-200 bg-red-50' :
+                  isLeave ? 'border-slate-200 bg-slate-50' : 
+                  isToday ? 'border-blue-200 bg-blue-50 ring-1 ring-blue-100' :
+                  'border-zinc-100 bg-white hover:border-zinc-200 hover:bg-zinc-50'
+                } ${canEdit ? 'cursor-pointer hover:opacity-80' : ''} transition-all relative overflow-hidden group`}
+              >
+                {day && (
+                  <>
+                    <span className={`text-[13px] sm:text-[14px] font-bold ${
+                      isAbsent ? 'text-red-700' :
+                      isLeave ? 'text-slate-500' : 
+                      isToday ? 'text-blue-700' : 'text-zinc-700'
+                    }`}>
+                      {day}
+                    </span>
+                    
+                    {isLeave && (
+                      <div className="hidden sm:block mt-0.5 w-full text-center">
+                        <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider bg-slate-200/60 px-1.5 py-0.5 rounded-md truncate max-w-full inline-block" title={leaveData.reason}>
+                          {leaveData.reason}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {isAbsent && (
+                      <div className="hidden sm:block mt-0.5 w-full text-center">
+                        <span className="flex items-center justify-center gap-0.5 text-[9px] font-bold text-red-700 uppercase tracking-wider bg-red-100 px-1.5 py-0.5 rounded-md truncate max-w-full" title="Absent">
+                          <X className="w-2.5 h-2.5" strokeWidth={3} /> Absent
+                        </span>
+                      </div>
+                    )}
+
+                    {!isAdmin && !isLeave && !isAbsent && myLog && (
+                      <div className="hidden sm:block mt-0.5 w-full text-center">
+                        <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md truncate max-w-full inline-block ${
+                          myLog.status === 'On Leave' ? 'bg-amber-100 text-amber-700' :
+                          myLog.status.startsWith('On ') ? 'bg-orange-100 text-orange-700' :
+                          'bg-emerald-100 text-emerald-700'
+                        }`} title={myLog.workType === 'Field' && myLog.fieldLocation ? `Field: ${myLog.fieldLocation}` : myLog.status}>
+                          {myLog.workType === 'Field' && myLog.fieldLocation 
+                            ? `Field: ${myLog.fieldLocation}` 
+                            : (myLog.status === 'Clocked Out' ? 'Present' : myLog.status)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Mobile indicators */}
+                    {isLeave && (
+                      <div className="sm:hidden absolute bottom-1.5 w-1.5 h-1.5 bg-slate-400 rounded-full"></div>
+                    )}
+                    {isAbsent && (
+                      <div className="sm:hidden absolute bottom-1.5 flex items-center justify-center">
+                         <X className="w-3 h-3 text-red-600" strokeWidth={4} />
+                      </div>
+                    )}
+                    {!isAdmin && !isLeave && !isAbsent && myLog && (
+                      <div className={`sm:hidden absolute bottom-1.5 w-1.5 h-1.5 rounded-full ${
+                         myLog.status === 'On Leave' ? 'bg-amber-500' :
+                         myLog.status.startsWith('On ') ? 'bg-orange-500' :
+                         'bg-emerald-500'
+                      }`}></div>
+                    )}
+
+                    {canEdit && !isLeave && !isAbsent && (
+                      <div className="hidden sm:group-hover:flex absolute inset-0 bg-black/5 items-center justify-center">
+                        <span className="text-[10px] font-bold text-zinc-600">Mark Off</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-5 flex flex-wrap justify-end gap-5 text-[12px] font-semibold text-zinc-500">
+           <div className="flex items-center gap-2">
+             <div className="w-3 h-3 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center">
+               <div className="w-1 h-1 bg-slate-400 rounded-full sm:hidden"></div>
+             </div>
+             Leave / Off
+           </div>
+           {!isAdmin && (
+             <>
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-red-100 border border-red-200 flex items-center justify-center">
+                   <X className="w-2.5 h-2.5 text-red-600 sm:hidden" strokeWidth={4} />
+                 </div>
+                 Absent
+               </div>
+               <div className="flex items-center gap-2">
+                 <div className="w-3 h-3 rounded-md bg-emerald-100 border border-emerald-200 flex items-center justify-center">
+                   <div className="w-1 h-1 bg-emerald-500 rounded-full sm:hidden"></div>
+                 </div>
+                 Present
+               </div>
+             </>
+           )}
+           <div className="flex items-center gap-2">
+             <div className="w-3 h-3 rounded-md bg-blue-100 border border-blue-200"></div>
+             Today
+           </div>
         </div>
       </div>
       

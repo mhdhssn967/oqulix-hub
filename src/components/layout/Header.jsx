@@ -183,12 +183,12 @@ export function Header() {
           <div className="flex items-center gap-1 sm:gap-2">
              <button 
                onClick={handleProfileClick}
-               className="flex items-center gap-3 hover:bg-zinc-100 p-1.5 pr-3 rounded-full transition-colors text-left"
+               className="flex items-center gap-3 hover:bg-zinc-100 p-1 sm:p-1.5 sm:pr-3 rounded-full transition-colors text-left shrink-0"
              >
                {employeeData?.photoURL ? (
-                 <img src={employeeData.photoURL} alt="Profile" className="w-8 h-8 md:w-9 md:h-9 rounded-full object-cover shadow-sm ring-2 ring-black/5" />
+                 <img src={employeeData.photoURL} alt="Profile" className="w-8 h-8 md:w-9 md:h-9 min-w-[32px] min-h-[32px] rounded-full object-cover shrink-0 shadow-sm ring-2 ring-black/5 aspect-square" />
                ) : (
-                 <div className="w-8 h-8 md:w-9 md:h-9 bg-black text-white rounded-full flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-black/5">
+                 <div className="w-8 h-8 md:w-9 md:h-9 min-w-[32px] min-h-[32px] bg-black text-white rounded-full flex items-center justify-center font-semibold text-xs shrink-0 shadow-sm ring-2 ring-black/5 aspect-square">
                    {displayInitials}
                  </div>
                )}
