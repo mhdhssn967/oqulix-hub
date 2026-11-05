@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, getDocs, setDoc, doc, serverTimestamp, writeBatch, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
-import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Coffee, Utensils, Play, LogOut, Building2, Home, MapPin, MoreHorizontal, CalendarMinus, BarChart2, Pencil, Trash2, Send, FileText, Zap, User, Target, Download, MessageSquare, AlertTriangle, ArrowRight } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
@@ -103,6 +103,8 @@ export default function ManageAttendance() {
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
+  const [allAttendanceLogs, setAllAttendanceLogs] = useState([]);
+  const [selectedMissingLog, setSelectedMissingLog] = useState(null);
   
   // Get today's date in YYYY-MM-DD
   const getTodayStr = () => {
@@ -627,6 +629,7 @@ export default function ManageAttendance() {
       // 2. Fetch attendance logs
       const attSnap = await getDocs(collection(db, `userData/${companyId}/attendanceLogs`));
       const allLogs = attSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllAttendanceLogs(allLogs);
       
       // Filter logs by selected date locally
       const dayLogs = allLogs.filter(log => log.date === selectedDate);
@@ -843,7 +846,27 @@ export default function ManageAttendance() {
     }
   };
 
-  // Get IDs of employees already clocked in or on leave today
+  // Find past unclocked logs (where log.date < selectedDate, workType is NOT 'Field', status is not Clocked Out / On Leave, and clockedOutAt is missing)
+  const unclockedPastLogs = allAttendanceLogs.filter(log => {
+    if (!log.date || log.date >= selectedDate) return false;
+    if (log.workType === 'Field') return false; // Field work does not require a clock out
+    if (log.status === 'Clocked Out' || log.status === 'On Leave' || log.clockedOutAt) return false;
+    return true;
+  });
+
+  // Map employeeId -> array of unclocked past logs
+  const employeeMissingClockOutMap = {};
+  unclockedPastLogs.forEach(log => {
+    if (!employeeMissingClockOutMap[log.employeeId]) {
+      employeeMissingClockOutMap[log.employeeId] = [];
+    }
+    employeeMissingClockOutMap[log.employeeId].push(log);
+  });
+
+  // Unclocked past logs for currently selected employees in Clock In modal
+  const selectedMissingLogs = selectedEmployeeIds.flatMap(empId => employeeMissingClockOutMap[empId] || []);
+
+  // Get IDs of employees already clocked in or on leave on selectedDate
   const clockedInIds = attendanceLogs.map(log => log.employeeId);
   
   // Filter employees for clock in modal based on search and if not clocked in
@@ -906,6 +929,41 @@ export default function ManageAttendance() {
           </button>
         </div>
       </header>
+
+      {/* Alert banner on main page if any employees have unclocked previous days */}
+      {unclockedPastLogs.length > 0 && activeTab === 'attendance' && (
+        <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-700 shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-[14px] font-bold text-amber-950 flex items-center gap-2">
+                Missing Clock Out Detected
+                <span className="text-[11px] font-black bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                  {unclockedPastLogs.length} record{unclockedPastLogs.length > 1 ? 's' : ''}
+                </span>
+              </h4>
+              <p className="text-[12px] text-amber-800/90 mt-0.5">
+                Some employees were clocked in on earlier dates but never clocked out. Clock out or edit their records to ensure accurate working hours.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              // Jump selectedDate to the most recent unclocked log date so admin can see and resolve it
+              const mostRecentMissing = [...unclockedPastLogs].sort((a, b) => b.date.localeCompare(a.date))[0];
+              if (mostRecentMissing) {
+                setSelectedDate(mostRecentMissing.date);
+              }
+            }}
+            className="self-start sm:self-center px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[12px] font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+          >
+            <span>Review Previous Dates</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-6 mb-2">
         <button
@@ -1290,6 +1348,52 @@ export default function ManageAttendance() {
                   className="w-full pl-9 pr-4 py-2 bg-white border border-zinc-200 rounded-lg text-[13px] focus:ring-2 focus:ring-black/5 focus:border-black outline-none transition-all"
                 />
               </div>
+
+              {/* Warning Notice inside Clock In Modal if selected employees have unclocked past days */}
+              {selectedMissingLogs.length > 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex flex-col gap-2 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-rose-800 text-[12px] font-bold">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Previous Missing Clock-Out Detected!</span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 leading-relaxed">
+                    The following selected employee{selectedMissingLogs.length > 1 ? 's have' : ' has'} not clocked out on previous dates:
+                  </p>
+                  <div className="max-h-28 overflow-y-auto divide-y divide-rose-100 bg-white/80 rounded-lg p-2 border border-rose-200/60 custom-scrollbar">
+                    {selectedMissingLogs.map(mLog => (
+                      <div key={mLog.id} className="py-1.5 flex items-center justify-between gap-2 text-[11.5px]">
+                        <div className="min-w-0">
+                          <span className="font-bold text-zinc-900">{mLog.employeeName}</span>
+                          <span className="text-zinc-500 ml-1.5">Date: <strong className="text-rose-700">{mLog.date}</strong></span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Open Edit dialog for this past missing log directly
+                            setEditLogPrompt({
+                              isOpen: true,
+                              log: mLog,
+                              clockInTime: mLog.clockedInAt ? getTimeStrFromDate(mLog.clockedInAt) : '10:00',
+                              clockOutTime: '18:00',
+                              workType: mLog.workType || 'Office',
+                              fieldLocation: mLog.fieldLocation || '',
+                              breaks: (mLog.breaks || []).map(b => ({
+                                type: b.type || 'Custom',
+                                startStr: b.startTime ? getTimeStrFromDate(b.startTime) : '',
+                                endStr: b.endTime ? getTimeStrFromDate(b.endTime) : ''
+                              })),
+                              remarks: mLog.remarks || mLog.clockInRemark || ''
+                            });
+                          }}
+                          className="px-2 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10.5px] font-semibold shrink-0 cursor-pointer transition-colors"
+                        >
+                          Clock Out Now
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 overflow-y-auto flex-1 custom-scrollbar bg-zinc-50/30">
@@ -1325,7 +1429,18 @@ export default function ManageAttendance() {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
+                            {employeeMissingClockOutMap[emp.id] && employeeMissingClockOutMap[emp.id].length > 0 && (
+                              <span 
+                                title={`${employeeMissingClockOutMap[emp.id].length} previous day(s) missing clock out`}
+                                className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9.5px] font-bold rounded flex items-center gap-0.5 shrink-0"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {employeeMissingClockOutMap[emp.id].length} past missing
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-zinc-500 truncate">{emp.position || 'Employee'}</p>
                         </div>
                         <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
@@ -1533,7 +1648,18 @@ export default function ManageAttendance() {
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-[13px] font-semibold text-zinc-900 truncate">{emp.name}</p>
+                            {employeeMissingClockOutMap[emp.id] && employeeMissingClockOutMap[emp.id].length > 0 && (
+                              <span 
+                                title={`${employeeMissingClockOutMap[emp.id].length} previous day(s) missing clock out`}
+                                className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9.5px] font-bold rounded flex items-center gap-0.5 shrink-0"
+                              >
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                {employeeMissingClockOutMap[emp.id].length} past missing
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-zinc-500 truncate">{emp.position || 'Employee'}</p>
                         </div>
                         <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
