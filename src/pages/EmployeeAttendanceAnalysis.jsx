@@ -204,6 +204,7 @@ export default function EmployeeAttendanceAnalysis() {
               <tr className="bg-zinc-50/50 border-b border-zinc-100">
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Employee</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider">Present / Working Days</th>
+                <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Half Days</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Absent</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Leaves</th>
                 <th className="px-5 py-4 text-[12px] font-semibold text-zinc-500 uppercase tracking-wider text-center">Field</th>
@@ -216,7 +217,7 @@ export default function EmployeeAttendanceAnalysis() {
             <tbody className="divide-y divide-zinc-100">
               {analysisData.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="px-5 py-12 text-center text-zinc-500 text-[14px]">
+                  <td colSpan="10" className="px-5 py-12 text-center text-zinc-500 text-[14px]">
                     <Users className="w-12 h-12 mx-auto mb-3 text-zinc-300" />
                     No data available for {new Date(selectedMonth + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}.
                   </td>
@@ -238,6 +239,11 @@ export default function EmployeeAttendanceAnalysis() {
                       <span className="font-semibold text-emerald-600">{emp.presentDays}</span>
                       <span className="text-zinc-400 mx-1">/</span>
                       <span className="text-zinc-600 font-medium">{emp.workingDaysPassed}</span>
+                    </td>
+                    <td className="px-5 py-4 text-[14px] text-center">
+                      <span className={`font-semibold ${emp.halfDays > 0 ? 'text-amber-600' : 'text-zinc-400'}`}>
+                        {emp.halfDays || 0}
+                      </span>
                     </td>
                     <td className="px-5 py-4 text-[14px] text-center">
                       <span className={`font-semibold ${emp.absentDays > 0 ? 'text-rose-600' : 'text-zinc-400'}`}>
@@ -367,6 +373,12 @@ export default function EmployeeAttendanceAnalysis() {
                       <span className="text-[13px] font-black text-emerald-600">{reportModal.data.presentDays} Days</span>
                       <span className="text-[10px] text-emerald-500 font-bold bg-emerald-100/50 px-1.5 rounded-full">{Math.round((reportModal.data.presentDays / Math.max(1, reportModal.data.workingDaysPassed)) * 100)}%</span>
                     </div>
+                    {reportModal.data.halfDays > 0 && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Half Days</span>
+                        <span className="text-[13px] font-black text-amber-700">{reportModal.data.halfDays} Days</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full">
                       <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Hrs</span>
                       <span className="text-[13px] font-black text-blue-600">{reportModal.data.totalHours}h / {reportModal.data.expectedHours}h</span>

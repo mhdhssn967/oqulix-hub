@@ -1,8 +1,53 @@
+// Helper to get late arrival info and half-day status
+// Expected start time is 10:00 AM. Clock-in after 10:15 AM counts as Half Day.
+export function getLateArrivalInfo(clockedInAt, workType) {
+  if (!clockedInAt || workType === 'Field') {
+    return { isLate: false, lateMinutes: 0, lateFormatted: '', isHalfDay: false };
+  }
+  
+  const inDate = clockedInAt.toDate ? clockedInAt.toDate() : new Date(clockedInAt);
+  if (isNaN(inDate.getTime())) {
+    return { isLate: false, lateMinutes: 0, lateFormatted: '', isHalfDay: false };
+  }
+
+  const expectedTime = new Date(inDate);
+  expectedTime.setHours(10, 0, 0, 0);
+
+  const diffMs = inDate.getTime() - expectedTime.getTime();
+  const lateMinutes = diffMs > 0 ? Math.floor(diffMs / 60000) : 0;
+  const isLate = lateMinutes > 0;
+
+  let lateFormatted = '';
+  if (isLate) {
+    const hours = Math.floor(lateMinutes / 60);
+    const mins = lateMinutes % 60;
+    if (hours > 0 && mins > 0) {
+      lateFormatted = `${hours}h ${mins}m late`;
+    } else if (hours > 0) {
+      lateFormatted = `${hours}h late`;
+    } else {
+      lateFormatted = `${mins}m late`;
+    }
+  }
+
+  // After 10:15 AM = Half Day
+  const isHalfDay = lateMinutes > 15;
+
+  return {
+    isLate,
+    lateMinutes,
+    lateFormatted,
+    isHalfDay
+  };
+}
+
 export function calculateEmployeeAttendanceMetrics(emp, empLogs, workingDaysPassed) {
   let presentDays = 0;
   let fieldDays = 0;
   let wfhDays = 0;
   let leaveDays = 0;
+  let halfDays = 0;
+  let lateDays = 0;
   let totalMinutesWorked = 0;
   let totalScore = 0;
   let scoredDays = 0;
@@ -16,6 +61,10 @@ export function calculateEmployeeAttendanceMetrics(emp, empLogs, workingDaysPass
       else if (log.workType === 'WFH') wfhDays++;
       
       if (log.clockedInAt && log.workType !== 'Field') {
+        const lateInfo = getLateArrivalInfo(log.clockedInAt, log.workType);
+        if (lateInfo.isLate) lateDays++;
+        if (lateInfo.isHalfDay) halfDays++;
+
         const tIn = log.clockedInAt.toDate ? log.clockedInAt.toDate() : new Date(log.clockedInAt);
         const tOut = log.clockedOutAt ? (log.clockedOutAt.toDate ? log.clockedOutAt.toDate() : new Date(log.clockedOutAt)) : new Date();
         let ms = tOut.getTime() - tIn.getTime();
@@ -76,6 +125,8 @@ export function calculateEmployeeAttendanceMetrics(emp, empLogs, workingDaysPass
     name: emp.name || 'Unknown',
     position: emp.position || '-',
     presentDays,
+    halfDays,
+    lateDays,
     workingDaysPassed,
     absentDays,
     leaveDays,

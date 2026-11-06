@@ -180,3 +180,70 @@ export const deleteResumeFromR2 = async (key) => {
     console.error('Error deleting file from Cloudflare R2:', error);
   }
 };
+
+/**
+ * Upload a general document file to Cloudflare R2
+ * @param {File} file - The browser File object
+ * @param {string} companyId - Company ID
+ * @param {string} folderId - ID of the folder (or 'root')
+ * @returns {Promise<{ url: string, key: string, fileName: string, fileSize: number, fileType: string }>}
+ */
+export const uploadDocumentToR2 = async (file, companyId, folderId = 'root') => {
+  const client = getR2Client();
+
+  const sanitizedOriginalName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'document.bin';
+  const timestamp = Date.now();
+  const key = `documents/${companyId}/${folderId}/${timestamp}_${sanitizedOriginalName}`;
+  const contentType = file.type || 'application/octet-stream';
+
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  const signedPutUrl = await getSignedUrl(client, command, { expiresIn: 600 });
+
+  const response = await fetch(signedPutUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`R2 document upload failed (${response.status}): ${errText || response.statusText}`);
+  }
+
+  const baseUrl = R2_PUBLIC_URL.replace(/\/+$/, '');
+  const publicUrl = `${baseUrl}/${key}`;
+
+  return {
+    url: publicUrl,
+    key,
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: contentType,
+  };
+};
+
+/**
+ * Delete a document from Cloudflare R2
+ * @param {string} key - The object key stored in R2
+ */
+export const deleteDocumentFromR2 = async (key) => {
+  if (!key || !isR2Configured()) return;
+  try {
+    const client = getR2Client();
+    const command = new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    });
+    const signedDeleteUrl = await getSignedUrl(client, command, { expiresIn: 300 });
+    await fetch(signedDeleteUrl, { method: 'DELETE' });
+  } catch (error) {
+    console.error('Error deleting document from Cloudflare R2:', error);
+  }
+};

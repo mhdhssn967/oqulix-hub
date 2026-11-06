@@ -1957,7 +1957,7 @@ export default function Hiring() {
               {/* Resume Upload (Cloudflare R2) */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                  Resume Upload (Cloudflare R2 Storage)
+                  Resume Upload 
                 </label>
                 <div
                   onClick={(e) => {

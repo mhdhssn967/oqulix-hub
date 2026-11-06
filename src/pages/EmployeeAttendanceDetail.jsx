@@ -4,7 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '../firebase';
 import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, Calendar as CalendarIcon, Clock, MapPin, Home, UserX, UserCheck, Check, X } from 'lucide-react';
-import { calculateEmployeeAttendanceMetrics } from '../utils/attendanceUtils';
+import { calculateEmployeeAttendanceMetrics, getLateArrivalInfo } from '../utils/attendanceUtils';
 
 export default function EmployeeAttendanceDetail() {
   const { employeeId } = useParams();
@@ -168,10 +168,20 @@ export default function EmployeeAttendanceDetail() {
         if (ms > 0) logHours = (ms / 3600000).toFixed(1);
       }
 
+      let isHalfDay = false;
+      let lateInfo = { isLate: false, lateFormatted: '' };
+      if (log && log.clockedInAt && log.status !== 'On Leave') {
+        lateInfo = getLateArrivalInfo(log.clockedInAt, log.workType);
+        if (lateInfo.isHalfDay) {
+          isHalfDay = true;
+        }
+      }
+
       calDays.push({
         date: d,
         status,
-        logHours,
+        isHalfDay,
+        lateInfo,
         fieldLocation: log?.fieldLocation || null,
         remarks: log?.remarks || log?.clockInRemark || null
       });
@@ -251,6 +261,11 @@ export default function EmployeeAttendanceDetail() {
         <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-emerald-100 flex items-center gap-1.5 whitespace-nowrap">
           <UserCheck className="w-3.5 h-3.5" /> Present: {metrics.presentDays} / {metrics.workingDaysPassed}
         </div>
+        {metrics.halfDays > 0 && (
+          <div className="px-3 py-1.5 bg-amber-50 text-amber-800 rounded-full text-[11px] sm:text-[12px] font-semibold border border-amber-200 flex items-center gap-1.5 whitespace-nowrap">
+            <Clock className="w-3.5 h-3.5 text-amber-600" /> Half Days: {metrics.halfDays}
+          </div>
+        )}
         <div className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] sm:text-[12px] font-semibold border border-indigo-100 flex items-center gap-1.5 whitespace-nowrap">
           <Home className="w-3.5 h-3.5" /> WFH: {metrics.wfhDays} / {metrics.workingDaysPassed}
         </div>
@@ -298,12 +313,22 @@ export default function EmployeeAttendanceDetail() {
                 {['Present', 'WFH', 'Field'].includes(day.status) && (
                   <div className="flex mt-0.5 w-full items-center justify-center flex-col gap-0.5">
                     <span className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md truncate max-w-full inline-flex items-center justify-center gap-0.5 ${
-                      day.status === 'Present' ? 'bg-emerald-200/50 text-emerald-800' :
-                      day.status === 'WFH' ? 'bg-indigo-200/50 text-indigo-800' :
-                      'bg-fuchsia-200/50 text-fuchsia-800'
-                    }`} title={day.remarks ? `${day.status} (Note: ${day.remarks})` : (day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status)}>
-                      <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" strokeWidth={3} /> <span className="hidden md:inline">{day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status}</span>
+                      day.isHalfDay 
+                        ? 'bg-amber-200/80 text-amber-900 border border-amber-300'
+                        : day.status === 'Present' ? 'bg-emerald-200/50 text-emerald-800' :
+                        day.status === 'WFH' ? 'bg-indigo-200/50 text-indigo-800' :
+                        'bg-fuchsia-200/50 text-fuchsia-800'
+                    }`} title={day.remarks ? `${day.isHalfDay ? 'Half Day' : day.status} (Note: ${day.remarks})` : (day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : (day.isHalfDay ? `Half Day (${day.lateInfo?.lateFormatted || 'after 10:15'})` : day.status))}>
+                      <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3" strokeWidth={3} /> 
+                      <span className="hidden md:inline">
+                        {day.isHalfDay ? 'Half Day' : (day.status === 'Field' && day.fieldLocation ? `Field: ${day.fieldLocation}` : day.status)}
+                      </span>
                     </span>
+                    {day.isHalfDay && (
+                      <span className="text-[9px] font-bold text-amber-800 hidden md:inline">
+                        {day.lateInfo?.lateFormatted || 'Late > 10:15'}
+                      </span>
+                    )}
                     {day.logHours > 0 && day.status !== 'Field' && (
                       <span className="text-[10px] font-semibold opacity-75 hidden md:flex items-center gap-1">
                         <Clock className="w-3 h-3" /> {day.logHours}h

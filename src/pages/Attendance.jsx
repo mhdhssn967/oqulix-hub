@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import RequestModal from '../components/RequestModal';
 import { useAuthStore } from '../store/authStore';
 import { Calendar, Clock, Loader2, CheckCircle2, Coffee, LogOut, CalendarMinus, Plus, Briefcase, Activity, MessageSquare } from 'lucide-react';
-import { calculateEmployeeAttendanceMetrics } from '../utils/attendanceUtils';
+import { calculateEmployeeAttendanceMetrics, getLateArrivalInfo } from '../utils/attendanceUtils';
 
 export default function Attendance() {
   const { user, companyId } = useAuthStore();
@@ -340,6 +340,10 @@ export default function Attendance() {
                   const localDate = new Date(y, m - 1, d);
                   let displayDate = localDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
+                  const lateInfo = (log.status !== 'On Leave' && log.clockedInAt)
+                    ? getLateArrivalInfo(log.clockedInAt, log.workType)
+                    : { isLate: false, lateFormatted: '', isHalfDay: false };
+
                   return (
                     <tr key={log.id} className="hover:bg-zinc-50/50 transition-colors">
                       <td className="px-5 py-4">
@@ -357,15 +361,28 @@ export default function Attendance() {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border ${statusColor}`}>
-                          {log.status === 'Clocked Out' ? <LogOut className="w-3.5 h-3.5" /> : (log.status === 'On Leave' ? <CalendarMinus className="w-3.5 h-3.5" /> : (log.status.startsWith('On ') ? <Coffee className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />))}
-                          {log.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border ${statusColor}`}>
+                            {log.status === 'Clocked Out' ? <LogOut className="w-3.5 h-3.5" /> : (log.status === 'On Leave' ? <CalendarMinus className="w-3.5 h-3.5" /> : (log.status.startsWith('On ') ? <Coffee className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />))}
+                            {log.status}
+                          </span>
+                          {lateInfo.isHalfDay && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300">
+                              Half Day (after 10:15)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="text-[13px] font-medium text-zinc-600">
                           {timeStr}
                         </div>
+                        {lateInfo.isLate && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/80 rounded px-1.5 py-0.5">
+                            <Clock className="w-3 h-3 text-rose-500 shrink-0" />
+                            <span>{lateInfo.lateFormatted}</span>
+                          </div>
+                        )}
                         {log.breaks && log.breaks.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
                             {log.breaks.map((b, idx) => {

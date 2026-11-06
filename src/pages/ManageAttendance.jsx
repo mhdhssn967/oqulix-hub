@@ -6,6 +6,7 @@ import { Calendar, Clock, Plus, X, UserCheck, Loader2, Search, CheckCircle2, Cof
 import { toPng } from 'html-to-image';
 import Swal from 'sweetalert2';
 import { Link } from 'react-router-dom';
+import { getLateArrivalInfo } from '../utils/attendanceUtils';
 
 function TimePicker12Hour({ value, onChange }) {
   let initialHour = '';
@@ -1092,6 +1093,10 @@ export default function ManageAttendance() {
                   }
                   if (log.status === 'Clocked Out') statusColor = "bg-zinc-100 text-zinc-600 border-zinc-200";
                   
+                  const lateInfo = (log.status !== 'On Leave' && log.clockedInAt) 
+                    ? getLateArrivalInfo(log.clockedInAt, log.workType)
+                    : { isLate: false, lateFormatted: '', isHalfDay: false };
+
                   const empProfile = employees.find(e => e.id === log.employeeId);
                   const avatarPhoto = empProfile?.photoURL || log.photoURL;
 
@@ -1127,32 +1132,95 @@ export default function ManageAttendance() {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border ${statusColor}`}>
-                          {log.status === 'Clocked Out' ? <LogOut className="w-3.5 h-3.5" /> : (log.status === 'On Leave' ? <CalendarMinus className="w-3.5 h-3.5" /> : (log.status.startsWith('On ') ? <Coffee className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />))}
-                          {log.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium border ${statusColor}`}>
+                            {log.status === 'Clocked Out' ? <LogOut className="w-3.5 h-3.5" /> : (log.status === 'On Leave' ? <CalendarMinus className="w-3.5 h-3.5" /> : (log.status.startsWith('On ') ? <Coffee className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />))}
+                            {log.status}
+                          </span>
+                          {lateInfo.isHalfDay && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300">
+                              Half Day (after 10:15)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-[13px] font-medium text-zinc-600">
-                        {timeStr}
+                        <div>{timeStr}</div>
+                        {lateInfo.isLate && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200/80 rounded px-1.5 py-0.5">
+                            <Clock className="w-3 h-3 text-rose-500 shrink-0" />
+                            <span>{lateInfo.lateFormatted}</span>
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-col gap-1.5 items-start">
-                          {(log.breaks || []).map((b, i) => {
-                            const sTime = b.startTime ? (b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime)) : null;
-                            const eTime = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : null;
-                            
-                            const sStr = sTime ? sTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?';
-                            const eStr = eTime ? eTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ongoing';
-                            
+                          {(() => {
+                            const breaks = log.breaks || [];
+                            if (breaks.length === 0) {
+                              return <span className="text-[12px] text-zinc-400 italic">None</span>;
+                            }
+
+                            let totalBreakMs = 0;
+                            let hasOngoingBreak = false;
+
+                            const breakElements = breaks.map((b, i) => {
+                              const sTime = b.startTime ? (b.startTime.toDate ? b.startTime.toDate() : new Date(b.startTime)) : null;
+                              const eTime = b.endTime ? (b.endTime.toDate ? b.endTime.toDate() : new Date(b.endTime)) : null;
+                              
+                              const sStr = sTime ? sTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '?';
+                              const eStr = eTime ? eTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Ongoing';
+                              
+                              let singleBreakDurationStr = '';
+                              if (sTime) {
+                                const endRef = eTime || (log.status !== 'Clocked Out' ? currentTime : null);
+                                if (endRef && endRef > sTime) {
+                                  const diff = endRef - sTime;
+                                  totalBreakMs += diff;
+                                  const durHours = Math.floor(diff / (1000 * 60 * 60));
+                                  const durMins = Math.floor((diff / (1000 * 60)) % 60);
+                                  if (durHours > 0) {
+                                    singleBreakDurationStr = `(${durHours}h ${durMins}m)`;
+                                  } else {
+                                    singleBreakDurationStr = `(${durMins}m)`;
+                                  }
+                                }
+                                if (!eTime) hasOngoingBreak = true;
+                              }
+                              
+                              return (
+                                <span key={i} className="text-[11px] font-medium text-zinc-600 bg-zinc-50 border border-zinc-200/80 rounded-md px-2 py-1 inline-flex items-center gap-1 whitespace-nowrap">
+                                  <strong className="text-zinc-800">{b.type}:</strong> {sStr} - {eStr}
+                                  {singleBreakDurationStr && (
+                                    <span className="text-zinc-500 font-semibold text-[10px] ml-0.5">{singleBreakDurationStr}</span>
+                                  )}
+                                </span>
+                              );
+                            });
+
+                            let totalBreakDurationStr = '0m';
+                            if (totalBreakMs > 0) {
+                              const totHours = Math.floor(totalBreakMs / (1000 * 60 * 60));
+                              const totMins = Math.floor((totalBreakMs / (1000 * 60)) % 60);
+                              if (totHours > 0) {
+                                totalBreakDurationStr = `${totHours}h ${totMins}m`;
+                              } else {
+                                totalBreakDurationStr = `${totMins}m`;
+                              }
+                            }
+
                             return (
-                              <span key={i} className="text-[11px] font-medium text-zinc-500 bg-zinc-50 border border-zinc-100 rounded-md px-2 py-1 inline-flex whitespace-nowrap">
-                                <strong className="text-zinc-700 mr-1">{b.type}:</strong> {sStr} - {eStr}
-                              </span>
+                              <>
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50/80 border border-amber-200/70 text-[11px] font-bold text-amber-900 mb-0.5">
+                                  <Coffee className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>Total Break: {totalBreakDurationStr} {hasOngoingBreak ? '(Ongoing)' : ''}</span>
+                                </div>
+                                <div className="flex flex-col gap-1 items-start w-full">
+                                  {breakElements}
+                                </div>
+                              </>
                             );
-                          })}
-                          {(!log.breaks || log.breaks.length === 0) && (
-                            <span className="text-[12px] text-zinc-400 italic">None</span>
-                          )}
+                          })()}
                         </div>
                       </td>
                       <td className="px-5 py-4 text-[13px] font-medium text-indigo-600 font-mono tracking-tight w-32">
