@@ -16,10 +16,10 @@ import {
   Image as ImageIcon, 
   FileSpreadsheet, 
   FileCode, 
-  ArrowLeft,
-  HardDrive,
-  Sparkles,
-  Edit2
+  ArrowLeft, 
+  Sparkles, 
+  Edit2,
+  FolderOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -84,8 +84,8 @@ export default function Documents() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Navigation states
-  const [currentFolderId, setCurrentFolderId] = useState(null); // null = Root directory
+  // Navigation states: currentFolderId is null when in all folders view; otherwise a specific folder ID
+  const [currentFolderId, setCurrentFolderId] = useState(null);
 
   // Filter & Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,7 +103,7 @@ export default function Documents() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [docCustomName, setDocCustomName] = useState('');
   const [docDescription, setDocDescription] = useState('');
-  const [targetFolderIdForUpload, setTargetFolderIdForUpload] = useState(null);
+  const [targetFolderIdForUpload, setTargetFolderIdForUpload] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
   // Rename Document Modal State
@@ -143,20 +143,16 @@ export default function Documents() {
     fetchData();
   }, [companyId]);
 
-  // Current folder object (if inside a folder)
+  // Current folder object (when inside a folder)
   const currentFolder = useMemo(() => {
     if (!currentFolderId) return null;
     return folders.find(f => f.id === currentFolderId) || null;
   }, [folders, currentFolderId]);
 
-  // Documents inside current view
+  // Documents inside current folder (strictly inside folder)
   const currentDocuments = useMemo(() => {
-    let list = documents.filter(d => {
-      if (currentFolderId === null) {
-        return !d.folderId || d.folderId === 'root';
-      }
-      return d.folderId === currentFolderId;
-    });
+    if (!currentFolderId) return [];
+    let list = documents.filter(d => d.folderId === currentFolderId);
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -170,16 +166,18 @@ export default function Documents() {
     return list;
   }, [documents, currentFolderId, searchQuery]);
 
-  // Subfolders (if at root or support nested)
+  // Displayed folders on the main folders directory
   const displayedFolders = useMemo(() => {
-    if (currentFolderId !== null) return []; // 1-level folders for sleek usability
     let list = folders;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(f => (f.name || '').toLowerCase().includes(q));
+      list = list.filter(f => 
+        (f.name || '').toLowerCase().includes(q) ||
+        (f.description || '').toLowerCase().includes(q)
+      );
     }
     return list;
-  }, [folders, currentFolderId, searchQuery]);
+  }, [folders, searchQuery]);
 
   // Create Folder
   const handleCreateFolder = async (e) => {
@@ -199,10 +197,15 @@ export default function Documents() {
       };
 
       const docRef = await addDoc(collection(db, `userData/${companyId}/documentFolders`), newFolderData);
-      setFolders(prev => [...prev, { id: docRef.id, ...newFolderData, createdAt: new Date() }]);
+      const createdFolder = { id: docRef.id, ...newFolderData, createdAt: new Date() };
+      setFolders(prev => [...prev, createdFolder]);
       setIsNewFolderModalOpen(false);
       setNewFolderName('');
       setNewFolderDesc('');
+
+      // Automatically open the newly created folder if user was prompt
+      setCurrentFolderId(docRef.id);
+
       Swal.fire({
         toast: true,
         position: 'top-end',
@@ -226,7 +229,7 @@ export default function Documents() {
     const confirm = await Swal.fire({
       title: 'Delete Folder?',
       text: docCount > 0 
-        ? `This folder contains ${docCount} file(s). Deleting the folder will also remove its files.` 
+        ? `This folder contains ${docCount} file(s). Deleting the folder will also permanently delete its files.` 
         : `Are you sure you want to delete "${folder.name}"?`,
       icon: 'warning',
       showCancelButton: true,
@@ -271,7 +274,27 @@ export default function Documents() {
     }
   };
 
-  // When user selects a file from disk, prompt them with the modal to enter a Document Name
+  // Trigger file picker. Enforces that a folder exists before allowing upload.
+  const handleTriggerUpload = () => {
+    if (folders.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Folder Required',
+        text: 'Please create a folder first before uploading documents. Documents must belong to a folder.',
+        confirmButtonText: 'Create Folder',
+        showCancelButton: true,
+        cancelButtonText: 'Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          setIsNewFolderModalOpen(true);
+        }
+      });
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  // When user selects a file from disk, prompt them with the modal to enter a Document Name and choose target folder
   const handleFilePicked = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -283,7 +306,8 @@ export default function Documents() {
     setSelectedFile(file);
     setDocCustomName(readableDefaultName);
     setDocDescription('');
-    setTargetFolderIdForUpload(currentFolderId || 'root');
+    // Default to the currently open folder, or the first available folder if on the root folders overview
+    setTargetFolderIdForUpload(currentFolderId || folders[0]?.id || '');
     setIsUploadModalOpen(true);
 
     // Reset native input so user can pick the same file again if desired
@@ -296,8 +320,14 @@ export default function Documents() {
   const handleConfirmUpload = async (e) => {
     e.preventDefault();
     if (!selectedFile) return;
+
     if (!docCustomName.trim()) {
       Swal.fire('Document Name Required', 'Please provide a name for this document.', 'warning');
+      return;
+    }
+
+    if (!targetFolderIdForUpload) {
+      Swal.fire('Folder Required', 'Please select a destination folder for this document.', 'warning');
       return;
     }
 
@@ -311,7 +341,7 @@ export default function Documents() {
     }
 
     setIsUploading(true);
-    const targetFolder = targetFolderIdForUpload || 'root';
+    const targetFolder = targetFolderIdForUpload;
 
     try {
       // 1. Upload file binary to Cloudflare R2
@@ -334,6 +364,11 @@ export default function Documents() {
 
       const docRef = await addDoc(collection(db, `userData/${companyId}/documentFiles`), fileDoc);
       setDocuments(prev => [{ id: docRef.id, ...fileDoc, uploadedAt: new Date() }, ...prev]);
+
+      // If user was on the main folders view, transition into the folder they uploaded into
+      if (currentFolderId !== targetFolder) {
+        setCurrentFolderId(targetFolder);
+      }
 
       setIsUploadModalOpen(false);
       setSelectedFile(null);
@@ -436,9 +471,6 @@ export default function Documents() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-semibold text-black tracking-tight">Documents</h1>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
-              <HardDrive className="w-3 h-3 text-amber-600" /> Cloud Storage
-            </span>
           </div>
           <p className="text-[15px] text-zinc-500 mt-1.5">
             Organize company files in folders, upload attachments, and generate standardized templates.
@@ -457,7 +489,7 @@ export default function Documents() {
 
           {/* Upload Document Button */}
           <button 
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handleTriggerUpload}
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-black text-white rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-all shadow-sm cursor-pointer"
           >
             <Upload className="w-4 h-4" />
@@ -483,8 +515,8 @@ export default function Documents() {
             onClick={() => setCurrentFolderId(null)}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${currentFolderId === null ? 'bg-zinc-100 font-bold text-black' : 'hover:bg-zinc-50 text-zinc-500'}`}
           >
-            <HardDrive className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Root Storage</span>
+            <FolderOpen className="w-3.5 h-3.5 text-zinc-400" />
+            <span>All Folders</span>
           </button>
 
           {currentFolder && (
@@ -499,13 +531,13 @@ export default function Documents() {
         </div>
 
         {/* Search */}
-        <div className="relative min-w-[220px]">
+        <div className="relative min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input 
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={currentFolderId ? `Search in ${currentFolder?.name}...` : "Search all folders & files..."}
+            placeholder={currentFolderId ? `Search in ${currentFolder?.name}...` : "Search folders..."}
             className="w-full pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] outline-none focus:border-black focus:bg-white transition-all"
           />
           {searchQuery && (
@@ -524,250 +556,231 @@ export default function Documents() {
           <Loader2 className="w-8 h-8 animate-spin text-zinc-400 mb-3" />
           <p className="text-[14px] text-zinc-500 font-medium">Loading documents from Cloud Storage...</p>
         </div>
-      ) : (
-        <div className="space-y-8">
-          {/* Folders Section (Only shown at root level or when searching) */}
-          {currentFolderId === null && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[14px] font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
-                  <span>Folders</span>
-                  <span className="text-[11px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
-                    {displayedFolders.length}
-                  </span>
-                </h3>
-              </div>
+      ) : currentFolderId === null ? (
+        /* MAIN VIEW: Folders Directory (All documents must reside within a folder) */
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[14px] font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
+              <span>Company Folders</span>
+              <span className="text-[11px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
+                {displayedFolders.length}
+              </span>
+            </h3>
+          </div>
 
-              {displayedFolders.length === 0 ? (
-                <div className="p-8 border border-dashed border-zinc-200 rounded-2xl text-center bg-zinc-50/50">
-                  <Folder className="w-10 h-10 text-zinc-300 mx-auto mb-2" />
-                  <p className="text-[13px] font-semibold text-zinc-700">No folders yet</p>
-                  <p className="text-[12px] text-zinc-400 mt-0.5 mb-3">Create folders to categorize contracts, registrations, client proposals, etc.</p>
-                  <button 
-                    onClick={() => setIsNewFolderModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-black text-white text-[12px] font-bold rounded-lg shadow-xs hover:bg-zinc-800 transition-colors cursor-pointer"
+          {displayedFolders.length === 0 ? (
+            <div className="bg-white p-12 border border-zinc-200/80 rounded-2xl text-center shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+              <Folder className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <h4 className="text-[16px] font-bold text-zinc-800">No folders created yet</h4>
+              <p className="text-[13px] text-zinc-500 max-w-md mx-auto mt-1 mb-5">
+                Every document in the system must be organized into a folder (e.g. Legal, HR, Client Proposals, Registration). Create your first folder to begin.
+              </p>
+              <button 
+                onClick={() => setIsNewFolderModalOpen(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-[13px] font-bold rounded-xl shadow-sm hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4 text-amber-400" />
+                <span>Create First Folder</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {displayedFolders.map((folder) => {
+                const colorScheme = FOLDER_COLORS.find(c => c.id === folder.color) || FOLDER_COLORS[0];
+                const count = documents.filter(d => d.folderId === folder.id).length;
+                
+                return (
+                  <div 
+                    key={folder.id}
+                    onClick={() => setCurrentFolderId(folder.id)}
+                    className={`group relative p-5 rounded-2xl border ${colorScheme.border} ${colorScheme.bg} hover:shadow-md transition-all cursor-pointer flex flex-col justify-between`}
                   >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    <span>Create First Folder</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {displayedFolders.map((folder) => {
-                    const colorScheme = FOLDER_COLORS.find(c => c.id === folder.color) || FOLDER_COLORS[0];
-                    const count = documents.filter(d => d.folderId === folder.id).length;
-                    
-                    return (
-                      <div 
-                        key={folder.id}
-                        onClick={() => setCurrentFolderId(folder.id)}
-                        className={`group relative p-4 rounded-2xl border ${colorScheme.border} ${colorScheme.bg} hover:shadow-md transition-all cursor-pointer flex flex-col justify-between`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="p-2.5 rounded-xl bg-white/80 border border-black/5 shadow-xs">
-                            <Folder className={`w-6 h-6 ${colorScheme.icon}`} fill={colorScheme.fill} />
-                          </div>
-                          <button 
-                            onClick={(e) => handleDeleteFolder(e, folder)}
-                            title="Delete Folder"
-                            className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div className="mt-3">
-                          <h4 className="text-[14px] font-bold text-zinc-900 group-hover:text-black truncate">
-                            {folder.name}
-                          </h4>
-                          {folder.description && (
-                            <p className="text-[11px] text-zinc-500 line-clamp-1 mt-0.5">{folder.description}</p>
-                          )}
-                          <div className="mt-2.5 flex items-center justify-between text-[11px] font-medium text-zinc-500">
-                            <span>{count} file{count === 1 ? '' : 's'}</span>
-                            <span className="flex items-center gap-0.5 text-zinc-400 group-hover:text-zinc-700 transition-colors">
-                              Open <ChevronRight className="w-3 h-3" />
-                            </span>
-                          </div>
-                        </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="p-3 rounded-xl bg-white/90 border border-black/5 shadow-xs">
+                        <Folder className={`w-7 h-7 ${colorScheme.icon}`} fill={colorScheme.fill} />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <button 
+                        onClick={(e) => handleDeleteFolder(e, folder)}
+                        title="Delete Folder"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <h4 className="text-[15px] font-bold text-zinc-900 group-hover:text-black truncate">
+                        {folder.name}
+                      </h4>
+                      {folder.description && (
+                        <p className="text-[12px] text-zinc-500 line-clamp-1 mt-0.5">{folder.description}</p>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-black/5 flex items-center justify-between text-[11px] font-semibold text-zinc-500">
+                        <span>{count} document{count === 1 ? '' : 's'}</span>
+                        <span className="flex items-center gap-0.5 text-zinc-600 group-hover:text-black group-hover:translate-x-0.5 transition-all">
+                          Open Folder <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
-
-          {/* Files / Documents Section */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-[14px] font-bold text-zinc-900 uppercase tracking-wider">
-                  {currentFolderId ? `${currentFolder?.name || 'Folder'} Files` : 'Root Documents'}
-                </h3>
-                <span className="text-[11px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
-                  {currentDocuments.length}
-                </span>
-              </div>
-
-              {currentFolderId && (
-                <button 
-                  onClick={() => setCurrentFolderId(null)}
-                  className="flex items-center gap-1 text-[12px] font-bold text-zinc-500 hover:text-black transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to all folders
-                </button>
-              )}
+        </div>
+      ) : (
+        /* INSIDE A FOLDER: Display documents inside currentFolder */
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-[14px] font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
+                <Folder className="w-4 h-4 text-amber-500 fill-amber-200" />
+                <span>{currentFolder?.name || 'Folder'}</span>
+              </h3>
+              <span className="text-[11px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
+                {currentDocuments.length}
+              </span>
             </div>
 
-            {currentDocuments.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] text-center">
-                <FileText className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                <h4 className="text-[15px] font-semibold text-zinc-800">
-                  {currentFolderId ? `No files in "${currentFolder?.name}" yet` : 'No root documents found'}
-                </h4>
-                <p className="text-[13px] text-zinc-500 max-w-md mx-auto mt-1 mb-5">
-                  Upload contracts, agreements, identification, and company records directly with custom document titles.
-                </p>
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Upload Document</span>
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-zinc-50/50 border-b border-zinc-100 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
-                        <th className="px-5 py-3.5">Document Name</th>
-                        <th className="px-5 py-3.5">Size</th>
-                        <th className="px-5 py-3.5">Folder</th>
-                        <th className="px-5 py-3.5">Uploaded By</th>
-                        <th className="px-5 py-3.5">Uploaded Date</th>
-                        <th className="px-5 py-3.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100">
-                      {currentDocuments.map((docItem) => {
-                        const fileFolder = folders.find(f => f.id === docItem.folderId);
-                        const uploadedDateStr = docItem.uploadedAt?.toDate 
-                          ? docItem.uploadedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                          : (docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleDateString() : 'Recent');
-
-                        return (
-                          <tr key={docItem.id} className="hover:bg-zinc-50/60 transition-colors group">
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-xl bg-zinc-100 shrink-0">
-                                  {getFileIcon(docItem.originalFileName || docItem.name, docItem.type)}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                  <a 
-                                    href={docItem.url} 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="text-[14px] font-bold text-zinc-900 hover:text-indigo-600 transition-colors truncate max-w-[280px] sm:max-w-[360px]"
-                                    title={docItem.name}
-                                  >
-                                    {docItem.name}
-                                  </a>
-                                  <div className="flex items-center gap-2 mt-0.5">
-                                    {docItem.originalFileName && (
-                                      <span className="text-[11px] text-zinc-400 font-mono truncate max-w-[200px]" title={`Original file: ${docItem.originalFileName}`}>
-                                        {docItem.originalFileName}
-                                      </span>
-                                    )}
-                                    {docItem.description && (
-                                      <span className="text-[11px] text-zinc-500 italic truncate max-w-[200px]">
-                                        • {docItem.description}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4 text-[13px] font-semibold text-zinc-600">
-                              {formatFileSize(docItem.size)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {fileFolder ? (
-                                <button 
-                                  onClick={() => setCurrentFolderId(fileFolder.id)}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100 transition-colors cursor-pointer"
-                                >
-                                  <Folder className="w-3 h-3 text-amber-500 fill-amber-200" />
-                                  <span>{fileFolder.name}</span>
-                                </button>
-                              ) : (
-                                <span className="text-[12px] font-medium text-zinc-400 italic">Root</span>
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4 text-[12.5px] font-medium text-zinc-600">
-                              {docItem.uploadedByName || 'Admin'}
-                            </td>
-
-                            <td className="px-5 py-4 text-[12.5px] font-medium text-zinc-500">
-                              {uploadedDateStr}
-                            </td>
-
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  onClick={() => {
-                                    setEditingDoc(docItem);
-                                    setEditDocName(docItem.name);
-                                  }}
-                                  title="Rename Document"
-                                  className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <a 
-                                  href={docItem.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Open in new tab"
-                                  className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <ExternalLink className="w-4 h-4" />
-                                </a>
-                                <a 
-                                  href={docItem.url}
-                                  download={docItem.originalFileName || docItem.name}
-                                  title="Download File"
-                                  className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </a>
-                                <button 
-                                  onClick={(e) => handleDeleteDocument(e, docItem)}
-                                  title="Delete Document"
-                                  className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <button 
+              onClick={() => setCurrentFolderId(null)}
+              className="flex items-center gap-1 text-[12px] font-bold text-zinc-500 hover:text-black transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Back to all folders
+            </button>
           </div>
+
+          {currentDocuments.length === 0 ? (
+            <div className="bg-white p-12 rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] text-center">
+              <FileText className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <h4 className="text-[15px] font-semibold text-zinc-800">
+                No documents in "{currentFolder?.name}" yet
+              </h4>
+              <p className="text-[13px] text-zinc-500 max-w-md mx-auto mt-1 mb-5">
+                Upload contracts, agreements, identification, and company records directly into this folder.
+              </p>
+              <button 
+                onClick={handleTriggerUpload}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-black text-white rounded-xl text-[13px] font-semibold hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload Document Here</span>
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 border-b border-zinc-100 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                      <th className="px-5 py-3.5">Document Name</th>
+                      <th className="px-5 py-3.5">Size</th>
+                      <th className="px-5 py-3.5">Uploaded By</th>
+                      <th className="px-5 py-3.5">Uploaded Date</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {currentDocuments.map((docItem) => {
+                      const uploadedDateStr = docItem.uploadedAt?.toDate 
+                        ? docItem.uploadedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                        : (docItem.uploadedAt ? new Date(docItem.uploadedAt).toLocaleDateString() : 'Recent');
+
+                      return (
+                        <tr key={docItem.id} className="hover:bg-zinc-50/60 transition-colors group">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2.5 rounded-xl bg-zinc-100 shrink-0">
+                                {getFileIcon(docItem.originalFileName || docItem.name, docItem.type)}
+                              </div>
+                              <div className="flex flex-col min-w-0">
+                                <a 
+                                  href={docItem.url} 
+                                  target="_blank" 
+                                  rel="noreferrer"
+                                  className="text-[14px] font-bold text-zinc-900 hover:text-indigo-600 transition-colors truncate max-w-[320px] sm:max-w-[440px]"
+                                  title={docItem.name}
+                                >
+                                  {docItem.name}
+                                </a>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {docItem.originalFileName && (
+                                    <span className="text-[11px] text-zinc-400 font-mono truncate max-w-[220px]" title={`Original file: ${docItem.originalFileName}`}>
+                                      {docItem.originalFileName}
+                                    </span>
+                                  )}
+                                  {docItem.description && (
+                                    <span className="text-[11px] text-zinc-500 italic truncate max-w-[240px]">
+                                      • {docItem.description}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4 text-[13px] font-semibold text-zinc-600">
+                            {formatFileSize(docItem.size)}
+                          </td>
+
+                          <td className="px-5 py-4 text-[12.5px] font-medium text-zinc-600">
+                            {docItem.uploadedByName || 'Admin'}
+                          </td>
+
+                          <td className="px-5 py-4 text-[12.5px] font-medium text-zinc-500">
+                            {uploadedDateStr}
+                          </td>
+
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingDoc(docItem);
+                                  setEditDocName(docItem.name);
+                                }}
+                                title="Rename Document"
+                                className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <a 
+                                href={docItem.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Open in new tab"
+                                className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                              <a 
+                                href={docItem.url}
+                                download={docItem.originalFileName || docItem.name}
+                                title="Download File"
+                                className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                              <button 
+                                onClick={(e) => handleDeleteDocument(e, docItem)}
+                                title="Delete Document"
+                                className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Upload Document Modal (Prompts for Document Name) */}
+      {/* Upload Document Modal (Prompts for Document Name and Folder) */}
       {isUploadModalOpen && selectedFile && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -778,7 +791,7 @@ export default function Documents() {
                 </div>
                 <div>
                   <h3 className="text-[15px] font-bold text-zinc-900">Upload New Document</h3>
-                  <p className="text-[12px] text-zinc-500">Provide a descriptive document title</p>
+                  <p className="text-[12px] text-zinc-500">Provide a document name and select destination folder</p>
                 </div>
               </div>
               <button 
@@ -812,7 +825,7 @@ export default function Documents() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-[11px] font-bold text-indigo-600 hover:underline shrink-0"
+                  className="text-[11px] font-bold text-indigo-600 hover:underline shrink-0 cursor-pointer"
                 >
                   Change file
                 </button>
@@ -821,7 +834,7 @@ export default function Documents() {
               {/* Document Name Input */}
               <div>
                 <label className="block text-[11px] font-bold text-zinc-700 uppercase mb-1.5">
-                  Document Title / Display Name *
+                  Document Title / Name *
                 </label>
                 <input 
                   type="text"
@@ -834,17 +847,18 @@ export default function Documents() {
                 />
               </div>
 
-              {/* Destination Folder */}
+              {/* Destination Folder (Required) */}
               <div>
                 <label className="block text-[11px] font-bold text-zinc-700 uppercase mb-1.5">
-                  Destination Folder
+                  Destination Folder *
                 </label>
                 <select
-                  value={targetFolderIdForUpload || 'root'}
-                  onChange={(e) => setTargetFolderIdForUpload(e.target.value === 'root' ? null : e.target.value)}
-                  className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] font-medium outline-none focus:border-black focus:bg-white transition-all cursor-pointer"
+                  required
+                  value={targetFolderIdForUpload}
+                  onChange={(e) => setTargetFolderIdForUpload(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] font-semibold outline-none focus:border-black focus:bg-white transition-all cursor-pointer"
                 >
-                  <option value="root">Root Storage (No folder)</option>
+                  <option value="" disabled>-- Select a Folder --</option>
                   {folders.map(f => (
                     <option key={f.id} value={f.id}>📁 {f.name}</option>
                   ))}
@@ -858,7 +872,7 @@ export default function Documents() {
                 </label>
                 <input 
                   type="text"
-                  placeholder="e.g. Signed by CEO on Nov 2026"
+                  placeholder="e.g. Signed by Director on Nov 2026"
                   value={docDescription}
                   onChange={(e) => setDocDescription(e.target.value)}
                   className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] outline-none focus:border-black focus:bg-white transition-all"
@@ -885,7 +899,7 @@ export default function Documents() {
                   {isUploading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      <span>Uploading to Cloud...</span>
+                      <span>Uploading to Folder...</span>
                     </>
                   ) : (
                     <>
