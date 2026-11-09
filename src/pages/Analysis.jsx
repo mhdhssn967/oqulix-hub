@@ -9,6 +9,7 @@ import ReportGenerator from '../components/crm/ReportGenerator';
 import QuickUpdateModal from '../components/QuickUpdateModal';
 import { useAuthStore } from '../store/authStore';
 import { crmCache } from '../store/crmCache';
+import { shouldIncludeTransferredItem } from '../utils/crmUtils';
 
 // ─── Helper: extract YYYY-MM-DD from item ──────────────
 const getItemDate = (item) => {
@@ -110,6 +111,9 @@ export default function Analysis() {
     if (showLeads) pool = pool.concat(regularLeads.map(i => ({ ...i, _type: 'lead' })));
     if (showAdLeads) pool = pool.concat(adLeads.map(i => ({ ...i, _type: 'adLead' })));
     if (showDistributors) pool = pool.concat(distributors.map(i => ({ ...i, _type: 'distributor' })));
+
+    // Exclude transferred data that has had NO interaction or status update by the associate
+    pool = pool.filter(i => shouldIncludeTransferredItem(i));
     if (employeeFilter) {
       pool = pool.filter(i => {
         const isAddedBy = i.addedByName === employeeFilter;
@@ -603,21 +607,60 @@ export default function Analysis() {
       </div>
 
       {/* ── Selected Day Modal ────────────────────────────── */}
-      {selectedDayData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-zinc-100 bg-zinc-50/50">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-zinc-400" />
-                <h2 className="text-[16px] font-semibold text-zinc-900">{selectedDayData.dateLabel}</h2>
+      {selectedDayData && (() => {
+        const allDayItems = [
+          ...(selectedDayData.itemsList?.followUps || []),
+          ...(selectedDayData.itemsList?.leads || []),
+          ...(selectedDayData.itemsList?.adLeads || []),
+          ...(selectedDayData.itemsList?.distributors || [])
+        ];
+        const uniqueDayItems = Array.from(new Map(allDayItems.map(item => [item.id || item._id || JSON.stringify(item), item])).values());
+        const dayStatusCounts = {};
+        uniqueDayItems.forEach(item => {
+          const st = item.currentStatus || item.status || 'New Lead';
+          dayStatusCounts[st] = (dayStatusCounts[st] || 0) + 1;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedDayData(null)}></div>
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 sm:p-5 border-b border-zinc-100 bg-zinc-50/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-5 h-5 text-zinc-500" />
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[16px] font-bold text-zinc-900">{selectedDayData.dateLabel}</h2>
+                      <span className="px-2.5 py-0.5 bg-zinc-900 text-white rounded-full text-[11px] font-semibold shadow-xs">
+                        {uniqueDayItems.length} {uniqueDayItems.length === 1 ? 'Client' : 'Clients'}
+                      </span>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setSelectedDayData(null)} className="text-zinc-400 hover:text-black transition-colors bg-white hover:bg-zinc-100 p-1.5 rounded-lg border border-zinc-200">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Status breakdown with counts for this selected date */}
+                {Object.keys(dayStatusCounts).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mr-1">Statuses ({Object.keys(dayStatusCounts).length}):</span>
+                    {Object.entries(dayStatusCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([statusName, count]) => (
+                        <span
+                          key={statusName}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${getStatusColor(statusName)} shadow-xs`}
+                        >
+                          <span>{statusName}</span>
+                          <span className="px-1.5 py-0.2 rounded-full bg-black/10 font-black text-[10px]">{count}</span>
+                        </span>
+                      ))}
+                  </div>
+                )}
               </div>
-              <button type="button" onClick={() => setSelectedDayData(null)} className="text-zinc-400 hover:text-black transition-colors bg-white hover:bg-zinc-100 p-1.5 rounded-lg border border-zinc-200">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-6">
+              
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-6">
               {/* Follow Ups Section */}
               {selectedDayData.itemsList.followUps.length > 0 && (
                 <div>
@@ -712,7 +755,8 @@ export default function Analysis() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Report Generator Overlay ────────────────────────────── */}
       <ReportGenerator 

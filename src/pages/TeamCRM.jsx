@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import QuickUpdateModal, { getActiveQuickUpdateFromStorage, clearActiveQuickUpdateStorage } from '../components/QuickUpdateModal';
+import { shouldIncludeTransferredItem } from '../utils/crmUtils';
 
 export default function TeamCRM() {
   const navigate = useNavigate();
@@ -138,9 +139,11 @@ export default function TeamCRM() {
     const subName = selectedSubordinate.name?.toLowerCase().trim();
 
     const matchesSubordinate = (item) => {
-      if (item.userId === subUid || item.assignedToUid === subUid) return true;
+      const isOwner = (item.userId === subUid || item.assignedToUid === subUid);
       const assignedName = (item.assignedToName || item.employeeName || '').toLowerCase().trim();
-      return assignedName === subName;
+      const isNameMatch = assignedName === subName;
+      if (!isOwner && !isNameMatch) return false;
+      return shouldIncludeTransferredItem(item, subName, subUid);
     };
 
     let allItems = [];
@@ -755,20 +758,59 @@ export default function TeamCRM() {
             )}
 
             {/* Day Detail Modal Drawer */}
-            {selectedDayEvents && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setSelectedDayEvents(null)}>
-                <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
-                  <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-zinc-900 text-[15px]">Daily Activity Details</h3>
-                      <p className="text-[12px] text-zinc-500">{selectedSubordinate?.name} · {selectedDayEvents.date}</p>
-                    </div>
-                    <button onClick={() => setSelectedDayEvents(null)} className="text-zinc-400 hover:text-black">
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
+            {selectedDayEvents && (() => {
+              const allDayItems = [
+                ...(selectedDayEvents.followups || []),
+                ...(selectedDayEvents.added || []),
+                ...(selectedDayEvents.contacted || []),
+                ...(selectedDayEvents.won || [])
+              ];
+              const uniqueDayItems = Array.from(new Map(allDayItems.map(item => [item.id || item._id || JSON.stringify(item), item])).values());
+              const dayStatusCounts = {};
+              uniqueDayItems.forEach(item => {
+                const st = item.currentStatus || item.status || 'New Lead';
+                dayStatusCounts[st] = (dayStatusCounts[st] || 0) + 1;
+              });
 
-                  <div className="p-4 overflow-y-auto flex flex-col gap-3">
+              return (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setSelectedDayEvents(null)}>
+                  <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
+                    <div className="p-4 border-b border-zinc-100 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-zinc-900 text-[15px]">Daily Activity Details</h3>
+                            <span className="px-2 py-0.5 bg-zinc-900 text-white rounded-full text-[10px] font-semibold shadow-xs">
+                              {uniqueDayItems.length} {uniqueDayItems.length === 1 ? 'Client' : 'Clients'}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-zinc-500">{selectedSubordinate?.name} · {selectedDayEvents.date}</p>
+                        </div>
+                        <button onClick={() => setSelectedDayEvents(null)} className="text-zinc-400 hover:text-black">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* Status breakdown with counts for this selected date */}
+                      {Object.keys(dayStatusCounts).length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mr-1">Statuses ({Object.keys(dayStatusCounts).length}):</span>
+                          {Object.entries(dayStatusCounts)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([statusName, count]) => (
+                              <span
+                                key={statusName}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${getStatusColor(statusName)} shadow-xs`}
+                              >
+                                <span>{statusName}</span>
+                                <span className="px-1.5 py-0.2 rounded-full bg-black/10 font-black text-[10px]">{count}</span>
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-4 overflow-y-auto flex flex-col gap-3">
                     {selectedDayEvents.added.length > 0 && (
                       <div>
                         <h4 className="text-[11px] font-bold text-blue-700 uppercase tracking-wider mb-1.5">Leads Added ({selectedDayEvents.added.length})</h4>
@@ -837,7 +879,8 @@ export default function TeamCRM() {
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}
