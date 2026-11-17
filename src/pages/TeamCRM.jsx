@@ -13,6 +13,24 @@ import Swal from 'sweetalert2';
 import QuickUpdateModal, { getActiveQuickUpdateFromStorage, clearActiveQuickUpdateStorage } from '../components/QuickUpdateModal';
 import { shouldIncludeTransferredItem } from '../utils/crmUtils';
 
+// Helper to get consistent display name across leads, ad leads, and distributors
+const getLeadDisplayName = (item) => {
+  if (!item) return 'Unknown Lead';
+  return (
+    item.clientName ||
+    item.name ||
+    item.distributorName ||
+    item.contactPersonName ||
+    item.firmName ||
+    item.companyName ||
+    (item.institutionName ? `${item.institutionName}` : '') ||
+    item.contactNo ||
+    item.contactNumber ||
+    item.phone ||
+    'Untitled Lead'
+  );
+};
+
 export default function TeamCRM() {
   const navigate = useNavigate();
   const { user, isAdmin, isManager, isHR, companyId, employeeData } = useAuthStore();
@@ -603,7 +621,7 @@ export default function TeamCRM() {
                             className="hover:bg-zinc-50/80 transition-colors cursor-pointer group"
                           >
                             <td className="px-4 py-3">
-                              <div className="font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">{item.clientName || item.name || 'Untitled'}</div>
+                              <div className="font-bold text-zinc-900 group-hover:text-blue-600 transition-colors">{getLeadDisplayName(item)}</div>
                               <div className="text-[11px] text-zinc-400 capitalize">{item._type || 'lead'} · {item.place || item.region || 'No region'}</div>
                             </td>
                             <td className="px-4 py-3 text-zinc-600 font-medium">
@@ -824,8 +842,13 @@ export default function TeamCRM() {
                               }}
                               className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 text-[12px] flex items-center justify-between cursor-pointer hover:bg-blue-100/60 transition-colors"
                             >
-                              <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
-                              <span className="text-zinc-500">{it.contactNo || it.contactNumber}</span>
+                              <div className="min-w-0 pr-2">
+                                <span className="font-semibold text-zinc-800 block truncate">{getLeadDisplayName(it)}</span>
+                                {it.institutionName && it.institutionName !== getLeadDisplayName(it) && (
+                                  <span className="text-[10px] text-zinc-400 block truncate">{it.institutionName}</span>
+                                )}
+                              </div>
+                              <span className="text-zinc-500 shrink-0 text-[11px]">{it.contactNo || it.contactNumber || it.phone || ''}</span>
                             </div>
                           ))}
                         </div>
@@ -845,11 +868,16 @@ export default function TeamCRM() {
                               }}
                               className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100 text-[12px] cursor-pointer hover:bg-amber-100/60 transition-colors"
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
-                                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">{it.statusNote}</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <span className="font-semibold text-zinc-800 block truncate">{getLeadDisplayName(it)}</span>
+                                  {it.institutionName && it.institutionName !== getLeadDisplayName(it) && (
+                                    <span className="text-[10px] text-zinc-400 block truncate">{it.institutionName}</span>
+                                  )}
+                                </div>
+                                <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold shrink-0">{it.statusNote}</span>
                               </div>
-                              {it.remarkNote && <p className="text-zinc-600 text-[11px] mt-1">{it.remarkNote}</p>}
+                              {it.remarkNote && <p className="text-zinc-600 text-[11px] mt-1 line-clamp-2">{it.remarkNote}</p>}
                             </div>
                           ))}
                         </div>
@@ -869,8 +897,39 @@ export default function TeamCRM() {
                               }}
                               className="p-2.5 rounded-lg bg-purple-50/50 border border-purple-100 text-[12px] flex items-center justify-between cursor-pointer hover:bg-purple-100/60 transition-colors"
                             >
-                              <span className="font-semibold text-zinc-800">{it.clientName || it.name}</span>
-                              <span className="text-purple-700 font-medium">{it.nextFollowUp || it.followUpDate}</span>
+                              <div className="min-w-0 pr-2">
+                                <span className="font-semibold text-zinc-800 block truncate">{getLeadDisplayName(it)}</span>
+                                {it.institutionName && it.institutionName !== getLeadDisplayName(it) && (
+                                  <span className="text-[10px] text-zinc-400 block truncate">{it.institutionName}</span>
+                                )}
+                              </div>
+                              <span className="text-purple-700 font-medium shrink-0 text-[11px]">{it.nextFollowUp || it.followUpDate}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedDayEvents.won && selectedDayEvents.won.length > 0 && (
+                      <div>
+                        <h4 className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider mb-1.5">Deals Closed / Won ({selectedDayEvents.won.length})</h4>
+                        <div className="space-y-1.5">
+                          {selectedDayEvents.won.map((it, idx) => (
+                            <div 
+                              key={idx} 
+                              onClick={() => {
+                                setSelectedDayEvents(null);
+                                setQuickUpdateLead(it);
+                              }}
+                              className="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100 text-[12px] flex items-center justify-between cursor-pointer hover:bg-emerald-100/60 transition-colors"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <span className="font-semibold text-zinc-800 block truncate">{getLeadDisplayName(it)}</span>
+                                {it.institutionName && it.institutionName !== getLeadDisplayName(it) && (
+                                  <span className="text-[10px] text-zinc-400 block truncate">{it.institutionName}</span>
+                                )}
+                              </div>
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0">Won</span>
                             </div>
                           ))}
                         </div>

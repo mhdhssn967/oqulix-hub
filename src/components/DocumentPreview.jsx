@@ -3,13 +3,18 @@ import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react';
 import { toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
+import { collection, getDocs, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuthStore } from '../store/authStore';
+import { uploadDocumentToR2, isR2Configured } from '../utils/r2Storage';
 import OQ from '../assets/OQ.png';
 import seal from '../assets/seal.png';
 import '../styles/Document.css';
 
-export default function DocumentPreview({ config, formData, textData, onBack }) {
+export default function DocumentPreview({ config, formData, textData, onBack, fileDocId, onSavedFileDocId }) {
   const pageRefs = useRef([]);
   const [downloading, setDownloading] = useState(false);
+  const { user, companyId } = useAuthStore();
 
   const handleDownload = async () => {
     const container = document.getElementById('document-container');
@@ -80,15 +85,102 @@ export default function DocumentPreview({ config, formData, textData, onBack }) 
       }
 
       // Sanitize filename to avoid invalid characters breaking browser download
-      const rawClient = formData.client || formData.recipient || 'HappyMoves_Quotation';
+      const rawClient = formData.client || formData.recipient || config?.title || 'HappyMoves_Quotation';
       const safeFileName =
         rawClient
           .toString()
           .replace(/[^a-zA-Z0-9_\-\s]/g, '')
           .trim()
-          .replace(/\s+/g, '_') || 'HappyMoves_Quotation';
+          .replace(/\s+/g, '_') || 'Document';
 
-      pdf.save(`${safeFileName}.pdf`);
+      // 1. Trigger local browser PDF download
+      const fullFileName = `${safeFileName}.pdf`;
+      pdf.save(fullFileName);
+
+      // 2. Automatically save document into a folder named after the template in Documents
+      const templateTitle = (config?.title || 'Quotation').trim();
+      const targetCompanyId = companyId || 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
+
+      if (targetCompanyId && isR2Configured()) {
+        try {
+          // Check if folder named after template already exists
+          const foldersSnap = await getDocs(collection(db, `userData/${targetCompanyId}/documentFolders`));
+          let targetFolder = foldersSnap.docs.find(d => 
+            (d.data().name || '').trim().toLowerCase() === templateTitle.toLowerCase()
+          );
+          let targetFolderId = targetFolder ? targetFolder.id : null;
+
+          // If folder doesn't exist, create it automatically
+          if (!targetFolderId) {
+            const newFolderData = {
+              name: templateTitle,
+              description: `Generated documents from ${templateTitle} template`,
+              color: 'amber',
+              parentId: null,
+              createdAt: serverTimestamp(),
+              createdBy: user?.uid || 'system',
+              createdByName: user?.displayName || user?.email || 'System'
+            };
+            const createdFolderRef = await addDoc(
+              collection(db, `userData/${targetCompanyId}/documentFolders`),
+              newFolderData
+            );
+            targetFolderId = createdFolderRef.id;
+          }
+
+          // Convert PDF to File / Blob for Cloudflare R2 upload
+          const pdfBlob = pdf.output('blob');
+          const pdfFile = new File([pdfBlob], fullFileName, { type: 'application/pdf' });
+
+          // Upload PDF binary to Cloudflare R2
+          const r2Result = await uploadDocumentToR2(pdfFile, targetCompanyId, targetFolderId);
+
+          // Save Document record in Firestore under userData/{companyId}/documentFiles
+          // Store all custom form fields & text overrides so the document can be fully re-edited
+          const docCustomTitle = rawClient ? `${rawClient} - ${templateTitle}` : safeFileName;
+          const fileDoc = {
+            name: docCustomTitle,
+            originalFileName: fullFileName,
+            description: `Generated and downloaded from ${templateTitle} template`,
+            folderId: targetFolderId,
+            size: pdfBlob.size,
+            type: 'application/pdf',
+            url: r2Result.url,
+            r2Key: r2Result.key,
+            templateId: config?.id || 'happy_moves_quotation',
+            templateName: templateTitle,
+            formData: formData ? JSON.parse(JSON.stringify(formData)) : {},
+            textData: textData ? JSON.parse(JSON.stringify(textData)) : null,
+            updatedAt: serverTimestamp()
+          };
+
+          if (fileDocId) {
+            // Update existing document file record
+            await updateDoc(doc(db, `userData/${targetCompanyId}/documentFiles`, fileDocId), fileDoc);
+          } else {
+            // Create new document file record
+            fileDoc.uploadedAt = serverTimestamp();
+            fileDoc.uploadedBy = user?.uid || 'system';
+            fileDoc.uploadedByName = user?.displayName || user?.email || 'System';
+
+            const createdRef = await addDoc(collection(db, `userData/${targetCompanyId}/documentFiles`), fileDoc);
+            if (onSavedFileDocId) {
+              onSavedFileDocId(createdRef.id);
+            }
+          }
+
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: `Saved to "${templateTitle}" folder!`,
+            showConfirmButton: false,
+            timer: 3000
+          });
+        } catch (storageErr) {
+          console.error('Error auto-saving document to folder in Documents:', storageErr);
+        }
+      }
     } catch (err) {
       console.error('Error generating PDF:', err);
       Swal.fire({

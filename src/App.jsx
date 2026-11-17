@@ -150,6 +150,7 @@ function App() {
           <Route path="reimbursements" element={<Reimbursements />} />
           <Route path="documents" element={<Documents />} />
           <Route path="documents/create/:docId" element={<DocumentForm />} />
+          <Route path="documents/edit/:fileDocId" element={<DocumentForm />} />
           <Route path="other-data" element={<OtherData />} />
           <Route path="settings" element={<Settings />} />
           <Route path="ad-settings" element={<AdSettings />} />

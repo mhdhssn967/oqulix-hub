@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Plus, X } from 'lucid
 import Swal from 'sweetalert2';
 import DocumentPreview from '../components/DocumentPreview';
 import DocumentTextEditor from '../components/DocumentTextEditor';
+import { useAuthStore } from '../store/authStore';
 
 // We dynamically import the configuration. In a real app with many forms, this might be a dynamic fetch.
 import happyMovesQuotation from '../config/forms/happy_moves_quotation.json';
@@ -15,21 +16,40 @@ const formConfigs = {
 };
 
 export default function DocumentForm() {
-  const { docId } = useParams();
+  const { docId, fileDocId } = useParams();
   const navigate = useNavigate();
+  const { companyId } = useAuthStore();
   const [config, setConfig] = useState(null);
   const [formData, setFormData] = useState({});
   const [textData, setTextData] = useState(null);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState('details'); // details, editor, preview
+  const [currentFileDocId, setCurrentFileDocId] = useState(fileDocId || null);
 
-  // We assume user ID is hardcoded for clients query based on previous codebase patterns
-  const userId = 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
+  // Fallback company/user ID
+  const targetCompanyId = companyId || 'SbHx5KAgBiXpEYIFyT4ht53alFz1';
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      const selectedConfig = formConfigs[docId];
+    const fetchConfigAndData = async () => {
+      let resolvedDocId = docId;
+      let existingDocData = null;
+
+      // If opening an existing document file for editing
+      if (fileDocId) {
+        try {
+          const fileDocRef = doc(db, `userData/${targetCompanyId}/documentFiles`, fileDocId);
+          const fileSnap = await getDoc(fileDocRef);
+          if (fileSnap.exists()) {
+            existingDocData = fileSnap.data();
+            resolvedDocId = existingDocData.templateId || 'happy_moves_quotation';
+          }
+        } catch (err) {
+          console.error('Error fetching document record for edit:', err);
+        }
+      }
+
+      const selectedConfig = formConfigs[resolvedDocId] || formConfigs['happy_moves_quotation'];
       if (!selectedConfig) {
         Swal.fire('Error', 'Form configuration not found!', 'error');
         navigate('/documents');
@@ -58,13 +78,23 @@ export default function DocumentForm() {
           }
         });
       });
-      setFormData(initialData);
+
+      // If we have saved customizations from an existing document, merge them in
+      if (existingDocData && existingDocData.formData) {
+        setFormData({ ...initialData, ...existingDocData.formData });
+      } else {
+        setFormData(initialData);
+      }
+
+      if (existingDocData && existingDocData.textData) {
+        setTextData(existingDocData.textData);
+      }
 
       // Check if we need to load clients
       const needsClients = selectedConfig.groups.some(g => g.fields.some(f => f.source === 'clients'));
       if (needsClients) {
         try {
-          const leadsRef = collection(db, 'userData', userId, 'segments', 'happymoves', 'crmData', 'leads', 'items');
+          const leadsRef = collection(db, 'userData', targetCompanyId, 'segments', 'happymoves', 'crmData', 'leads', 'items');
           const snap = await getDocs(leadsRef);
           if (!snap.empty) {
             const items = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -81,8 +111,8 @@ export default function DocumentForm() {
       }
       setLoading(false);
     };
-    fetchConfig();
-  }, [docId, navigate]);
+    fetchConfigAndData();
+  }, [docId, fileDocId, targetCompanyId, navigate]);
 
   const handleInputChange = (fieldId, value) => {
     setFormData(prev => {
@@ -302,7 +332,14 @@ export default function DocumentForm() {
         <div className="px-4 sm:px-8 pt-8">
           {renderStepper()}
         </div>
-        <DocumentPreview config={config} formData={formData} textData={textData} onBack={() => setStep('editor')} />
+        <DocumentPreview 
+          config={config} 
+          formData={formData} 
+          textData={textData} 
+          onBack={() => setStep('editor')}
+          fileDocId={currentFileDocId}
+          onSavedFileDocId={(newId) => setCurrentFileDocId(newId)}
+        />
       </div>
     );
   }

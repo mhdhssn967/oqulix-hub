@@ -111,6 +111,13 @@ export default function Documents() {
   const [editingDoc, setEditingDoc] = useState(null);
   const [editDocName, setEditDocName] = useState('');
 
+  // Edit Folder Modal State
+  const [editingFolder, setEditingFolder] = useState(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [editFolderDesc, setEditFolderDesc] = useState('');
+  const [editFolderColor, setEditFolderColor] = useState('amber');
+  const [isSubmittingEditFolder, setIsSubmittingEditFolder] = useState(false);
+
   // Fetch Folders & Documents
   const fetchData = async () => {
     if (!companyId) return;
@@ -261,6 +268,51 @@ export default function Documents() {
       Swal.fire('Error', 'Failed to create folder.', 'error');
     } finally {
       setIsSubmittingFolder(false);
+    }
+  };
+
+  // Open Edit Folder Modal
+  const handleOpenEditFolder = (e, folder) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setEditingFolder(folder);
+    setEditFolderName(folder.name || '');
+    setEditFolderDesc(folder.description || '');
+    setEditFolderColor(folder.color || 'amber');
+  };
+
+  // Submit Edit Folder (Name, Description, Color)
+  const handleUpdateFolder = async (e) => {
+    e.preventDefault();
+    if (!editingFolder || !editFolderName.trim() || !companyId) return;
+
+    setIsSubmittingEditFolder(true);
+    try {
+      const folderRef = doc(db, `userData/${companyId}/documentFolders`, editingFolder.id);
+      const updates = {
+        name: editFolderName.trim(),
+        description: editFolderDesc.trim(),
+        color: editFolderColor,
+        updatedAt: serverTimestamp()
+      };
+
+      await updateDoc(folderRef, updates);
+
+      setFolders(prev => prev.map(f => f.id === editingFolder.id ? { ...f, ...updates } : f));
+      setEditingFolder(null);
+
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'Folder updated successfully',
+        showConfirmButton: false,
+        timer: 2000
+      });
+    } catch (err) {
+      console.error('Failed to update folder:', err);
+      Swal.fire('Error', 'Failed to update folder.', 'error');
+    } finally {
+      setIsSubmittingEditFolder(false);
     }
   };
 
@@ -691,13 +743,22 @@ export default function Documents() {
                         <div className="p-3 rounded-xl bg-white/90 border border-black/5 shadow-xs">
                           <Folder className={`w-7 h-7 ${colorScheme.icon}`} fill={colorScheme.fill} />
                         </div>
-                        <button 
-                          onClick={(e) => handleDeleteFolder(e, folder)}
-                          title="Delete Folder"
-                          className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={(e) => handleOpenEditFolder(e, folder)}
+                            title="Edit Folder"
+                            className="p-1.5 text-zinc-400 hover:text-black hover:bg-white rounded-lg transition-all cursor-pointer"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={(e) => handleDeleteFolder(e, folder)}
+                            title="Delete Folder"
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 hover:bg-white rounded-lg transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="mt-4">
@@ -736,6 +797,16 @@ export default function Documents() {
                   <span className="text-[11px] font-black bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
                     {currentDocuments.length}
                   </span>
+                  {currentFolder && (
+                    <button
+                      onClick={(e) => handleOpenEditFolder(e, currentFolder)}
+                      title="Edit Current Folder"
+                      className="ml-1 inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-zinc-600 hover:text-black bg-zinc-100 hover:bg-zinc-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>Edit Folder</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -831,6 +902,17 @@ export default function Documents() {
 
                               <td className="px-5 py-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
+                                  {/* If generated from a template or contains template formData, allow full field re-editing */}
+                                  {(docItem.templateId || docItem.formData) && (
+                                    <button
+                                      onClick={() => navigate(`/documents/edit/${docItem.id}`)}
+                                      title="Edit Document Fields & Quotation"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-900 text-white rounded-lg text-[11px] font-semibold hover:bg-black transition-colors cursor-pointer mr-1 shadow-xs"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                      <span>Edit</span>
+                                    </button>
+                                  )}
                                   <button
                                     onClick={() => {
                                       setEditingDoc(docItem);
@@ -839,7 +921,7 @@ export default function Documents() {
                                     title="Rename Document"
                                     className="p-1.5 text-zinc-400 hover:text-black hover:bg-zinc-100 rounded-lg transition-colors cursor-pointer"
                                   >
-                                    <Edit2 className="w-4 h-4" />
+                                    <FileText className="w-4 h-4" />
                                   </button>
                                   <a 
                                     href={docItem.url}
@@ -1179,6 +1261,103 @@ export default function Documents() {
                 >
                   {isSubmittingFolder && <Loader2 className="w-4 h-4 animate-spin text-white" />}
                   <span>{newFolderParentId ? 'Create Subfolder' : 'Create Folder'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Folder Modal */}
+      {editingFolder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between p-5 border-b border-zinc-100 bg-zinc-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-black text-white rounded-xl">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-zinc-900">
+                    Edit Folder
+                  </h3>
+                  <p className="text-[12px] text-zinc-500">
+                    Update folder name, description, and color
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingFolder(null)}
+                className="text-zinc-400 hover:text-black transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateFolder} className="p-6 space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase mb-1.5">
+                  Folder Name *
+                </label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="e.g. Legal Contracts, Client Proposals"
+                  value={editFolderName}
+                  onChange={(e) => setEditFolderName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] font-medium outline-none focus:border-black focus:bg-white transition-all"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase mb-1.5">
+                  Description (Optional)
+                </label>
+                <input 
+                  type="text"
+                  placeholder="e.g. Storage for signed company agreements"
+                  value={editFolderDesc}
+                  onChange={(e) => setEditFolderDesc(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-[13px] outline-none focus:border-black focus:bg-white transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-700 uppercase mb-1.5">
+                  Folder Color Accent
+                </label>
+                <div className="flex items-center gap-2.5 pt-1">
+                  {FOLDER_COLORS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setEditFolderColor(c.id)}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform cursor-pointer ${
+                        editFolderColor === c.id ? 'ring-2 ring-black scale-110 shadow-sm' : 'hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: c.fill, borderColor: c.border.split(' ')[0] }}
+                      title={c.id}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2.5 border-t border-zinc-100">
+                <button 
+                  type="button"
+                  onClick={() => setEditingFolder(null)}
+                  className="px-4 py-2 text-[13px] font-semibold text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmittingEditFolder}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-black text-white rounded-xl text-[13px] font-bold hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingEditFolder && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
